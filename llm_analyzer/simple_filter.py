@@ -176,5 +176,5 @@ class SimpleFilter:
 
     def dump(self, callsite_key: str, fp_set: Set[str]):
         file = open(self.log_file, 'a', encoding='utf-8')
-        file.write(f"{callsite_key}|{','.join(fp_set)}")
+        file.write(f"{callsite_key}|{','.join(fp_set)}\n")
         file.close()
