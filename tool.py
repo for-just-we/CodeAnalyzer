@@ -81,8 +81,7 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
 
 class ProjectAnalyzer:
     def __init__(self, project_included_func_file: str, icall_infos_file: str, project_root: str,
-                 args, cache_dir: str, project: str,
-                 only_compiled: bool=False, only_refered: bool=False, hard_match: bool=False,
+                 args, cache_dir: str, project: str, groups: List[Tuple[bool, bool]]
                  ):
         if not (os.path.exists(project_included_func_file)
                 and os.path.exists(icall_infos_file)
@@ -95,13 +94,11 @@ class ProjectAnalyzer:
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = infos[0]
         self.ground_truths: DefaultDict[str, Set[str]] = infos[1]
         self.project_root: str = project_root
-        self.only_compiled: bool = only_compiled
-        self.only_refered: bool = only_refered
-        self.hard_match: bool = hard_match
         self.stage: int = args.stage
         self.cache_dir = cache_dir
         self.args = args
         self.project = project
+        self.groups: List[Tuple[bool, bool]] = groups
 
     def prepare_llm(self, simple_filter):
         if self.args.llm == "codellama":
@@ -162,32 +159,53 @@ class ProjectAnalyzer:
             arg_2_declarator[func_key] = func_info.name_2_declarator_text
 
         # 开始签名匹配
-        icall_sig_matcher: ICallSigMatcher = ICallSigMatcher(self.icall_dict, refered_func_names, func_info_dict,
-                                               global_visitor, self.hard_match, self.only_refered)
-        icall_sig_matcher.build_basic_info()
-        icall_sig_matcher.build_ori_param_types_4_funcs()
-        icall_sig_matcher.process_all()
+        group_icall_sig_matcher: List[ICallSigMatcher] = list()
+        for group in self.groups:
+            icall_sig_matcher: ICallSigMatcher = ICallSigMatcher(self.icall_dict, refered_func_names, func_info_dict,
+                                               global_visitor, group[0], group[1])
+            icall_sig_matcher.build_basic_info()
+            icall_sig_matcher.build_ori_param_types_4_funcs()
+            icall_sig_matcher.process_all()
+            group_icall_sig_matcher.append(icall_sig_matcher)
 
-        # 初始化simple过滤器
-        simple_filter: SimpleFilter = SimpleFilter(local_var_2_declarator, arg_2_declarator,
+        return group_icall_sig_matcher, SimpleFilter(local_var_2_declarator, arg_2_declarator,
                                                    func_key_2_declarator,
                                                    func_key_2_name,
                                                    global_visitor.global_var_2_declarator_text,
-                                                   icall_sig_matcher,
+                                                   group_icall_sig_matcher[0],
                                                    global_visitor.macro_defs,
                                                    self.args,
                                                    self.project)
-        return icall_sig_matcher, simple_filter
 
     def simple_llm_filter(self, simple_filter: SimpleFilter):
         simple_filter.visit_all_callsites()
+        fp_dict: Dict[str, Set[str]] = dict()
+        for line in open(simple_filter.log_file, 'r', encoding='utf-8'):
+            if line == '\n':
+                continue
+            line = line.strip()
+            callsite_key, fp_func_keys = line.split('|')
+            fp_dict[callsite_key] = set(fp_func_keys.split(','))
+        return fp_dict
 
     def evaluate(self):
-        icall_sig_matcher, simple_filter = self.analyze_c_files_sig_match()
+        group_icall_sig_matcher, simple_filter = self.analyze_c_files_sig_match()
         if self.stage == 1:
-            icall_2_targets: Dict[str, Set[str]] = icall_sig_matcher.callees
-            P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
-            return P, R, F1
+            logging.info("result of project, Precision, Recall, F1 is:")
+            for group, icall_sig_matcher in zip(self.groups, group_icall_sig_matcher):
+                icall_2_targets: Dict[str, Set[str]] = icall_sig_matcher.callees
+                P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
+                logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
+                             f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+            return
         self.prepare_llm(simple_filter)
-        self.simple_llm_filter(simple_filter)
-        return 0, 0, 0
+        fp_dict = self.simple_llm_filter(simple_filter)
+        logging.info("result of project on step 2, Precision, Recall, F1 is:")
+        for group, icall_sig_matcher in zip(self.groups, group_icall_sig_matcher):
+            icall_2_targets: Dict[str, Set[str]] = icall_sig_matcher.callees
+            new_icall_2_targets: Dict[str, Set[str]] = dict()
+            for callsite_key, targets in icall_2_targets.items():
+                new_icall_2_targets[callsite_key] = targets - fp_dict[callsite_key]
+            P, R, F1 = evaluate(new_icall_2_targets, self.ground_truths)
+            logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
+                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")

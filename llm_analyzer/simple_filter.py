@@ -9,6 +9,16 @@ import os
 
 from llm_analyzer.llm_analyzers.base_analyzer import BaseLLMAnalyzer
 
+# 读取已经分析过的callsite，避免重复分析
+def extract_callsite_key(log_file: str):
+    callsite_keys = set()
+    for line in open(log_file, 'r', encoding='utf-8'):
+        if line == '\n':
+            continue
+        callsite_key = line.split('|')[0]
+        callsite_keys.add(callsite_key)
+    return callsite_key
+
 class SimpleFilter:
     def __init__(self, local_var_2_declarator: Dict[str, Dict[str, str]],
                  arg_2_declarator: Dict[str, Dict[str, str]],
@@ -25,8 +35,17 @@ class SimpleFilter:
         self.arg_2_declarator: Dict[str, Dict[str, str]] = arg_2_declarator
         self.func_key_2_declarator: Dict[str, str] = func_key_2_declarator
         self.global_var_2_declarator: Dict[str, str] = global_var_2_declarator
+        self.project = project
         # 将indirect-callsite映射为function key集合
+        # 不重复分析
         self.callees: Dict[str, Set[str]] = icall_sig_matcher.callees
+        root_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+        self.log_file = f"{root_path}/experimental_logs/step2/{self.project}.txt"
+        if os.path.exists(self.log_file):
+            callsite_keys = extract_callsite_key(self.log_file)
+            self.callees = {key: value for key, value in self.callees.items()
+                            if key not in callsite_keys}
+
         # 将indirect-callsite-key映射为callsite文本
         self.icall_node: Dict[str, Node] = icall_sig_matcher.icall_nodes
         # 将indirect-call映射到所在函数
@@ -34,7 +53,6 @@ class SimpleFilter:
         self.llm_analyzer: BaseLLMAnalyzer = None
         self.args = args
         self.func_key2_name: Dict[str, str] = func_key_2_name
-        self.project = project
 
         self.macro_2_content: Dict[str, str] = macro_2_content
         self.macro_icall2_callexpr: Dict[str, str] = icall_sig_matcher.macro_icall2_callexpr
@@ -157,8 +175,6 @@ class SimpleFilter:
         return final_result
 
     def dump(self, callsite_key: str, fp_set: Set[str]):
-        root_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        file_path = f"{root_path}/experimental_logs/step2/{self.project}.txt"
-        file = open(file_path, 'a', encoding='utf-8')
+        file = open(self.log_file, 'a', encoding='utf-8')
         file.write(f"{callsite_key}|{','.join(fp_set)}")
         file.close()

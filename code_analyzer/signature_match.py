@@ -16,7 +16,7 @@ class ICallSigMatcher:
                  refered_funcs: Set[str],
                  func_info_dict: Dict[str, FuncInfo],
                  global_visitor: GlobalVisitor,
-                 hard_match: bool = False, only_refered: bool = False):
+                 only_refered: bool = False, hard_match: bool = False):
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict
         self.func_info_dict: Dict[str, FuncInfo] = func_info_dict
         self.type_alias_infos: Dict[str, str] = global_visitor.type_alias_infos

@@ -65,9 +65,9 @@ def main():
         logging.basicConfig(level=logging.INFO)
 
     if args.run_all_groups and args.stage == 1:
-        groups = [(0,0,0), (0,0,1), (0,1,0), (0,1,1)]
+        groups = [(False,False), (False,True), (True,False), (True,True)]
     else:
-        groups = [(int(args.only_compiled), int(args.only_refered), int(args.hard_match))]
+        groups = [(args.only_refered, args.hard_match)]
 
     # 打印项目参数的值
     for project in args.projects:
@@ -75,14 +75,11 @@ def main():
         project_included_func_file = os.path.join(root_path, "infos", "funcs", f"{project}.txt")
         icall_infos_file = os.path.join(root_path, "infos", "icall_infos", f"{project}.txt")
         project_root = os.path.join(root_path, "projects", project)
-        for group in groups:
-            project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args, model_cache_dir,
-                                               project, bool(group[0]), bool(group[1]), bool(group[2])
-                                               )
-            P, R, F1 = project_analyzer.evaluate()
-            logging.info("result of project, Precision, Recall, F1 is:")
-            logging.info(f"| {project}-{group[1]}{group[2]} "
-                  f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+        project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args, model_cache_dir,
+                                            project, groups
+                                            )
+        project_analyzer.evaluate()
+
 
 if __name__ == '__main__':
     main()
