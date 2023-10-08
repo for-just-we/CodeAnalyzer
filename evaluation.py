@@ -64,7 +64,7 @@ def main():
     else:
         logging.basicConfig(level=logging.INFO)
 
-    if args.run_all_groups and args.stage == 1:
+    if args.run_all_groups:
         groups = [(False,False), (False,True), (True,False), (True,True)]
     else:
         groups = [(args.only_refered, args.hard_match)]
