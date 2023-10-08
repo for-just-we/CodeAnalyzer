@@ -17,7 +17,7 @@ def extract_callsite_key(log_file: str):
             continue
         callsite_key = line.split('|')[0]
         callsite_keys.add(callsite_key)
-    return callsite_key
+    return callsite_keys
 
 class SimpleFilter:
     def __init__(self, local_var_2_declarator: Dict[str, Dict[str, str]],

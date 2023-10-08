@@ -192,3 +192,10 @@ project一栏的类型为 `{project_name}-{only_compiled}{only_refered}{hard_mat
 | librabbitmq-10 | 19.4 | 100.0 | 31.9 |
 | librabbitmq-11 | 19.4 | 100.0 | 31.9 |
 | <SEP> | <SEP> | <SEP> | <SEP> |
+
+
+step2
+
+| Project  | Precision(%) | Recall(%) | F1(%) |
+|----|----| ---- | ---- |
+| nginx-00 | 1.7 | 93.5 | 3.2 |
