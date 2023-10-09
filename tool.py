@@ -13,6 +13,7 @@ from code_analyzer.signature_match import ICallSigMatcher
 
 from llm_analyzer.simple_filter import SimpleFilter
 from llm_analyzer.llm_analyzers.codellama_analyzer import CodeLLamaAnalyzer
+from llm_analyzer.llm_analyzers.gpt_analyzer import GPTAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -81,7 +82,7 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
 
 class ProjectAnalyzer:
     def __init__(self, project_included_func_file: str, icall_infos_file: str, project_root: str,
-                 args, cache_dir: str, project: str, groups: List[Tuple[bool, bool]]
+                 args, cache_dir: str, project: str, groups: List[Tuple[bool, bool]], model_name: str
                  ):
         if not (os.path.exists(project_included_func_file)
                 and os.path.exists(icall_infos_file)
@@ -95,10 +96,12 @@ class ProjectAnalyzer:
         self.ground_truths: DefaultDict[str, Set[str]] = infos[1]
         self.project_root: str = project_root
         self.stage: int = args.stage
-        self.cache_dir = cache_dir
+        self.cache_dir: str = cache_dir
         self.args = args
-        self.project = project
+        self.project: str = project
         self.groups: List[Tuple[bool, bool]] = groups
+        self.model_name = model_name
+
 
     def prepare_llm(self, simple_filter):
         if self.args.llm == "codellama":
@@ -107,6 +110,10 @@ class ProjectAnalyzer:
                                                   self.args.max_try_time,
                                                   self.args.func_num_per_batch,
                                                   self.args.batch_size)
+        elif self.args.llm == "gpt":
+            simple_filter.llm_analyzer = GPTAnalyzer(self.args.key, self.args.model_type,
+                                                     self.args.func_num_per_batch)
+
 
     def analyze_c_files_sig_match(self):
         c_h_files = []
@@ -175,7 +182,8 @@ class ProjectAnalyzer:
                                                    group_icall_sig_matcher[0],
                                                    global_visitor.macro_defs,
                                                    self.args,
-                                                   self.project)
+                                                   self.project,
+                                                self.model_name)
 
     def simple_llm_filter(self, simple_filter: SimpleFilter):
         simple_filter.visit_all_callsites()

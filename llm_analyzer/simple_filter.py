@@ -28,7 +28,8 @@ class SimpleFilter:
                  icall_sig_matcher: ICallSigMatcher,
                  macro_2_content: Dict[str, str],
                  args,
-                 project: str):
+                 project: str,
+                 model_name: str):
         # 将func_key映射为variable name的declarator text
         self.local_var_2_declarator: Dict[str, Dict[str, str]] = local_var_2_declarator
         # 将func_key映射为arg的declarator text
@@ -40,7 +41,7 @@ class SimpleFilter:
         # 不重复分析
         self.callees: Dict[str, Set[str]] = icall_sig_matcher.callees
         root_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        self.log_file = f"{root_path}/experimental_logs/step2/{self.project}.txt"
+        self.log_file = f"{root_path}/experimental_logs/step2/{self.project}-{model_name}.txt"
         if os.path.exists(self.log_file):
             callsite_keys = extract_callsite_key(self.log_file)
             self.callees = {key: value for key, value in self.callees.items()

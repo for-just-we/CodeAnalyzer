@@ -7,16 +7,22 @@ import logging
 
 def add_subparser(parser: argparse.ArgumentParser):
     subparsers = parser.add_subparsers(dest='llm')
+    parser.add_argument('--func_num_per_batch', type=int, default=10)
+    parser.add_argument('--batch_size', type=int, default=1)
+
     codellama_parser = subparsers.add_parser('codellama',
                                                help='using codellama model')
     codellama_parser.add_argument('--model_type', type=str, choices=['7b-Instruct', '13b-Instruct'])
     codellama_parser.add_argument('--max_seq_len', type=int, default=1024)
-    codellama_parser.add_argument('--func_num_per_batch', type=int, default=10)
-    codellama_parser.add_argument('--batch_size', type=int, default=1)
+
     llama2_parser = subparsers.add_parser('llama2',
                                           help='using llama2 model')
     llama2_parser.add_argument('--model_type', type=str, choices=['7b-chat', '13b-chat'])
     llama2_parser.add_argument('--max_seq_len', type=int, default=1024)
+
+    gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')
+    gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4'])
+    gpt_parser.add_argument('--key', type=str, help='api key of openai')
 
 
 def build_arg_parser():
@@ -69,6 +75,13 @@ def main():
     else:
         groups = [(args.only_refered, args.hard_match)]
 
+    if args.llm == "codellama":
+        model_name = f"codellama-{args.model_type}"
+    elif args.llm == "gpt":
+        model_name = args.model_type
+    else:
+        model_name = ""
+
     # 打印项目参数的值
     for project in args.projects:
         logging.info(f"analyzing project: {project}")
@@ -76,8 +89,7 @@ def main():
         icall_infos_file = os.path.join(root_path, "infos", "icall_infos", f"{project}.txt")
         project_root = os.path.join(root_path, "projects", project)
         project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args, model_cache_dir,
-                                            project, groups
-                                            )
+                                            project, groups, model_name)
         project_analyzer.evaluate()
 
 
