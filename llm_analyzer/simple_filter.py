@@ -41,7 +41,10 @@ class SimpleFilter:
         # 不重复分析
         self.callees: Dict[str, Set[str]] = icall_sig_matcher.callees
         root_path = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-        self.log_file = f"{root_path}/experimental_logs/step2/{self.project}-{model_name}.txt"
+        log_dir = f"{root_path}/experimental_logs/step2/{model_name}"
+        if not os.path.exists(log_dir):
+            os.mkdir(log_dir)
+        self.log_file = f"{log_dir}/{self.project}.txt"
         if os.path.exists(self.log_file):
             callsite_keys = extract_callsite_key(self.log_file)
             self.callees = {key: value for key, value in self.callees.items()
@@ -96,7 +99,7 @@ class SimpleFilter:
         total_callee_num = len(self.callees.keys())
         fp_dict: DefaultDict[str, Set[str]] = defaultdict(set)
         for i, callsite_key in enumerate(self.callees.keys()):
-            logging.info("visiting {}/{} icall".format(i + 1, total_callee_num))
+            logging.info("visiting {}/{} icall".format(i + 1, total_calrenamelee_num))
             fp_set: Set[str] = self.visit_callsite(callsite_key, i + 1, total_callee_num)
             fp_dict[callsite_key] = fp_set
             self.dump(callsite_key, fp_set)
