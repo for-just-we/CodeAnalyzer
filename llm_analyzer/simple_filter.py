@@ -99,7 +99,7 @@ class SimpleFilter:
         total_callee_num = len(self.callees.keys())
         fp_dict: DefaultDict[str, Set[str]] = defaultdict(set)
         for i, callsite_key in enumerate(self.callees.keys()):
-            logging.info("visiting {}/{} icall".format(i + 1, total_calrenamelee_num))
+            logging.info("visiting {}/{} icall".format(i + 1, total_callee_num))
             fp_set: Set[str] = self.visit_callsite(callsite_key, i + 1, total_callee_num)
             fp_dict[callsite_key] = fp_set
             self.dump(callsite_key, fp_set)
