@@ -2,6 +2,7 @@ import json
 import logging
 import re
 from typing import Dict, List
+from enum import IntEnum
 
 json_pattern = r"\{[^{}]*\}"
 
@@ -23,6 +24,20 @@ def get_json_result(input_string) -> Dict[str, str]:
         except json.JSONDecodeError:
             logging.info("json parsing error")
     return json_datas
+
+class Answer(IntEnum):
+    yes = 1
+    uncertain = 2
+    no = 3
+
+def get_final_answer(input: str):
+    if "yes" in input.lower():
+        return Answer.yes
+    elif "uncertain" in input.lower():
+        return Answer.uncertain
+    elif "no" in input.lower():
+        return Answer.no
+    return Answer.uncertain
 
 def batch_dict(dict_to_batch: Dict[str, str], num_per_batch: int) -> List[Dict[str, str]]:
     dict_list = list(dict_to_batch.items())  # 将字典转换为包含键值对元组的列表

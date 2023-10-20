@@ -1,9 +1,9 @@
 import logging
 import openai
 from llm_analyzer.llm_analyzers.base_analyzer import BaseLLMAnalyzer
-from llm_analyzer.llm_prompts.llama_prompt import SystemPrompt1, UserPrompt1, \
-    SystemPrompt2, UserPrompt2, SystemPrompt1_, UserPrompt1_
-from llm_analyzer.parse_util import get_json_result
+from llm_analyzer.llm_prompts.gpt_prompt import SystemPrompt1, UserPrompt1, \
+    UserPrompt2, SystemPrompt1_, UserPrompt1_
+from llm_analyzer.parse_util import get_final_answer, Answer
 from typing import List, Dict
 
 class GPTAnalyzer(BaseLLMAnalyzer):
@@ -36,44 +36,48 @@ class GPTAnalyzer(BaseLLMAnalyzer):
             return ""
         return response.choices[0]["message"]["content"]
 
-    def analyze_function_declarators(self, icall_context: List[str],
-                                     func_name2declarator: Dict[str, str]) -> Dict[str, str]:
-        remaining_func = set(func_name2declarator.keys())
+    # 一个个处理
+    def analyze_function_declarator(self, icall_context: List[str],
+                                    func_name: str, func_declarator: str) -> bool:
         dialog1 = [{"role": "system",
                   "content": SystemPrompt1},
                  {"role": "user",
                   "content": UserPrompt1.format(icall_context[-1], "\n".join(icall_context),
-                                                "\n\n".join(func_name2declarator.values()))}]
+                                                "\n\n".join(func_declarator))}]
         content1: str = self.get_openai_response(dialog1)
+        count = 0
+        while content1 == "":
+            if count == 3:
+                return True
+            content1 = self.get_openai_response(dialog1)
+            count += 1
         logging.debug("raw content1: {}".format(content1))
-        dialog2 = [{"role": "system", "content": SystemPrompt2},
-                    {"role": "user", "content": UserPrompt2.format(content1)}]
+        dialog2 = [{"role": "user", "content": UserPrompt2.format(content1)}]
         content2: str = self.get_openai_response(dialog2)
         logging.debug("raw content2: {}".format(content2))
         logging.debug("=======================")
-        json_items: Dict[str, str] = get_json_result(content2)
-        json_result: Dict[str, str] = {key: value for key, value in json_items.items() if
-                        key in remaining_func}
-        return json_result
+        answer: Answer = get_final_answer(content2)
+        # yes/uncertain返回1，no返回0
+        return answer != Answer.no
 
     def analyze_function_declarators_4_macro_call(self, icall_context: List[str],
-                                     func_name2declarator: Dict[str, str],
-                                     macro_content: str) -> Dict[str, str]:
-        remaining_func = set(func_name2declarator.keys())
+                                                  func_name: str, func_declarator: str,
+                                     macro_content: str) -> bool:
         dialog1 = [{"role": "system", "content": SystemPrompt1_},
                    {"role": "user", "content": UserPrompt1_.format(icall_context[-1], macro_content, "\n".join(icall_context)
-                                                ,"\n\n".join(func_name2declarator.values()))}]
+                                                ,"\n\n".join(func_declarator))}]
         content1: str = self.get_openai_response(dialog1)
-        # 不浪费api key了
-        if content1 == "":
-            return {}
-        dialog2 = [{"role": "system",
-                  "content": SystemPrompt2},
-                   {"role": "user",
+        # 不浪费api key了，这个answer不确定
+        # 如果连续3次访问错误，跳过这个函数的查询
+        count = 0
+        while content1 == "":
+            if count == 3:
+                return True
+            content1 = self.get_openai_response(dialog1)
+            count += 1
+        dialog2 = [{"role": "user",
                      "content": UserPrompt2.format(content1)}]
         content2: str = self.get_openai_response(dialog2)
 
-        json_items: Dict[str, str] = get_json_result(content2)
-        json_result: Dict[str, str] = {key: value for key, value in json_items.items() if
-                                       key in remaining_func}
-        return json_result
+        answer: Answer = get_final_answer(content2)
+        return answer != Answer.no

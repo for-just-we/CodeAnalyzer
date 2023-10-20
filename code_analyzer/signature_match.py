@@ -2,13 +2,15 @@ from typing import Dict, List, DefaultDict, Tuple, Set
 from collections import defaultdict
 from tqdm import tqdm
 import logging
-
 from tree_sitter import Node
+
 from code_analyzer.visit_utils.base_util import loc_inside
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_visitor import FunctionBodyVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor
+
+from scope_strategy.base_strategy import BaseStrategy
 
 # 完成Step 1
 class ICallSigMatcher:
@@ -16,7 +18,8 @@ class ICallSigMatcher:
                  refered_funcs: Set[str],
                  func_info_dict: Dict[str, FuncInfo],
                  global_visitor: GlobalVisitor,
-                 only_refered: bool = False, hard_match: bool = False):
+                 only_refered: bool = False, hard_match: bool = False,
+                 scope_strategy: BaseStrategy = None):
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict
         self.func_info_dict: Dict[str, FuncInfo] = func_info_dict
         self.type_alias_infos: Dict[str, str] = global_visitor.type_alias_infos
@@ -50,14 +53,16 @@ class ICallSigMatcher:
         self.icall_nodes: Dict[str, Node] = dict()
         # 保存每个indirect-callsite所在的function
         self.icall_2_func: Dict[str, str] = dict()
+        # scope策略
+        self.scope_strategy: BaseStrategy = scope_strategy
 
     # 构建查询结构
     def build_basic_info(self):
-        considered_funcs: Set[str] = set(self.func_info_dict.keys())
+        self.considered_funcs: Set[str] = set(self.func_info_dict.keys())
         if self.only_refered:
-            considered_funcs = set(filter(lambda func_key: self.func_info_dict[func_key].func_name
-                                          in self.refered_funcs, considered_funcs))
-        for func_key in tqdm(considered_funcs, desc="building busic parameter infos"):
+            self.considered_funcs = set(filter(lambda func_key: self.func_info_dict[func_key].func_name
+                                          in self.refered_funcs, self.considered_funcs))
+        for func_key in tqdm(self.considered_funcs, desc="building busic parameter infos"):
             func_info = self.func_info_dict.get(func_key)
             # 处理可变参数函数
             if func_info.var_arg:
@@ -99,7 +104,12 @@ class ICallSigMatcher:
             self.icall_2_func[callsite_key] = func_key
             # 当前调用为宏函数，考虑所有的函数
             if icall_loc in func_body_visitor.current_macro_funcs.keys():
-                self.callees[callsite_key] = set(self.func_info_dict.keys())
+                considered_func_keys = self.considered_funcs
+                if self.scope_strategy is not None:
+                    considered_func_keys = set(filter(lambda func_key:
+                                               self.scope_strategy.analyze_key(callsite_key, func_key),
+                                               considered_func_keys))
+                self.callees[callsite_key] = considered_func_keys
                 self.macro_icall2_callexpr[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
                 continue
             arg_type: List[Tuple[str, int]] = \
@@ -122,33 +132,33 @@ class ICallSigMatcher:
                                                     self.type_alias_infos))
         func_set: Set[str] = set()
 
+        def process_func_set(func_keys: Set[str],
+                             cur_fixed_arg_type: List[Tuple[str, int]]):
+            new_func_keys = func_keys.copy()
+            if self.scope_strategy is not None:
+                new_func_keys = set(filter(lambda func_key:
+                                           self.scope_strategy.analyze_key(callsite_key, func_key),
+                                           new_func_keys))
+            if not self.hard_match:
+                func_set.update(new_func_keys)
+            else:
+                for func_key in new_func_keys:
+                    # 函数形参类型
+                    param_types: List[Tuple[str, int]] = self.param_types.get(func_key)
+                    flag = self.match_types(cur_fixed_arg_type, param_types)
+                    # 如果匹配成功
+                    if flag:
+                        func_set.add(func_key)
+
         # 遍历固定参数数量的函数列表
         fixed_num_func_keys: Set[str] = self.param_nums_2_func_keys.get(arg_num, {})
-        # easy match模式，只匹配参数数量
-        if not self.hard_match:
-            func_set.update(fixed_num_func_keys)
-        else:
-            for func_key in fixed_num_func_keys:
-                # 函数形参类型
-                param_types: List[Tuple[str, int]] = self.param_types.get(func_key)
-                flag = self.match_types(fixed_arg_type, param_types)
-                # 如果匹配成功
-                if flag:
-                    func_set.add(func_key)
+        process_func_set(fixed_num_func_keys, fixed_arg_type)
 
         # 遍历可变参数函数列表
         for param_num, func_keys in self.var_arg_param_nums_2_func_keys.items():
             # 可能被调用
             if param_num <= arg_num:
-                if not self.hard_match:
-                    func_set.update(func_keys)
-                else:
-                    for func_key in func_keys:
-                        param_types: List[Tuple[str, int]] = self.param_types.get(func_key)
-                        flag = self.match_types(fixed_arg_type[: param_num], param_types)
-                        # 如果匹配成功
-                        if flag:
-                            func_set.add(func_key)
+                process_func_set(func_keys, fixed_arg_type[: param_num])
 
         self.callees[callsite_key] = func_set
 

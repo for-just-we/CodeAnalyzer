@@ -6,13 +6,14 @@ from tree_sitter import Tree
 import numpy as np
 import logging
 
+from scope_strategy.base_strategy import BaseStrategy
+
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisitor, LocalFunctionRefVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
 from code_analyzer.signature_match import ICallSigMatcher
 
 from llm_analyzer.simple_filter import SimpleFilter
-from llm_analyzer.llm_analyzers.codellama_analyzer import CodeLLamaAnalyzer
 from llm_analyzer.llm_analyzers.gpt_analyzer import GPTAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
@@ -79,10 +80,38 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
 
     return (P, R, F1)
 
+def evaluate_binary(ground_truths: Dict[str, Set[str]],
+                    icall_sig_matcher_targets: Dict[str, Set[str]],
+                    fp_dict: Dict[str, Set[str]]):
+    TP = 0
+    TN = 0
+    FP = 0
+    FN = 0
+    for callsite_key in ground_truths.keys():
+        if callsite_key not in icall_sig_matcher_targets.keys():
+            continue
+        matched_func_keys: Set[str] = icall_sig_matcher_targets[callsite_key]
+
+        label_t_keys = matched_func_keys & ground_truths[callsite_key]
+        label_f_keys = matched_func_keys - ground_truths[callsite_key]
+        predicted_f_keys = fp_dict.get(callsite_key, set())
+        predicted_t_keys = matched_func_keys - predicted_f_keys
+
+        TP += len(label_t_keys & predicted_t_keys)
+        TN += len(label_f_keys & predicted_f_keys)
+        FP += len(label_f_keys & predicted_t_keys)
+        FN += len(label_t_keys & predicted_f_keys)
+
+        recall = TP / (TP + FN)
+        precision = TP / (TP + FP)
+        F1 = 2 * recall * precision / (recall + precision)
+
+        return (precision, recall, F1)
+
 
 class ProjectAnalyzer:
     def __init__(self, project_included_func_file: str, icall_infos_file: str, project_root: str,
-                 args, cache_dir: str, project: str, groups: List[Tuple[bool, bool]], model_name: str
+                 args, project: str, groups: List[Tuple[bool, bool]], model_name: str
                  ):
         if not (os.path.exists(project_included_func_file)
                 and os.path.exists(icall_infos_file)
@@ -96,7 +125,6 @@ class ProjectAnalyzer:
         self.ground_truths: DefaultDict[str, Set[str]] = infos[1]
         self.project_root: str = project_root
         self.stage: int = args.stage
-        self.cache_dir: str = cache_dir
         self.args = args
         self.project: str = project
         self.groups: List[Tuple[bool, bool]] = groups
@@ -104,15 +132,11 @@ class ProjectAnalyzer:
 
 
     def prepare_llm(self, simple_filter):
-        if self.args.llm == "codellama":
-            simple_filter.llm_analyzer = CodeLLamaAnalyzer(self.cache_dir, self.args.model_type,
-                                                  self.args.max_seq_len,
-                                                  self.args.max_try_time,
-                                                  self.args.func_num_per_batch,
-                                                  self.args.batch_size)
-        elif self.args.llm == "gpt":
+        if self.args.llm == "gpt":
             simple_filter.llm_analyzer = GPTAnalyzer(self.args.key, self.args.model_type,
                                                      self.args.func_num_per_batch)
+        else:
+            raise RuntimeError("unimplemented llm analyzer for {}".format(self.args.llm))
 
 
     def analyze_c_files_sig_match(self):
@@ -166,10 +190,14 @@ class ProjectAnalyzer:
             arg_2_declarator[func_key] = func_info.name_2_declarator_text
 
         # 开始签名匹配
+        if self.args.scope_strategy == "base":
+            scope_strategy = BaseStrategy()
+        else:
+            scope_strategy = None
         group_icall_sig_matcher: List[ICallSigMatcher] = list()
         for group in self.groups:
             icall_sig_matcher: ICallSigMatcher = ICallSigMatcher(self.icall_dict, refered_func_names, func_info_dict,
-                                               global_visitor, group[0], group[1])
+                                               global_visitor, group[0], group[1], scope_strategy)
             icall_sig_matcher.build_basic_info()
             icall_sig_matcher.build_ori_param_types_4_funcs()
             icall_sig_matcher.process_all()
@@ -217,3 +245,6 @@ class ProjectAnalyzer:
             P, R, F1 = evaluate(new_icall_2_targets, self.ground_truths)
             logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+            P_b, R_b, F1_b = evaluate_binary(self.ground_truths, icall_2_targets, fp_dict)
+            logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
+                         f"| {(P_b * 100):.1f} | {(R_b * 100):.1f} | {(F1_b * 100):.1f} |")

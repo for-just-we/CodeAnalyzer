@@ -10,20 +10,15 @@ def add_subparser(parser: argparse.ArgumentParser):
     parser.add_argument('--func_num_per_batch', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=1)
 
-    codellama_parser = subparsers.add_parser('codellama',
-                                               help='using codellama model')
-    codellama_parser.add_argument('--model_type', type=str, choices=['7b-Instruct', '13b-Instruct'])
-    codellama_parser.add_argument('--max_seq_len', type=int, default=1024)
-
-    llama2_parser = subparsers.add_parser('llama2',
-                                          help='using llama2 model')
-    llama2_parser.add_argument('--model_type', type=str, choices=['7b-chat', '13b-chat'])
-    llama2_parser.add_argument('--max_seq_len', type=int, default=1024)
-
     gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')
     gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4'])
     gpt_parser.add_argument('--key', type=str, help='api key of openai')
 
+    hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
+    hf_parser.add_argument('--ip', help='huggingface server ip, default to 127.0.0.1',
+                           default='127.0.0.1')
+    hf_parser.add_argument('--port', help='server port, default to 8888',
+                           default=8888)
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
@@ -50,7 +45,8 @@ def build_arg_parser():
                         help="run eight groups, ignore previous only_compiled, only_refered, hard_match functions")
     # 添加--project参数，并设置nargs='+'，以接受一个或多个值
     parser.add_argument("--projects", nargs='+', help="One or more projects to analyze")
-
+    parser.add_argument("--scope_strategy", type=str, choices=['no', 'base'], default='base',
+                        help='scope strategy to use')
     parser.add_argument("--max_try_time", type=int, default=5, help="max trying time for one llm query")
     add_subparser(parser)
     return parser
@@ -58,7 +54,6 @@ def build_arg_parser():
 def main():
     config_data: dict = yaml.safe_load(open("config.yaml", 'r', encoding='utf-8'))
     root_path: str = config_data['root']
-    model_cache_dir: str = config_data['cache_dir']
     parser = build_arg_parser()
     args = parser.parse_args()
     # 检查是否提供了项目参数
@@ -88,7 +83,7 @@ def main():
         project_included_func_file = os.path.join(root_path, "infos", "funcs", f"{project}.txt")
         icall_infos_file = os.path.join(root_path, "infos", "icall_infos", f"{project}.txt")
         project_root = os.path.join(root_path, "projects", project)
-        project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args, model_cache_dir,
+        project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args,
                                             project, groups, model_name)
         project_analyzer.evaluate()
 

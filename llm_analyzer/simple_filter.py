@@ -61,7 +61,6 @@ class SimpleFilter:
         self.macro_2_content: Dict[str, str] = macro_2_content
         self.macro_icall2_callexpr: Dict[str, str] = icall_sig_matcher.macro_icall2_callexpr
 
-
     def extract_decl_context(self, callsite_key: str) -> List[str]:
         call_expr: Node = self.icall_node.get(callsite_key)
         identifiers: List[str] = list()
@@ -112,71 +111,27 @@ class SimpleFilter:
             macro = self.macro_icall2_callexpr[callsite_key]
             macro_content = self.macro_2_content[macro]
         callee_targets: Set[str] = self.callees[callsite_key]
-        to_visit_targets: Set[str] = callee_targets.copy()
         fp_set: Set[str] = set()
-        visited: Set[str] = set()
-        unchanged: int = 0
         # callsite_text: str = self.icall_node[callsite_key].text.decode('utf8')
         declarator_context: List[str] = self.extract_decl_context(callsite_key)
-        while len(to_visit_targets) > 0:
-            # 剩下统统标记为uncertain
-            if unchanged >= self.args.max_try_time:
-                break
-            pre_length = len(visited)
-            group_target_key: Set[str] = set()
-            group_func_name: Set[str] = set()
-            group_func_name2key: Dict[str, str] = dict()
-            count = 0
-            for func_key in to_visit_targets:
-                if count >= (self.args.func_num_per_batch * self.args.batch_size):
-                    break
-                func_name = self.func_key2_name[func_key]
-                if func_name not in group_func_name:
-                    group_func_name2key[func_name] = func_key
-                    group_func_name.add(func_name)
-                    group_target_key.add(func_key)
-                    count += 1
-
+        for func_key in tqdm(callee_targets, desc="analayzing indirect-call for {}-th icall"
+                                                  ", total {} icalls".format(icall_idx, total_callee_num)):
+            if func_key not in self.func_key_2_declarator.keys():
+                continue
+            func_name = self.func_key2_name[func_key]
+            func_declarator = self.func_key_2_declarator[func_key]
             # 如果是宏函数调用
             if flag:
-                batch_result: Dict[str, str] = self.visit_group_targets_4_macro_call(
-                    declarator_context, group_target_key, macro_content
-                )
+                ans: bool = self.llm_analyzer.analyze_function_declarators_4_macro_call(
+                    declarator_context, func_name, func_declarator, macro_content)
             else:
-                batch_result: Dict[str, str] = self.visit_group_targets(
-                    declarator_context, group_target_key)
-            for func_name, res in batch_result.items():
-                visited.add(group_func_name2key[func_name])
-                if res == "no":
-                    fp_set.add(group_func_name2key[func_name])
-            if len(visited) == pre_length:
-                unchanged += 1
-            else:
-                unchanged = 0
-            to_visit_targets = to_visit_targets - visited
-            logging.debug("visiting {}/{} icall, callsite key: {}, remaining {} potential targets"
-                          .format(icall_idx, total_callee_num, callsite_key, len(to_visit_targets)))
+                ans: bool = self.llm_analyzer.analyze_function_declarator(
+                    declarator_context, func_name, func_declarator)
+            if not ans:
+                fp_set.add(func_key)
+
         return fp_set
 
-    def visit_group_targets(self, declarator_context: List[str],
-                            group_target_key: Set[str]) -> Dict[str, str]:
-        func_declarators: Dict[str, str] = {self.func_key2_name[func_key] : self.func_key_2_declarator[func_key] for func_key
-                                       in group_target_key}
-        final_result: Dict[str, str] = self.llm_analyzer.analyze_function_declarators(
-            declarator_context, func_declarators)
-        return final_result
-
-
-    def visit_group_targets_4_macro_call(self, declarator_context: List[str],
-                                         group_target_key: Set[str],
-                                         macro_content: str) -> Dict[str, str]:
-        func_declarators: Dict[str, str] = {self.func_key2_name[func_key]: self.func_key_2_declarator[func_key] for
-                                            func_key
-                                            in group_target_key}
-        final_result: Dict[str, str] = self.llm_analyzer.analyze_function_declarators_4_macro_call(
-            declarator_context, func_declarators, macro_content
-        )
-        return final_result
 
     def dump(self, callsite_key: str, fp_set: Set[str]):
         file = open(self.log_file, 'a', encoding='utf-8')
