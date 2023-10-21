@@ -48,6 +48,7 @@ def build_arg_parser():
     parser.add_argument("--scope_strategy", type=str, choices=['no', 'base'], default='base',
                         help='scope strategy to use')
     parser.add_argument("--max_try_time", type=int, default=5, help="max trying time for one llm query")
+    parser.add_argument("--num_worker", type=int, default=10, help="num worker used in sending request to llm")
     add_subparser(parser)
     return parser
 

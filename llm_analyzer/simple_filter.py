@@ -1,4 +1,6 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor, wait
+import threading
 
 from code_analyzer.signature_match import ICallSigMatcher
 from typing import Dict, Set, List, DefaultDict
@@ -60,6 +62,8 @@ class SimpleFilter:
 
         self.macro_2_content: Dict[str, str] = macro_2_content
         self.macro_icall2_callexpr: Dict[str, str] = icall_sig_matcher.macro_icall2_callexpr
+        # 线程数量
+        self.num_worker = args.num_worker
 
     def extract_decl_context(self, callsite_key: str) -> List[str]:
         call_expr: Node = self.icall_node.get(callsite_key)
@@ -114,12 +118,12 @@ class SimpleFilter:
         fp_set: Set[str] = set()
         # callsite_text: str = self.icall_node[callsite_key].text.decode('utf8')
         declarator_context: List[str] = self.extract_decl_context(callsite_key)
-        for func_key in tqdm(callee_targets, desc="analayzing indirect-call for {}-th icall"
-                                                  ", total {} icalls".format(icall_idx, total_callee_num)):
-            if func_key not in self.func_key_2_declarator.keys():
-                continue
-            func_name = self.func_key2_name[func_key]
-            func_declarator = self.func_key_2_declarator[func_key]
+        # 定义线程池
+        executor = ThreadPoolExecutor(max_workers=self.num_worker)
+        # 创建任务并提交给线程池
+        fp_set_lock = threading.Lock()
+
+        def worker(func_name: str, func_declarator: str, fp__set: Set[str]):
             # 如果是宏函数调用
             if flag:
                 ans: bool = self.llm_analyzer.analyze_function_declarators_4_macro_call(
@@ -128,8 +132,24 @@ class SimpleFilter:
                 ans: bool = self.llm_analyzer.analyze_function_declarator(
                     declarator_context, func_name, func_declarator)
             if not ans:
-                fp_set.add(func_key)
+                with fp_set_lock:
+                    fp__set.add(func_key)
 
+        pbar = tqdm(total=len(callee_targets), desc="analyzing calling relations for {}-th icall"
+                                                  ", total {} icalls".format(icall_idx, total_callee_num))
+        futures = []
+        def update_progress(future):
+            pbar.update(1)
+
+        for func_key in callee_targets:
+            if func_key not in self.func_key_2_declarator.keys():
+                continue
+            func_name = self.func_key2_name[func_key]
+            func_declarator = self.func_key_2_declarator[func_key]
+            future = executor.submit(worker, func_name, func_declarator, fp_set)
+            future.add_done_callback(update_progress)
+            futures.append(future)
+        wait(futures)
         return fp_set
 
 
