@@ -21,6 +21,8 @@ if __name__ == '__main__':
                {"role": "user",
                 "content": UserPrompt1.format(icall_context[-1], "\n".join(icall_context)
                                                , "\n\n".join(func_declarator))}]
+    print(UserPrompt1.format(icall_context[-1], "\n".join(icall_context)
+                                               , func_declarator))
     response = openai.ChatCompletion.create(
         model="gpt-3.5-turbo",
         messages=dialog1

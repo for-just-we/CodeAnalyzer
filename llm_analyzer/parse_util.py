@@ -33,11 +33,9 @@ class Answer(IntEnum):
 def get_final_answer(input: str):
     if "yes" in input.lower():
         return Answer.yes
-    elif "uncertain" in input.lower():
-        return Answer.uncertain
     elif "no" in input.lower():
         return Answer.no
-    return Answer.uncertain
+    return Answer.no
 
 def batch_dict(dict_to_batch: Dict[str, str], num_per_batch: int) -> List[Dict[str, str]]:
     dict_list = list(dict_to_batch.items())  # 将字典转换为包含键值对元组的列表

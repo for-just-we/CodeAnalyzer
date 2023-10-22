@@ -19,7 +19,7 @@ Their function declarator is as follows:
 
 Pay special attention to semantic similarity between the indirect call, context, and function declarators, as well as the alignment of parameter names and type compatibility. 
 Your analysis should determine if there is a substantial possibility of the indirect call effectively invoking the function. 
-Provide your answer with only 'Yes' (for highly likely), 'Uncertain' (for not sure), or 'No' (for highly unlikely).
+Provide your answer with only 'yes' (for likely), or 'no' (for unlikely).
 """
 
 
@@ -49,7 +49,7 @@ Their function declarators are as follows:
 
 Pay special attention to semantic similarity between the indirect call, context, and function declarators, as well as the alignment of parameter names and type compatibility. 
 Your analysis should determine if there is a substantial possibility of the indirect call effectively invoking any of the listed functions. 
-Provide your answer with only 'Yes' (for highly likely), 'Uncertain' (for not sure), or 'No' (for highly unlikely).
+Provide your answer with only 'yes' (for likely), or 'no' (for unlikely).
 """
 
-UserPrompt2 = """Summarizing previous text with 'yes', 'uncertain', 'no'."""
+UserPrompt2 = """Summarizing previous text with 'yes', 'no'."""
