@@ -1,5 +1,5 @@
 import logging
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import threading
 
 from code_analyzer.signature_match import ICallSigMatcher
@@ -12,14 +12,14 @@ import os
 from llm_analyzer.llm_analyzers.base_analyzer import BaseLLMAnalyzer
 
 # 读取已经分析过的callsite，避免重复分析
-def extract_callsite_key(log_file: str):
-    callsite_keys = set()
+def extract_callsite_key(log_file: str) -> dict:
+    fp_dict = dict()
     for line in open(log_file, 'r', encoding='utf-8'):
         if line == '\n':
             continue
-        callsite_key = line.split('|')[0]
-        callsite_keys.add(callsite_key)
-    return callsite_keys
+        callsite_key, func_keys = line.split('|')
+        fp_dict[callsite_key] = set(func_keys.split(','))
+    return fp_dict
 
 class SimpleFilter:
     def __init__(self, local_var_2_declarator: Dict[str, Dict[str, str]],
@@ -47,10 +47,11 @@ class SimpleFilter:
         if not os.path.exists(log_dir):
             os.mkdir(log_dir)
         self.log_file = f"{log_dir}/{self.project}.txt"
-        if os.path.exists(self.log_file):
-            callsite_keys = extract_callsite_key(self.log_file)
-            self.callees = {key: value for key, value in self.callees.items()
-                            if key not in callsite_keys}
+        self.interaction_log_path = f"{log_dir}/{self.project}"
+
+        self.log_llm_output: bool = args.log_llm_output
+        if self.log_llm_output and not os.path.exists(self.interaction_log_path):
+            os.makedirs(self.interaction_log_path, exist_ok=True)
 
         # 将indirect-callsite-key映射为callsite文本
         self.icall_node: Dict[str, Node] = icall_sig_matcher.icall_nodes
@@ -58,6 +59,7 @@ class SimpleFilter:
         self.icall_2_func: Dict[str, str] = icall_sig_matcher.icall_2_func
         self.llm_analyzer: BaseLLMAnalyzer = None
         self.args = args
+
         self.func_key2_name: Dict[str, str] = func_key_2_name
 
         self.macro_2_content: Dict[str, str] = macro_2_content
@@ -99,11 +101,21 @@ class SimpleFilter:
         return self.global_var_2_declarator.get(identifier, None)
 
     def visit_all_callsites(self) -> DefaultDict[str, Set[str]]:
-        total_callee_num = len(self.callees.keys())
         fp_dict: DefaultDict[str, Set[str]] = defaultdict(set)
+        base_idx = 0
+        raw_num = len(self.callees)
+        if os.path.exists(self.log_file):
+            cur_fp_dict = extract_callsite_key(self.log_file)
+            fp_dict.update(cur_fp_dict)
+            self.callees = {key: value for key, value in self.callees.items()
+                            if key not in cur_fp_dict.keys()}
+            base_idx += len(fp_dict)
+        total_callee_num = len(self.callees.keys())
         for i, callsite_key in enumerate(self.callees.keys()):
-            logging.info("visiting {}/{} icall".format(i + 1, total_callee_num))
-            fp_set: Set[str] = self.visit_callsite(callsite_key, i + 1, total_callee_num)
+            logging.info("visiting {}/{} icall".format(base_idx + i + 1, raw_num))
+            if self.log_llm_output and not os.path.exists(f"{self.interaction_log_path}/{base_idx + i + 1}"):
+                os.mkdir(f"{self.interaction_log_path}/{base_idx + i + 1}")
+            fp_set: Set[str] = self.visit_callsite(callsite_key, base_idx + i + 1, raw_num)
             fp_dict[callsite_key] = fp_set
             self.dump(callsite_key, fp_set)
         return fp_dict
@@ -115,41 +127,55 @@ class SimpleFilter:
             macro = self.macro_icall2_callexpr[callsite_key]
             macro_content = self.macro_2_content[macro]
         callee_targets: Set[str] = self.callees[callsite_key]
-        fp_set: Set[str] = set()
         # callsite_text: str = self.icall_node[callsite_key].text.decode('utf8')
         declarator_context: List[str] = self.extract_decl_context(callsite_key)
         # 定义线程池
         executor = ThreadPoolExecutor(max_workers=self.num_worker)
-        # 创建任务并提交给线程池
-        fp_set_lock = threading.Lock()
+        # 定义一个线程本地存储，用于存储每个线程的结果
+        fp_set = set()
+        lock = threading.Lock()
 
-        def worker(func_name: str, func_declarator: str, fp__set: Set[str]):
+        def worker(func_name: str, func_declarator: str, log_file: str, func_key: str):
             # 如果是宏函数调用
             if flag:
                 ans: bool = self.llm_analyzer.analyze_function_declarators_4_macro_call(
-                    declarator_context, func_name, func_declarator, macro_content)
+                    declarator_context, func_name, func_declarator, macro_content, log_file)
             else:
                 ans: bool = self.llm_analyzer.analyze_function_declarator(
-                    declarator_context, func_name, func_declarator)
+                    declarator_context, func_name, func_declarator, log_file)
             if not ans:
-                with fp_set_lock:
-                    fp__set.add(func_key)
+                with lock:
+                    fp_set.add(func_key)
+            return ans
 
         pbar = tqdm(total=len(callee_targets), desc="analyzing calling relations for {}-th icall"
                                                   ", total {} icalls".format(icall_idx, total_callee_num))
         futures = []
+
         def update_progress(future):
             pbar.update(1)
 
-        for func_key in callee_targets:
+        for i, func_key in enumerate(callee_targets):
             if func_key not in self.func_key_2_declarator.keys():
                 continue
             func_name = self.func_key2_name[func_key]
             func_declarator = self.func_key_2_declarator[func_key]
-            future = executor.submit(worker, func_name, func_declarator, fp_set)
+            if self.log_llm_output:
+                log_file: str = f"{self.interaction_log_path}/{icall_idx}/{i+1}.txt"
+            else:
+                log_file = None
+            future = executor.submit(worker, func_name, func_declarator, log_file, func_key)
             future.add_done_callback(update_progress)
             futures.append(future)
-        wait(futures)
+
+        for future in as_completed(futures):
+            try:
+                future.result(timeout=60)
+            except TimeoutError:
+                logging.info("thread time out")
+        # wait(futures)
+        # 合并线程的结果
+        print("func key size: {}".format(len(fp_set)))
         return fp_set
 
 

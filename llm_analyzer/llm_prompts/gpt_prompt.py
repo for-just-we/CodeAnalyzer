@@ -52,4 +52,7 @@ Your analysis should determine if there is a substantial possibility of the indi
 Provide your answer with only 'yes' (for likely), or 'no' (for unlikely).
 """
 
-UserPrompt2 = """Summarizing previous text with 'yes', 'no'."""
+UserPrompt2 = """Summarizing following text with 'yes', 'no'.
+
+{}
+"""

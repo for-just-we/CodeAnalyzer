@@ -5,10 +5,10 @@ class BaseLLMAnalyzer:
         pass
 
     def analyze_function_declarator(self, icall_context: List[str],
-                                    func_name: str, func_declarator: str) -> bool:
+                                    func_name: str, func_declarator: str, log_file: str = None) -> bool:
         return True
 
     def analyze_function_declarators_4_macro_call(self, icall_context: List[str],
                                     func_name: str, func_declarator: str,
-                                     macro_content: str) -> bool:
+                                     macro_content: str, log_file: str = None) -> bool:
         return True

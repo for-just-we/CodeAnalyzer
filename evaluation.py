@@ -41,6 +41,8 @@ def build_arg_parser():
                              "This is considered due to explicit/implicit cast operations in C/C++ programs.")
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
+    parser.add_argument("--log_llm_output", action="store_true", default=False,
+                        help="If true, log llm output to log file")
     parser.add_argument("--run_all_groups", action="store_true", default=False,
                         help="run eight groups, ignore previous only_compiled, only_refered, hard_match functions")
     # 添加--project参数，并设置nargs='+'，以接受一个或多个值

@@ -71,7 +71,10 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
         if recall < 1:
             logging.debug("file have missing: {}".format(icall_key))
             logging.debug("missed functions are: {}".format(labeled_funcs - TPs))
-        F1s.append(2 * prec * recall / (prec + recall))
+        if prec + recall == 0:
+            F1s.append(0)
+        else:
+            F1s.append(2 * prec * recall / (prec + recall))
 
     P = np.mean(precs)
     R = np.mean(recalls)
@@ -102,11 +105,11 @@ def evaluate_binary(ground_truths: Dict[str, Set[str]],
         FP += len(label_f_keys & predicted_t_keys)
         FN += len(label_t_keys & predicted_f_keys)
 
-        recall = TP / (TP + FN)
-        precision = TP / (TP + FP)
-        F1 = 2 * recall * precision / (recall + precision)
+    recall = TP / (TP + FN) if (TP + FN) > 0 else 0
+    precision = TP / (TP + FP) if (TP + FP) > 0 else 0
+    F1 = 2 * recall * precision / (recall + precision) if (recall + precision) > 0 else 0
 
-        return (precision, recall, F1)
+    return (precision, recall, F1)
 
 
 class ProjectAnalyzer:
