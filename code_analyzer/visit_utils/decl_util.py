@@ -1,5 +1,5 @@
 from tree_sitter import Node
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Set
 
 from code_analyzer.schemas.enums import TypeEnum
 from code_analyzer.visitors.util_visitor import IdentifierExtractor, FieldIdentifierExtractor
@@ -17,9 +17,11 @@ def process_declarator(declarator: Node) -> Tuple[str, str, Node]:
         elif declarator.type == "reference_declarator":
             declarator = declarator.children[-1]
         # 函数形参一定是int a[]这种，不会有int[] a
-        elif declarator.type == "array_declarator":
+        elif declarator.type in {"array_declarator", "abstract_pointer_declarator"}:
             suffix += "*"
             declarator = declarator.children[0]
+        elif declarator.type == "*":
+            break
         else:
             raise DeclareTypeException("The type under parameter declarator should not beyond"
                                        " reference, array, pointer")
@@ -60,12 +62,16 @@ def process_declaration(node: Node):
 # 处理一个declaration语句定义了多个变量的情况
 # 第二个参数表明是否是在处理struct/union field定义
 def process_multi_var_declaration(node: Node, is_field_decl: bool = False)\
-        -> List[Tuple[str, str]]:
+        -> Tuple[List[Tuple[str, str]], Dict[str, List[str]], Set[str]]:
     assert node.children[-1].type == ";"
     var_list: List[Tuple[str, str]] = list() # 定义的变量类型以及名称
     unknown_var_type_list: List[Tuple[str, str]] = list() # 未知变量名以及prefix
     # 当前处理的变量
     cur_var_decl_idx = -2
+    # 将函数指针变量映射到对应的参数类型
+    varname2param_types: Dict[str, List[str]] = dict()
+    # 函数指针变量中支持可变参数
+    var_param_func_vars: Set[str] = set()
 
     cls = FieldIdentifierExtractor if is_field_decl else IdentifierExtractor
 
@@ -83,12 +89,20 @@ def process_multi_var_declaration(node: Node, is_field_decl: bool = False)\
 
         # 是函数声明
         if var_name_extractor.is_function:
-            return []
+            return ()
 
         # 如果是函数指针变量
         if var_name_extractor.is_function_type:
+            from code_analyzer.visitors.func_visitor import extract_param_types
             type_name = TypeEnum.FunctionType.value
+            infos = extract_param_types(node)
+            param_types: List[str] = infos[0]
+            var_arg: bool = infos[1]
+            varname2param_types[var_name_extractor.var_name] = param_types
             var_list.append((type_name, var_name_extractor.var_name))
+            # 如果支持可变参数
+            if var_arg:
+                var_param_func_vars.add(var_name_extractor.var_name)
         else:
             unknown_var_type_list.append((var_name_extractor.suffix,
                                           var_name_extractor.var_name))
@@ -118,4 +132,4 @@ def process_multi_var_declaration(node: Node, is_field_decl: bool = False)\
             type_name += " " + var_info[0]
         var_list.append((type_name, var_info[1]))
 
-    return var_list
+    return var_list, varname2param_types, var_param_func_vars

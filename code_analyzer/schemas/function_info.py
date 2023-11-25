@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Set
 from tree_sitter import Node
 
 class FuncInfo:
@@ -20,5 +20,21 @@ class FuncInfo:
         self.file: str = file # 相对project根目录的相对路径
         self.func_name: str = func_name
 
+
     def set_local_var_info(self, local_var: Dict[str, str]):
         self.local_var: Dict[str, str] = local_var
+
+    # 如果局部变量包含函数指针，将函数指针变量映射到参数类型
+    def set_func_var2param_types(self, func_var2param_types: Dict[str, List[str]]):
+        self.func_var2param_types: Dict[str, List[str]] = func_var2param_types
+
+    # 如果形参包含函数指针，将函数指针变量映射到参数类型
+    def set_func_param2param_types(self, func_param2param_types: Dict[str, List[str]]):
+        self.func_param2param_types: Dict[str, List[str]] = func_param2param_types
+
+    # 如果包含支持函数指针的param或者local var
+    def set_var_arg_func_param(self, var_arg_func_param: Set[str]):
+        self.var_arg_func_param: Set[str] = var_arg_func_param
+
+    def set_var_arg_func_var(self, var_arg_func_var: Set[str]):
+        self.var_arg_func_var: Set[str] = var_arg_func_var

@@ -139,8 +139,53 @@ f1
 (int x) { x = 1; }
 """
 
+func_case14 = """
+static void *pool_system_malloc(pool_t pool ATTR_UNUSED, size_t size) {
+    // yes
+}
+"""
+
+func_case15 = """
+herr_t
+H5VL_init_phase2(void) {
+    // yes
+}
+"""
+
+func_case16 = """
+isc_result_t
+dns_rdataset_next(dns_rdataset_t *rdataset) {
+	/*
+	 * Move the rdata cursor to the next rdata in the rdataset (if any).
+	 */
+
+	REQUIRE(DNS_RDATASET_VALID(rdataset));
+	REQUIRE(rdataset->methods != NULL);
+	REQUIRE(rdataset->methods->next != NULL);
+
+	return ((rdataset->methods->next)(rdataset));
+}
+"""
+
+func_case17 = """
+void
+dns__rbtdb_closeversion(dns_db_t *db, dns_dbversion_t **versionp,
+			bool commit DNS__DB_FLARG) {}
+"""
+
+func_case18 = """
+static herr_t
+H5AC__check_if_write_permitted(const H5F_t
+#ifndef H5_HAVE_PARALLEL
+                                   H5_ATTR_UNUSED
+#endif /* H5_HAVE_PARALLEL */
+                                       *f,
+                               bool    *write_permitted_ptr) {
+                               }
+"""
+
 def testFuncDef():
-    tree: Tree = parser.parse(func_case13.encode("utf-8"))
+    tree: Tree = parser.parse(func_case18.encode("utf-8"))
     func_visitor = FunctionDefVisitor()
     func_visitor.walk(tree)
     pass

@@ -11,10 +11,9 @@ from scope_strategy.base_strategy import BaseStrategy
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisitor, LocalFunctionRefVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
-from code_analyzer.signature_match import ICallSigMatcher
+from code_analyzer.definition_collector import BaseInfoCollector
 
-from llm_analyzer.simple_filter import SimpleFilter
-from llm_analyzer.llm_analyzers.gpt_analyzer import GPTAnalyzer
+from icall_analyzer.signature_match.matcher import TypeAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -122,7 +121,7 @@ def evaluate_binary(ground_truths: Dict[str, Set[str]],
 
 class ProjectAnalyzer:
     def __init__(self, project_included_func_file: str, icall_infos_file: str, project_root: str,
-                 args, project: str, groups: List[Tuple[bool, bool]], model_name: str
+                 args, project: str, model_name: str
                  ):
         if not (os.path.exists(project_included_func_file)
                 and os.path.exists(icall_infos_file)
@@ -138,17 +137,7 @@ class ProjectAnalyzer:
         self.stage: int = args.stage
         self.args = args
         self.project: str = project
-        self.groups: List[Tuple[bool, bool]] = groups
         self.model_name = model_name
-
-
-    def prepare_llm(self, simple_filter):
-        if self.args.llm == "gpt":
-            simple_filter.llm_analyzer = GPTAnalyzer(self.args.key, self.args.model_type,
-                                                     self.args.func_num_per_batch)
-        else:
-            raise RuntimeError("unimplemented llm analyzer for {}".format(self.args.llm))
-
 
     def analyze_c_files_sig_match(self):
         c_h_files = []
@@ -188,8 +177,13 @@ class ProjectAnalyzer:
         for func_key, func_info in tqdm(func_info_dict.items(), desc="parsing function infos"):
             local_var_visitor = LocalVarVisitor()
             local_var_visitor.traverse_node(func_info.func_body)
+            # 支持可变参数的函数指针局部变量
+            if len(local_var_visitor.local_var_param_var_arg) > 0:
+                func_info.set_var_arg_func_var(local_var_visitor.local_var_param_var_arg)
             local_vars: Set[str] = set(local_var_visitor.local_var_infos.keys())
             func_info.set_local_var_info(local_var_visitor.local_var_infos)
+            if len(local_var_visitor.func_var2param_types) > 0:
+                func_info.set_func_var2param_types(local_var_visitor.func_var2param_types)
             arg_names: Set[str] = set([param[1] for param in func_info.parameter_types])
             local_func_ref_visitor = LocalFunctionRefVisitor(func_set, local_vars,
                                                              arg_names, refered_func_names)
@@ -204,63 +198,12 @@ class ProjectAnalyzer:
             scope_strategy = BaseStrategy()
         else:
             scope_strategy = None
-        group_icall_sig_matcher: List[ICallSigMatcher] = list()
-        for group in self.groups:
-            icall_sig_matcher: ICallSigMatcher = ICallSigMatcher(self.icall_dict, refered_func_names, func_info_dict,
-                                               global_visitor, group[0], group[1], scope_strategy)
-            icall_sig_matcher.build_basic_info()
-            icall_sig_matcher.build_ori_param_types_4_funcs()
-            icall_sig_matcher.process_all()
-            group_icall_sig_matcher.append(icall_sig_matcher)
 
-        return group_icall_sig_matcher, SimpleFilter(local_var_2_declarator, arg_2_declarator,
-                                                   func_key_2_declarator,
-                                                   func_key_2_name,
-                                                   global_visitor.global_var_2_declarator_text,
-                                                   group_icall_sig_matcher[0],
-                                                   global_visitor.macro_defs,
-                                                   self.args,
-                                                   self.project,
-                                                self.model_name)
-
-    def simple_llm_filter(self, simple_filter: SimpleFilter):
-        simple_filter.visit_all_callsites()
-        fp_dict: Dict[str, Set[str]] = dict()
-        for line in open(simple_filter.log_file, 'r', encoding='utf-8'):
-            if line == '\n':
-                continue
-            line = line.strip()
-            callsite_key, fp_func_keys = line.split('|')
-            fp_dict[callsite_key] = set(fp_func_keys.split(','))
-        return fp_dict
-
-    def evaluate(self):
-        group_icall_sig_matcher, simple_filter = self.analyze_c_files_sig_match()
-        if self.stage == 1:
-            logging.info("result of project, Precision, Recall, F1 is:")
-            for group, icall_sig_matcher in zip(self.groups, group_icall_sig_matcher):
-                icall_2_targets: Dict[str, Set[str]] = icall_sig_matcher.callees
-                P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
-                logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
-                             f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
-            return
-        self.prepare_llm(simple_filter)
-        fp_dict = self.simple_llm_filter(simple_filter)
-        logging.info("result of project on step 2, Precision, Recall, F1 is:")
-        for group, icall_sig_matcher in zip(self.groups, group_icall_sig_matcher):
-            icall_2_targets: Dict[str, Set[str]] = icall_sig_matcher.callees
-            new_icall_2_targets: Dict[str, Set[str]] = dict()
-            for callsite_key, targets in icall_2_targets.items():
-                new_icall_2_targets[callsite_key] = targets - fp_dict[callsite_key]
-            P, R, F1 = evaluate(new_icall_2_targets, self.ground_truths)
-            logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
-                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
-            P_b, R_b, F1_b, fps, fns = evaluate_binary(self.ground_truths, icall_2_targets, fp_dict)
-            logging.info(f"| {self.project}-{int(group[0])}{int(group[1])} "
-                         f"| {(P_b * 100):.1f} | {(R_b * 100):.1f} | {(F1_b * 100):.1f} |")
-
-            logging.info("false positive predictions")
-            for callsite_key, fn_set in fns.items():
-                logging.info("============================")
-                logging.info(callsite_key)
-                logging.info("missing cases: {}".format(",".join(fn_set)))
+        # 收集必要信息，包括：
+        # -
+        collector: BaseInfoCollector = BaseInfoCollector(self.icall_dict, refered_func_names,
+                                                         func_info_dict, global_visitor)
+        collector.build_all()
+        type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, scope_strategy)
+        type_analyzer.process_all()
+        print()

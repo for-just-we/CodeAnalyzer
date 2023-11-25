@@ -6,7 +6,7 @@ from llm_analyzer.llm_analyzers.base_analyzer import BaseLLMAnalyzer
 from llm_analyzer.llm_prompts.gpt_prompt import SystemPrompt1, UserPrompt1, \
     UserPrompt2, SystemPrompt1_, UserPrompt1_
 from llm_analyzer.parse_util import get_final_answer, Answer
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 log_tmp = """User:{}
 ================================================
@@ -49,15 +49,28 @@ class GPTAnalyzer(BaseLLMAnalyzer):
             except tuple(error_messages.keys()) as e:
                 error_type = type(e)
                 error_message = error_messages.get(error_type, "An unknown error occurred: {}")
-                logging.info(error_message.format(e))
                 # 如果达到了rate limit
                 if error_type is not openai.error.RateLimitError:
                     times += 1
                     time.sleep(10)
+                    logging.info("{}, sleeping 10s".format(error_message.format(e)))
                 else:
+                    logging.info("{}, sleeping 60s".format(error_message.format(e)))
                     time.sleep(60)
                 continue
         return response.choices[0]["message"]["content"]
+
+    # 如果GPT可以直接返回No或者Yes，就不摘要了
+    def preprocess_content1(self, content1: str) -> Answer:
+        if content1.lower() == "yes":
+            return Answer.yes
+        elif content1.lower() == "no":
+            return Answer.no
+        return Answer.uncertain
+
+    def log_to_file(self, log_file, file_content: str):
+        if log_file is not None:
+            open(log_file, 'w', encoding='utf-8').write(file_content)
 
     # 一个个处理
     def analyze_function_declarator(self, icall_context: List[str],
@@ -73,6 +86,17 @@ class GPTAnalyzer(BaseLLMAnalyzer):
         if content1 == "":
             return True
         content1 = self.get_openai_response(dialog1)
+        res1: Answer = self.preprocess_content1(content1)
+        if res1 != Answer.uncertain:
+            file_content: str = log_tmp.format(SystemPrompt1 + "\n" + user_input,
+                                           content1, "",
+                                           "", "")
+            self.log_to_file(log_file, file_content)
+            if res1 == Answer.yes:
+                return True
+            else:
+                return False
+
         logging.debug("raw content1: {}".format(content1))
         dialog2 = [{"role": "user", "content": UserPrompt2.format(content1)}]
         content2: str = self.get_openai_response(dialog2)
@@ -80,11 +104,10 @@ class GPTAnalyzer(BaseLLMAnalyzer):
         logging.debug("=======================")
         answer: Answer = get_final_answer(content2)
 
-        if log_file is not None:
-            file_content: str = log_tmp.format(SystemPrompt1 + "\n" + user_input,
-                                               content1, UserPrompt2.format(content1),
-                                               content2, str(answer != Answer.no))
-            open(log_file, 'w', encoding='utf-8').write(file_content)
+        file_content: str = log_tmp.format(SystemPrompt1 + "\n" + user_input,
+                                           content1, UserPrompt2.format(content1),
+                                           content2, str(answer != Answer.no))
+        self.log_to_file(log_file, file_content)
         # yes/uncertain返回1，no返回0
         return answer != Answer.no
 
@@ -96,24 +119,24 @@ class GPTAnalyzer(BaseLLMAnalyzer):
         dialog1 = [{"role": "system", "content": SystemPrompt1_},
                    {"role": "user", "content": user_input}]
         content1: str = self.get_openai_response(dialog1)
-        # 不浪费api key了，这个answer不确定
-        # 如果连续3次访问错误，跳过这个函数的查询
-        count = 0
-        while content1 == "":
-            if count == 3:
+        res1: Answer = self.preprocess_content1(content1)
+        if res1 != Answer.uncertain:
+            file_content: str = log_tmp.format(SystemPrompt1 + "\n" + user_input,
+                                               content1, "",
+                                               "", "")
+            self.log_to_file(log_file, file_content)
+            if res1 == Answer.yes:
                 return True
-            content1 = self.get_openai_response(dialog1)
-            count += 1
+            else:
+                return False
+
         dialog2 = [{"role": "user",
                      "content": UserPrompt2.format(content1)}]
         content2: str = self.get_openai_response(dialog2)
 
         answer: Answer = get_final_answer(content2)
-
-        if log_file is not None:
-            file_content: str = log_tmp.format(SystemPrompt1 + "\n" + user_input,
-                                               content1, UserPrompt2.format(content1),
-                                               content2, str(answer != Answer.no))
-            open(log_file, 'w', encoding='utf-8').write(file_content)
-
+        file_content: str = log_tmp.format(SystemPrompt1 + "\n" + user_input,
+                                           content1, UserPrompt2.format(content1),
+                                           content2, str(answer != Answer.no))
+        self.log_to_file(log_file, file_content)
         return answer != Answer.no

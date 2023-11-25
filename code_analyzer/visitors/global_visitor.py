@@ -3,6 +3,7 @@ from typing import Dict, List, DefaultDict, Tuple, Set
 from collections import defaultdict
 import logging
 
+from code_analyzer.visit_utils.func_type import get_func_pointer_name
 from code_analyzer.visit_utils.decl_util import DeclareTypeException
 from code_analyzer.visitors.tree_sitter_base_visitor import ASTVisitor
 from code_analyzer.schemas.enums import TypeEnum
@@ -21,6 +22,12 @@ class GlobalVisitor(ASTVisitor):
         self.anoymous_enum_num: int = 0
         # 将每个结构体类型对应的field映射为type name
         self.struct_infos: DefaultDict[str, Dict[str, str]] = defaultdict(dict)
+        # 函数指针类型定义对应的raw declarator text
+        self.func_type2raw_declarator: Dict[str, str] = dict()
+        # 函数指针类型对应的参数类型
+        self.func_type2param_types: Dict[str, List[str]] = dict()
+        # 函数指针全局变量对应的参数类型
+        self.func_var2param_types: Dict[str, List[str]] = dict()
         self.enum_infos: Set[str] = set()
         # 保存类型别名信息
         self.type_alias_infos: Dict[str, str] = dict()
@@ -36,6 +43,22 @@ class GlobalVisitor(ASTVisitor):
         self.icall_nodes: DefaultDict[str, Dict[Tuple[int, int], Node]] = defaultdict(dict)
 
         self.current_file = ""
+
+        # 结构体函数指针field映射到对应的声明以及参数类型
+        # struct_name --> field_name --> list of param types
+        self.func_struct_fields: Dict[str, Dict[str, List[str]]] = dict()
+        # struct_name --> field_name --> declarator
+        self.func_struct_field_declarators: Dict[str, Dict[str, str]] = dict()
+
+        # 全局函数指针变量中支持可变参数的变量
+        self.var_param_func_var: Set[str] = set()
+        # 类型定义中支持可变参数的函数指针类型
+        self.var_param_func_type: Set[str] = set()
+        # 结构体field支持可变参数的函数指针field
+        self.var_param_func_struct_fields: Dict[str, Set[str]] = dict()
+
+        # 结构体第一个field的类型，用来作cast分析时候用, struct_name --> first field type name
+        self.struct_first_field_types: Dict[str, str] = dict()
 
 
     # 全局信息获取，不访问函数定义
@@ -94,29 +117,16 @@ class GlobalVisitor(ASTVisitor):
         # 如果是函数指针定义，只记录它是个函数类型，而不指示具体类型
         if declarator.type == "function_declarator":
             dst_type: str = TypeEnum.FunctionType.value
-
-            if declarator.children[0].type == "parenthesized_declarator":
-                idx = 1
-                name_node: Node = declarator.children[0].children[idx]
-            elif declarator.children[0].type == "type_identifier":
-                name_node = declarator.children[0]
-            else:
-                logging.debug("error parsing typedef: ", node.start_point, node.end_point,
-                      node.text.decode('utf8'))
-                return False
-            if name_node.type == "ERROR":
-                logging.debug("error parsing typedef: ", node.start_point, node.end_point,
-                      node.text.decode('utf8'))
-                return False
-            # name_node: Node = declarator.children[0].children[1]
-            while name_node.type == "pointer_declarator":
-                name_node = name_node.children[1]
-            if name_node.type != "type_identifier":
-                logging.debug("error parsing typedef: ", node.start_point, node.end_point,
-                              node.text.decode('utf8'))
-                return False
             # assert name_node.type == "type_identifier"
-            src_type = name_node.text.decode('utf8')
+            from code_analyzer.visitors.func_visitor import extract_param_types
+            src_type = get_func_pointer_name(declarator, node)
+            infos = extract_param_types(declarator)
+            param_types: List[str] = infos[0]
+            var_arg: bool = infos[1]
+            if var_arg:
+                self.var_param_func_type.add(src_type)
+            self.func_type2param_types[src_type] = param_types
+            self.func_type2raw_declarator[src_type] = node.text.decode('utf8')
         # 处理非函数指针类型
         else:
             assert declarator.type == "type_identifier"
@@ -159,17 +169,27 @@ class GlobalVisitor(ASTVisitor):
 
     # 处理声明
     def visit_declaration(self, node: Node):
-        # res = process_declaration(node)
-        # if res is not None:
-        #     var_name, var_type = res
-        #     self.global_var_info[var_name] = var_type
-        var_infos: List[Tuple[str, str]] = process_multi_var_declaration(node)
+        infos: Tuple[List[Tuple[str, str]], Dict[str, List[str]], Set[str]] \
+                = process_multi_var_declaration(node)
+        # 有可能是函数声明
+        if len(infos) == 0:
+            return False
+        var_infos: List[Tuple[str, str]] = infos[0]
+        func_var2param_types: Dict[str, List[str]] = infos[1]
+        # 支持可变参数的全局函数指针变量
+        var_arg_func_vars: Set[str] = infos[2]
+        self.var_param_func_var.update(var_arg_func_vars)
         for var_info in var_infos:
+            # var_info[1]为var_name, var_info[0]为var_type
             self.global_var_info[var_info[1]] = var_info[0]
             try:
-                self.global_var_2_declarator_text[var_info[1]] = node.text.decode('utf8')
+                declaration_text = node.text.decode('utf8')
             except UnicodeDecodeError:
-                self.global_var_2_declarator_text[var_info[1]] = node.text.decode('ISO-8859-1')
+                declaration_text = node.text.decode('ISO-8859-1')
+            self.global_var_2_declarator_text[var_info[1]] = declaration_text
+            if var_info[1] in func_var2param_types.keys():
+                self.func_var2param_types[var_info[1]] = func_var2param_types[var_info[1]]
+
         return False
 
     def visit_struct_specifier(self, node: Node):
@@ -183,6 +203,18 @@ class GlobalVisitor(ASTVisitor):
         struct_field_visitor.traverse_node(node)
         if len(struct_field_visitor.field_name_2_type) > 0:
             self.struct_infos[struct_name] = struct_field_visitor.field_name_2_type
+        # 第一个结构体field的类型
+        if struct_field_visitor.first_field_type is not None:
+            self.struct_first_field_types[struct_name] = struct_field_visitor.first_field_type
+        # 存在函数指针field
+        if len(struct_field_visitor.func_field2param_types) > 0:
+            self.func_struct_fields[struct_name] = struct_field_visitor.func_field2param_types
+            self.func_struct_field_declarators[struct_name] = \
+                struct_field_visitor.func_field2declarator_str
+        # 存在支持可变参数的函数指针field
+        if len(struct_field_visitor.var_arg_func_fields) > 0:
+            self.var_param_func_struct_fields[struct_name] = \
+                struct_field_visitor.var_arg_func_fields
 
     # 处理枚举类型定义
     def visit_enum_specifier(self, node: Node):
@@ -194,11 +226,39 @@ class GlobalVisitor(ASTVisitor):
 class StructFieldVisitor(ASTVisitor):
     def __init__(self):
         self.field_name_2_type: Dict[str, str] = dict()
+        self.func_field2declarator_str: Dict[str, str] = dict()
+        self.func_field2param_types: Dict[str, List[str]] = dict()
+        self.var_arg_func_fields: Set[str] = set()
+        # 结构体第一个field的类型，cast分析时会用到
+        self.first_field_type: str = None
 
     def visit_field_declaration(self, node: Node):
-        var_infos: List[Tuple[str, str]] = process_multi_var_declaration(node, True)
+        # 如果该field_declaration是union定义
+        if node.children[0].type == "union_specifier":
+            union_children_list: List[Node] = node.children[0].children
+            for child in union_children_list:
+                # 如果是field_declaration_list
+                if child.type == "field_declaration_list":
+                    self.traverse_node(child)
+            return False
+        infos: Tuple[List[Tuple[str, str]], Dict[str, List[str]], Set[str]] \
+            = process_multi_var_declaration(node, True)
+        # 如果是面向对象语言则可能为0
+        if len(infos) == 0:
+            return False
+        var_infos: List[Tuple[str, str]] = infos[0]
+        func_field2param_types: Dict[str, List[str]] = infos[1]
+        # 支持可变参数的结构体field
+        var_arg_func_fields: Set[str] = infos[2]
+        self.var_arg_func_fields.update(var_arg_func_fields)
         for var_info in var_infos:
+            if self.first_field_type is None:
+                self.first_field_type = var_info[0]
             self.field_name_2_type[var_info[1]] = var_info[0]
+            # 如果该field是函数指针定义
+            if var_info[1] in func_field2param_types.keys():
+                self.func_field2param_types[var_info[1]] = func_field2param_types[var_info[1]]
+                self.func_field2declarator_str[var_info[1]] = node.text.decode('utf-8')
         return False
 
 

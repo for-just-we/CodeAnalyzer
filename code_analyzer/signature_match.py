@@ -191,36 +191,3 @@ class ICallSigMatcher:
                 return arg_type[0] == param_type[0] and arg_type[1] == param_type[1]
             else:
                 return True
-
-    # 匹配callsite实参类型arg_types和callee形参类型param_types
-    # def match_types(self, arg_types: List[Tuple[str, int]],
-    #                 param_types: List[Tuple[str, int]]) -> bool:
-    #     assert len(arg_types) == len(param_types)
-    #     # 逐个参数匹配
-    #     for i in range(len(arg_types)):
-    #         arg_type: Tuple[str, int] = arg_types[i]
-    #         param_type: Tuple[str, int] = param_types[i]
-    #         # 如果其中一个类型未知，那么认为匹配成功
-    #         if arg_type[0] == TypeEnum.UnknownType.value or \
-    #                 param_type[0] == TypeEnum.UnknownType.value:
-    #             continue
-    #         # 如果二者都是函数指针类型，那么不区分什么类型的函数一律匹配成功
-    #         elif arg_type[0] == TypeEnum.FunctionType.value and \
-    #                 param_type[0] == TypeEnum.FunctionType.value:
-    #             continue
-    #         # 如果类型名和pointer level都匹配的上
-    #         elif arg_type[0] == param_type[0] and \
-    #                 arg_type[1] == param_type[1]:
-    #             continue
-    #         # 都不属于结构体类型，原生类型一律认为可以隐式cast
-    #         elif arg_type[0] not in self.struct_infos.keys() \
-    #             and param_type[0] not in self.struct_infos.keys():
-    #             continue
-    #         # void*可以和任意指针类型匹配，包括多级指针
-    #         # 这里如果二者都是指针类型并且其中一个是void类型的指针，则可以匹配
-    #         elif (arg_type[1] > 0 and param_type[1] > 0)\
-    #             and (arg_type[0] == "void" or param_type[0] == "void"):
-    #             continue
-    #         else:
-    #             return False
-    #     return True
