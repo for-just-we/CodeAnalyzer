@@ -65,7 +65,7 @@ class BaseInfoCollector:
             global_visitor.struct_first_field_types
 
         # func key映射到declarator
-        self.func_key_2_declarator: Dict[str, str] = dict()
+        self.func_key_2_declarator: Dict[str, str] = func_key_2_declarator
 
 
     # 构建查询结构

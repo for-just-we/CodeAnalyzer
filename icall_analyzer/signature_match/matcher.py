@@ -62,7 +62,7 @@ class TypeAnalyzer:
 
     def process_all(self):
         # 遍历每个函数
-        for func_key, func_info in tqdm(self.collector.func_info_dict.items(), desc="processing functions"):
+        for func_key, func_info in self.collector.func_info_dict.items():
             icall_locs: List[Tuple[int, int]] = self.collector.icall_dict.get(
                 func_info.file, list())
             start_point: Tuple[int, int] = func_info.func_body.start_point
@@ -98,6 +98,7 @@ class TypeAnalyzer:
         for icall_loc in icall_locs:
             callsite_key: str = f"{func_info.file}:{icall_loc[0] + 1}:{icall_loc[1] + 1}"
             # 如果该indirect-call对应的call expression没有被正确解析，跳过。
+            logging.info("visiting icall {}".format(callsite_key))
             if icall_loc not in func_body_visitor.icall_nodes.keys():
                 self.callees[callsite_key] = set()
                 continue
@@ -187,7 +188,7 @@ class TypeAnalyzer:
                                            self.scope_strategy.analyze_key(callsite_key, func_key)
                                            and func_key not in self.callees[callsite_key],
                                            new_func_keys))
-            for func_key in new_func_keys:
+            for func_key in tqdm(new_func_keys, desc="matching types"):
                 if func_key in self.callees[callsite_key]:
                     continue
                 # 基于callsite的形参和call target实参进行类型匹配
@@ -356,7 +357,7 @@ class TypeAnalyzer:
                                            self.scope_strategy.analyze_key(callsite_key, func_key)
                                            and func_key not in self.callees[callsite_key],
                                            new_func_keys))
-            for func_key in new_func_keys:
+            for func_key in tqdm(new_func_keys, desc="declarator analyzing"):
                 if func_key in self.callees[callsite_key]:
                     continue
                 # 基于callsite的形参和call target实参进行类型匹配
