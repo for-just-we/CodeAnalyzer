@@ -21,9 +21,6 @@ def add_subparser(parser: argparse.ArgumentParser):
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
-    parser.add_argument("--stage", type=int, choices=[1, 2], help='analyzing state, 1->only run signature match,'
-                                                                  '2 -> run signature match first then use LLM to simply filter with function declarator.',
-                        default=1)
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
     parser.add_argument("--log_llm_output", action="store_true", default=False,
@@ -32,7 +29,7 @@ def build_arg_parser():
     parser.add_argument("--projects", nargs='+', help="One or more projects to analyze")
     parser.add_argument("--scope_strategy", type=str, choices=['no', 'base'], default='base',
                         help='scope strategy to use')
-    parser.add_argument("--max_try_time", type=int, default=5, help="max trying time for one llm query")
+    parser.add_argument("--max_try_time", type=int, default=3, help="max trying time for one llm query")
     parser.add_argument("--num_worker", type=int, default=10, help="num worker used in sending request to llm")
     add_subparser(parser)
     return parser
@@ -66,7 +63,7 @@ def main():
         project_root = os.path.join(root_path, "projects", project)
         project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args,
                                            project, model_name)
-        project_analyzer.analyze_c_files_sig_match()
+        project_analyzer.evaluate()
 
 if __name__ == '__main__':
     main()

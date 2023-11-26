@@ -11,14 +11,19 @@ class BaseInfoCollector:
     def __init__(self, icall_dict: DefaultDict[str, List[Tuple[int, int]]],
                  refered_funcs: Set[str],
                  func_info_dict: Dict[str, FuncInfo],
-                 global_visitor: GlobalVisitor):
+                 global_visitor: GlobalVisitor,
+                 func_key_2_declarator: Dict[str, str]):
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict
         self.func_info_dict: Dict[str, FuncInfo] = func_info_dict
         self.type_alias_infos: Dict[str, str] = global_visitor.type_alias_infos
         # 全局变量
         self.global_var_info: Dict[str, str] = global_visitor.global_var_info
+        self.global_var_2_declarator_text: Dict[str, str] = \
+            global_visitor.global_var_2_declarator_text
         # 结构体field信息
         self.struct_infos: DefaultDict[str, Dict[str, str]] = global_visitor.struct_infos
+        # 结构体定义
+        self.struct_name2declarator: Dict[str, str] = global_visitor.struct_name2declarator
         # 将函数指针类型映射回原本定义
         self.func_type2raw_declarator: Dict[str, str] = global_visitor.func_type2raw_declarator
         # 将函数指针映射到相应类型序列
@@ -43,6 +48,8 @@ class BaseInfoCollector:
         self.var_arg_param_nums_2_func_keys: DefaultDict[int, Set[str]] = defaultdict(set)
         # 保存每个函数修正后的参数类型
         self.param_types: Dict[str, List[Tuple[str, int]]] = dict()
+        # 保存每个函数的原始参数类型名
+        self.ori_param_types: Dict[str, List[str]] = dict()
 
         # 初始函数集合
         self.refered_funcs: Set[str] = refered_funcs
@@ -56,6 +63,10 @@ class BaseInfoCollector:
         # 结构体第一个field的类型
         self.struct_first_field_types: Dict[str, str] = \
             global_visitor.struct_first_field_types
+
+        # func key映射到declarator
+        self.func_key_2_declarator: Dict[str, str] = dict()
+
 
     # 构建查询结构
     def build_basic_info(self):
@@ -73,12 +84,15 @@ class BaseInfoCollector:
     def build_ori_param_types_4_funcs(self):
         for func_key, func_info in tqdm(self.func_info_dict.items(), desc="building original parameter infos"):
             types = []
+            ori_types = []
             for param_type in func_info.parameter_types:
                 src_type_name, pointer_level = parsing_type((param_type[0], 0))
                 src_type: Tuple[str, int] = get_original_type((src_type_name, pointer_level),
                                                               self.type_alias_infos)
                 types.append(src_type)
+                ori_types.append(src_type_name)
             self.param_types[func_key] = types
+            self.ori_param_types[func_key] = ori_types
 
     def build_all(self):
         self.build_basic_info()

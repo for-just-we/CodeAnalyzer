@@ -3,16 +3,25 @@ from code_analyzer.visit_utils.base_util import loc_inside
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_visitor import FunctionBodyVisitor
+from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
+    system_prompt_declarator, user_prompt_declarator, summarizing_prompt
+
 from scope_strategy.base_strategy import BaseStrategy
 from tree_sitter import Node
 
+import os
 from tqdm import tqdm
-from typing import Dict, List, Tuple, Set
+from collections import defaultdict
+from typing import Dict, List, Tuple, Set, DefaultDict
 import logging
 
 class TypeAnalyzer:
     def __init__(self, collector: BaseInfoCollector,
-                 scope_strategy: BaseStrategy = None):
+                 scope_strategy: BaseStrategy = None,
+                 llm_analyzer: BaseLLMAnalyzer = None,
+                 log_flag: bool = False,
+                 project: str = ""):
         self.collector: BaseInfoCollector = collector
         # 保存每个indirect-callsite的代码文本
         self.icall_nodes: Dict[str, Node] = dict()
@@ -29,6 +38,27 @@ class TypeAnalyzer:
         self.icall_nodes: Dict[str, Node] = dict()
         # 保存每个indirect-callsite所在的function
         self.icall_2_func: Dict[str, str] = dict()
+
+        self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
+        # 如果LLM已经分析了两个结构体类型，跳过
+        self.llm_analyzed_types: Dict[Tuple[str, str], bool] = dict()
+
+        self.log_flag: bool = log_flag
+        # 如果需要log LLM的输出结果
+        if log_flag and llm_analyzer is not None:
+            root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+            log_dir = f"{root_path}/experimental_logs/type_analysis/{self.llm_analyzer.model_type}/" \
+                      f"{project}"
+            if not os.path.exists(log_dir):
+                os.makedirs(log_dir)
+            self.log_type_alias_file = f"{log_dir}/type_alias_info.txt"
+            self.log_dir = log_dir
+            self.struct_analysis_log_path = os.path.join(log_dir, "struct_relation")
+            if not os.path.exists(self.struct_analysis_log_path):
+                os.mkdir(self.struct_analysis_log_path)
+            # llm帮助分析过的icall以及func_key
+            self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
+            self.llm_declarator_analysis: DefaultDict[str, Set[str]] = defaultdict(set)
 
     def process_all(self):
         # 遍历每个函数
@@ -51,7 +81,8 @@ class TypeAnalyzer:
         arg_info: Dict[str, str] = {parameter_type[1]: parameter_type[0]
                                        for parameter_type in func_info.parameter_types}
         func_body_visitor: FunctionBodyVisitor = FunctionBodyVisitor(
-            icall_locs, arg_info, func_info.local_var, self.collector)
+            icall_locs, arg_info, func_info.name_2_declarator_text, func_info.local_var,
+        func_info.local_var2declarator, self.collector)
         # 设置局部变量和形参涉及到函数指针的信息
         if hasattr(func_info, "func_var2param_types"):
             func_body_visitor.set_func_var2param_types(func_info.func_var2param_types)
@@ -96,10 +127,40 @@ class TypeAnalyzer:
                     (t, 0) for t in func_pointer_arg_type
                 ]
                 var_arg: bool = (icall_loc in func_body_visitor.var_arg_icalls)
+                arg_num = len(func_pointer_arg_type)
                 self.match_with_types(func_pointer_arg_types, callsite_key, var_arg)
             else:
                 logging.debug("fail to find function pointer declaration for indirect-callsite: {}".
                               format(callsite_key))
+                arg_num = 0
+                var_arg = False
+
+            # 根据函数指针declarator和function declarator进行匹配
+            function_pointer_declarator: str = func_body_visitor\
+                .icall_2_decl_text.get(icall_loc, None)
+            # 需要llm辅助类型分析
+            if self.llm_analyzer is not None and \
+                    function_pointer_declarator is not None:
+                print("function pointer declarator is: {}".format(function_pointer_declarator))
+                self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
+                                                arg_num, var_arg)
+
+            # 有llm帮忙分析的callsite_key
+            # 把llm的中间结果log出来
+            if self.log_flag:
+                if hasattr(self, "llm_helped_type_analysis_icall_pair") \
+                    and len(self.llm_helped_type_analysis_icall_pair[callsite_key]) > 0:
+                    content: str = \
+                        f"{callsite_key}|{','.join(self.llm_helped_type_analysis_icall_pair[callsite_key])}"
+                    dump_file = os.path.join(self.log_dir, "llm_helped_type_analysis.txt")
+                    open(dump_file, 'w', encoding='utf-8').write(content + "\n")
+
+                if hasattr(self, "llm_declarator_analysis") \
+                    and len(self.llm_declarator_analysis[callsite_key]) > 0:
+                    content: str = \
+                        f"{callsite_key}|{','.join(self.llm_declarator_analysis[callsite_key])}"
+                    dump_file = os.path.join(self.log_dir, "llm_declarator_analysis.txt")
+                    open(dump_file, 'w', encoding='utf-8').write(content + "\n")
 
 
     # 根据形参签名匹配indirect-call对应的潜在callee
@@ -110,10 +171,12 @@ class TypeAnalyzer:
         # 参数数量
         arg_num: int = len(arg_type)
         fixed_arg_type: List[Tuple[str, int]] = list()
+        ori_type_names: List[str] = list()
         for arg_t in arg_type:
             src_type, pointer_level = parsing_type(arg_t)
             fixed_arg_type.append(get_original_type((src_type, pointer_level),
                                                     self.collector.type_alias_infos))
+            ori_type_names.append(src_type)
         func_set: Set[str] = set()
 
         def process_func_set(func_keys: Set[str],
@@ -125,13 +188,22 @@ class TypeAnalyzer:
                                            and func_key not in self.callees[callsite_key],
                                            new_func_keys))
             for func_key in new_func_keys:
+                if func_key in self.callees[callsite_key]:
+                    continue
                 # 基于callsite的形参和call target实参进行类型匹配
                 param_types: List[Tuple[str, int]] = self.collector.param_types.get(func_key)
-                flag = self.match_types_callsite_target(cur_fixed_arg_type,
-                                                        param_types[:len(cur_fixed_arg_type)])
+                # 原始参数类型名
+                ori_param_type_names: List[str] = self.collector.ori_param_types.get(func_key)
+                flag, llm_helped = self.match_types_callsite_target(cur_fixed_arg_type,
+                                                        param_types[:len(cur_fixed_arg_type)],
+                                                        ori_type_names,
+                                                        ori_param_type_names)
                 # 如果匹配成功
                 if flag:
                     func_set.add(func_key)
+                    # 如果llm帮忙了
+                    if llm_helped:
+                        self.llm_helped_type_analysis_icall_pair[callsite_key].add(func_key)
 
         # 遍历固定参数数量的函数列表
         fixed_num_func_keys: Set[str] = self.collector.param_nums_2_func_keys.get(arg_num, {})
@@ -157,30 +229,52 @@ class TypeAnalyzer:
         self.callees[callsite_key].update(func_set)
 
     # 根据参数类型进行匹配
+    # 后面两个参数表示原始类型参数名，没有映射到别名类型前的参数名
     def match_types_callsite_target(self, arg_types: List[Tuple[str, int]],
-                                    param_types: List[Tuple[str, int]]) -> bool:
+                                    param_types: List[Tuple[str, int]],
+                                    ori_arg_type_names: List[str],
+                                    ori_param_type_names: List[str]) -> Tuple[bool, bool]:
+        """
+        :return: 第一个bool表示类型是否匹配，第二个bool表示是否llm帮忙了
+        """
         assert len(arg_types) == len(param_types)
-        flag = True
+        llm_helped_ = False
         # 逐个参数匹配
         for i in range(len(arg_types)):
             arg_type: Tuple[str, int] = arg_types[i]
             param_type: Tuple[str, int] = param_types[i]
-            flag &= self.match_type(arg_type, param_type)
-        return flag
+            ori_arg_type_name: str = ori_arg_type_names[i]
+            ori_param_type_name: str = ori_param_type_names[i]
+            flag, llm_helped = self.match_type(arg_type, param_type, ori_arg_type_name, ori_param_type_name)
+            llm_helped_ |= llm_helped
+            if not flag:
+                return False, llm_helped_
 
-    def match_type(self, arg_type: Tuple[str, int], param_type: Tuple[str, int]) -> bool:
+        return True, llm_helped_
+
+    def match_type(self, arg_type: Tuple[str, int], param_type: Tuple[str, int],
+                   ori_arg_type_name: str, ori_param_type_name: str) -> Tuple[bool, bool]:
+        """
+        :return: 第一个bool表示类型是否匹配，第二个bool表示是否用到llm作类型判断
+        """
         # 如果严格类型匹配成功
         if arg_type[0] == param_type[0] and arg_type[1] == param_type[1]:
-            return True
+            return True, False
         # 考虑结构体、联合体之间的的指针类型转换关系
         # 如果都不是指针类型，不予考虑
         if arg_type[1] == 0 and param_type[1] == 0:
-            return False
+            return False, False
         if self.is_type_contain(arg_type, param_type):
-            return True
+            return True, False
         elif self.is_type_contain(param_type, arg_type):
-            return True
-        return False
+            return True, False
+        # 如果不需要LLM来辅助
+        if self.llm_analyzer is None:
+            return False, False
+        elif self.is_parent_child_relation(arg_type, param_type,
+                                           ori_arg_type_name, ori_param_type_name):
+            return True, True
+        return False, True
 
     # 确认类型1是否可能包含类型2
     def is_type_contain(self, type1: Tuple[str, int], type2: Tuple[str, int]) -> bool:
@@ -199,3 +293,124 @@ class TypeAnalyzer:
         if src_type[0] == type2[0] and src_type[1] + type1[1] == type2[1]:
             return True
         return False
+
+    # 存在结构体类型的父类子类关系
+    def is_parent_child_relation(self, type1: Tuple[str, int], type2: Tuple[str, int],
+                                 ori_arg_type: str, ori_param_type: str) -> bool:
+        # 必须都是指针类型
+        if type1[1] == 0 or type2[1] == 0:
+            return False
+        # 必须都是结构体类型
+        if type1[0] not in self.collector.struct_infos.keys() or \
+                type2[0] not in self.collector.struct_infos.keys():
+            return False
+        # 如果llm已经分析过这两个类型
+        if (type1[0], type2[0]) in self.llm_analyzed_types.keys():
+            return self.llm_analyzed_types[(type1[0], type2[0])]
+        if (type2[0], type1[0]) in self.llm_analyzed_types.keys():
+            return self.llm_analyzed_types[(type2[0], type1[0])]
+
+        arg_struct_def: str = self.collector.struct_name2declarator.get(type1[0])
+        param_struct_def: str = self.collector.struct_name2declarator.get(type2[0])
+
+        user_prompt_content = user_prompt.format(struct_type1=ori_arg_type,
+            struct_type2=ori_param_type,
+            struct_type1_definition=arg_struct_def,
+            struct_type2_definition=param_struct_def)
+        contents: List[str] = [system_prompt, user_prompt_content]
+        prompt_log: str = system_prompt + "\n\n" + user_prompt_content
+        answer: str = self.llm_analyzer.get_response(contents)
+        prompt_log += "\n\n========================\n" + answer
+        # 如果回答的太长了，让它summarize一下
+        tokens = answer.split(' ')
+        if len(tokens) >= 8:
+            answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
+            prompt_log += "\n\n===========================\n" + summarizing_prompt.format(answer)
+            prompt_log += "\n\n" + answer
+
+        if 'yes' in answer.lower():
+            flag = True
+        else:
+            flag = False
+        self.llm_analyzed_types[(type1[0], type2[0])] = flag
+
+        # 如果需要log
+        if self.log_flag:
+            content: str = f"{type1[0]},{type2[0]},{ori_arg_type},{ori_param_type}:{flag}"
+            open(self.log_type_alias_file, 'a', encoding='utf-8').write(content + "\n")
+            prompt_file = f"{type1[0]}-{type2[0]}.txt"
+            open(os.path.join(self.struct_analysis_log_path, prompt_file),'w', encoding='utf-8')\
+                .write(prompt_log)
+        return flag
+
+    def match_with_declarator_texts(self, func_pointer_declarator: str, callsite_key: str,
+                                     arg_num: int, var_arg: bool):
+        if callsite_key not in self.callees.keys():
+            self.callees[callsite_key] = set()
+
+        func_set = set()
+        def process_func_set(func_keys: Set[str]):
+            new_func_keys = func_keys.copy()
+            if self.scope_strategy is not None:
+                new_func_keys = set(filter(lambda func_key:
+                                           self.scope_strategy.analyze_key(callsite_key, func_key)
+                                           and func_key not in self.callees[callsite_key],
+                                           new_func_keys))
+            for func_key in new_func_keys:
+                if func_key in self.callees[callsite_key]:
+                    continue
+                # 基于callsite的形参和call target实参进行类型匹配
+                function_declarator: str = self.collector.func_key_2_declarator[func_key]
+                flag = self.match_single_declarator_text(func_pointer_declarator,
+                                                        function_declarator)
+                # 如果匹配成功
+                if flag:
+                    func_set.add(func_key)
+                    # 如果llm帮忙了
+                    self.llm_declarator_analysis[callsite_key].add(func_key)
+
+        # 遍历固定参数数量的函数列表
+        fixed_num_func_keys: Set[str] = self.collector.param_nums_2_func_keys.get(arg_num, {})
+        process_func_set(fixed_num_func_keys)
+
+        # 遍历可变参数函数列表
+        for param_num, func_keys in self.collector.var_arg_param_nums_2_func_keys.items():
+            # 可能被调用
+            if param_num <= arg_num:
+                process_func_set(func_keys)
+            # 如果indirect-callsite和call target都支持可变参数，并且target参数多于callsite
+            elif var_arg and param_num > arg_num:
+                process_func_set(func_keys)
+
+        # 如果arg_types支持可变参数
+        if var_arg:
+            # 遍历固定参数函数列表中形参数量大于arg_num的函数
+            for param_num, func_keys in self.collector.param_nums_2_func_keys.items():
+                # 可能被调用
+                if param_num > arg_num:
+                    process_func_set(func_keys)
+
+        self.callees[callsite_key].update(func_set)
+
+    def match_single_declarator_text(self, func_pointer_declarator: str,
+                                     func_declarator: str) -> bool:
+        prompts: List[str] = [system_prompt_declarator,
+                              user_prompt_declarator.format(func_pointer_declarator
+                                                            ,func_declarator)]
+        prompt_log: str = system_prompt + "\n\n" + \
+                          user_prompt_declarator.format(func_pointer_declarator
+                                                            ,func_declarator)
+        answer: str = self.llm_analyzer.get_response(prompts)
+        prompt_log += "\n\n========================\n" + answer
+        # 如果回答的太长了，让它summarize一下
+        tokens = answer.split(' ')
+        if len(tokens) >= 8:
+            answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
+            prompt_log += "\n\n===========================\n" + summarizing_prompt.format(answer)
+            prompt_log += "\n\n" + answer
+
+        if 'yes' in answer.lower():
+            flag = True
+        else:
+            flag = False
+        return flag

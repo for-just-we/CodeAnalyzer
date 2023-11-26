@@ -182,19 +182,25 @@ def extract_param_types(declarator: Node) -> Tuple[List[str], bool]:
 class FunctionBodyVisitor(ASTVisitor):
     def __init__(self, icall_infos: List[Tuple[int, int]],
                  arg_infos: Dict[str, str],
+                 arg_declarators: Dict[str, str],
                  local_var_infos: Dict[str, str],
+                 local_var2declarator: Dict[str, str],
                  collector: BaseInfoCollector):
         self.icall_infos: List[Tuple[int, int]] = icall_infos
         # 保存局部变量信息，var name --> var type
         self.local_var_infos: Dict[str, str] = local_var_infos
+        self.local_var2declarator: Dict[str, str] = local_var2declarator
         # 保存参数信息
         self.arg_infos: Dict[str, str] = arg_infos
+        self.arg_declarators: Dict[str, str] = arg_declarators
         self.arg_info_4_callsite: Dict[Tuple[int, int], List[Tuple[str, int]]] = dict()
 
         # 每一个indirect-call的文本s
         self.icall_nodes: Dict[Tuple[int, int], Node] = dict()
         # 每一个indirect-call对应的函数指针声明的参数类型
         self.icall_2_decl_param_types: Dict[Tuple[int, int], List[str]] = dict()
+        # 每一个indirect-call对应的函数指针声明的文本
+        self.icall_2_decl_text: Dict[Tuple[int, int], str] = dict()
         # 支持可变参数的indirect-call
         self.var_arg_icalls: Set[Tuple[int, int]] = set()
 
@@ -232,6 +238,8 @@ class FunctionBodyVisitor(ASTVisitor):
                 and type_name in self.collector.func_type2param_types.keys():
             self.icall_2_decl_param_types[node.start_point] = \
                     self.collector.func_type2param_types[type_name]
+            self.icall_2_decl_text[node.start_point] = self.collector. \
+                                func_type2raw_declarator[type_name]
         arg_type_infos: List[Tuple[str, int]] = self.process_argument_list(node.children[-1])
         self.arg_info_4_callsite[node.start_point] = arg_type_infos
         self.icall_nodes[node.start_point] = node
@@ -263,7 +271,8 @@ class FunctionBodyVisitor(ASTVisitor):
         if node.type == "identifier":
             def get_base_type(var_name: str, source_dict: Dict[str, str],
                               param_types_dict: Dict[str, List[str]] = None,
-                              var_arg_func_vars: Set[str] = None) -> str:
+                              var_arg_func_vars: Set[str] = None,
+                              func_var2declarator: Dict[str, str] = None) -> str:
                 base_type: str = source_dict.get(var_name, TypeEnum.UnknownType.value)
                 if base_type == TypeEnum.FunctionType.value and param_types_dict is not None:
                     param_types = param_types_dict.get(var_name, None)
@@ -272,6 +281,9 @@ class FunctionBodyVisitor(ASTVisitor):
                     # 支持可变参数
                     if var_arg_func_vars is not None and var_name in var_arg_func_vars:
                         self.var_arg_icalls.add(icall_loc)
+
+                if func_var2declarator is not None and var_name in func_var2declarator.keys():
+                    self.icall_2_decl_text[icall_loc] = func_var2declarator[var_name]
                 return base_type
 
             var_name: str = node.text.decode("utf8")
@@ -281,19 +293,22 @@ class FunctionBodyVisitor(ASTVisitor):
                     getattr(self, "func_var2param_types", None)
                 var_arg_func_var: Set[str] = getattr(self, "var_arg_func_var", None)
                 base_type_name = get_base_type(var_name, self.local_var_infos, func_var2param_types,
-                                               var_arg_func_var)
+                                               var_arg_func_var,
+                                               self.local_var2declarator)
             # 函数形参
             elif var_name in self.arg_infos.keys():
                 func_param2param_types: Dict[str, List[str]] = \
                     getattr(self, "func_param2param_types", None)
                 var_arg_func_param: Set[str] = getattr(self, "var_arg_func_param", None)
                 base_type_name = get_base_type(var_name, self.arg_infos, func_param2param_types,
-                                               var_arg_func_param)
+                                               var_arg_func_param,
+                                               self.arg_declarators)
             # 全局变量
             elif var_name in self.collector.global_var_info.keys():
                 base_type_name = get_base_type(var_name, self.collector.global_var_info,
                                           self.collector.func_var2param_types,
-                                               self.collector.var_arg_func_vars)
+                                               self.collector.var_arg_func_vars,
+                                               self.collector.global_var_2_declarator_text)
             # 未知类型变量
             else:
                 base_type_name = TypeEnum.UnknownType.value
@@ -346,6 +361,10 @@ class FunctionBodyVisitor(ASTVisitor):
                     original_src_type, {}).get(field_name, None)
                 if param_types is not None:
                     self.icall_2_decl_param_types[icall_loc] = param_types
+                func_declarator: str = self.collector.func_struct_field_declarators\
+                    .get(original_src_type,{}).get(field_name, None)
+                if func_declarator is not None:
+                    self.icall_2_decl_text[icall_loc] = func_declarator
 
                 # 该field是否支持可变参数
                 var_arg_fields: Set[str] = self.collector.var_arg_struct_fields.\

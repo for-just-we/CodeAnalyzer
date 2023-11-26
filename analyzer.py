@@ -14,6 +14,43 @@ from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionR
 from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer, GPTAnalyzer
+
+
+def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
+    logging.debug("start evaluating")
+    precs = [] # 查准率
+    recalls = [] # 召回率
+    F1s = []
+    count = 0
+    for icall_key, labeled_funcs in tqdm(ground_truths.items(), desc="evaluating"):
+        analyzed_targets: Set[str] = targets.get(icall_key, set())
+        TPs: Set[str] = analyzed_targets & labeled_funcs
+        if len(TPs) == 0:
+            logging.debug("file containing missed: {}".format(icall_key))
+            precs.append(0)
+            recalls.append(0)
+            F1s.append(0)
+            count += 1
+            continue
+        prec = len(TPs) / len(analyzed_targets)
+        recall = len(TPs) / len(labeled_funcs)
+        precs.append(prec)
+        recalls.append(recall)
+        if recall < 1:
+            logging.debug("file have missing: {}".format(icall_key))
+            logging.debug("missed functions are: {}".format(labeled_funcs - TPs))
+        if prec + recall == 0:
+            F1s.append(0)
+        else:
+            F1s.append(2 * prec * recall / (prec + recall))
+
+    P = np.mean(precs)
+    R = np.mean(recalls)
+    F1 = np.mean(F1s)
+    logging.debug(f"{count} examples didn't produce valid analyze results")
+
+    return (P, R, F1)
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -134,7 +171,6 @@ class ProjectAnalyzer:
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = infos[0]
         self.ground_truths: DefaultDict[str, Set[str]] = infos[1]
         self.project_root: str = project_root
-        self.stage: int = args.stage
         self.args = args
         self.project: str = project
         self.model_name = model_name
@@ -166,11 +202,8 @@ class ProjectAnalyzer:
         func_set: Set[str] = global_ref_func_visitor.func_name_set
         logging.info("function name set has {} functions.".format(len(func_set)))
 
-        local_var_2_declarator: Dict[str, Dict[str, str]] = dict()
-        func_key_2_declarator: Dict[str, str] = dict()
-        arg_2_declarator: Dict[str, Dict[str, str]] = dict()
         func_key_2_name: Dict[str, str] = dict()
-
+        func_key_2_declarator: Dict[str, str] = dict()
         func_info_dict: Dict[str, FuncInfo] = funcdef_visitor.func_info_dict
 
         # 第一次逐函数扫描，统计每个函数的局部变量定义和被引用的函数
@@ -188,10 +221,9 @@ class ProjectAnalyzer:
             local_func_ref_visitor = LocalFunctionRefVisitor(func_set, local_vars,
                                                              arg_names, refered_func_names)
             local_func_ref_visitor.traverse_node(func_info.func_body)
-            local_var_2_declarator[func_key] = local_var_visitor.local_var_2_declarator_text
-            func_key_2_declarator[func_key] = func_info.raw_declarator_text
+            func_info.set_local_var2declarator(local_var_visitor.local_var_2_declarator_text)
             func_key_2_name[func_key] = func_info.func_name
-            arg_2_declarator[func_key] = func_info.name_2_declarator_text
+            func_key_2_declarator[func_key] = func_info.raw_declarator_text
 
         # 开始签名匹配
         if self.args.scope_strategy == "base":
@@ -202,8 +234,21 @@ class ProjectAnalyzer:
         # 收集必要信息，包括：
         # -
         collector: BaseInfoCollector = BaseInfoCollector(self.icall_dict, refered_func_names,
-                                                         func_info_dict, global_visitor)
+                                                         func_info_dict, global_visitor,
+                                                         func_key_2_declarator)
         collector.build_all()
-        type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, scope_strategy)
+        llm_analyzer: BaseLLMAnalyzer = None
+        if self.args.llm == "gpt":
+            llm_analyzer = GPTAnalyzer(self.model_name, self.args.key)
+        type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, scope_strategy, llm_analyzer,
+                                                   self.args.log_llm_output, self.project)
         type_analyzer.process_all()
-        print()
+        return type_analyzer
+
+    def evaluate(self):
+        type_analyzer = self.analyze_c_files_sig_match()
+        logging.info("result of project, Precision, Recall, F1 is:")
+        icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees
+        P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
+        logging.info(f"| {self.project} "
+                        f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")

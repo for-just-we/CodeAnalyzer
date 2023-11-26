@@ -38,3 +38,6 @@ class FuncInfo:
 
     def set_var_arg_func_var(self, var_arg_func_var: Set[str]):
         self.var_arg_func_var: Set[str] = var_arg_func_var
+
+    def set_local_var2declarator(self, local_var2declarator: Dict[str, str]):
+        self.local_var2declarator: Dict[str, str] = local_var2declarator

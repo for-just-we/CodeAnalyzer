@@ -22,6 +22,8 @@ class GlobalVisitor(ASTVisitor):
         self.anoymous_enum_num: int = 0
         # 将每个结构体类型对应的field映射为type name
         self.struct_infos: DefaultDict[str, Dict[str, str]] = defaultdict(dict)
+        # 将结构体name映射到declarator
+        self.struct_name2declarator: Dict[str, str] = dict()
         # 函数指针类型定义对应的raw declarator text
         self.func_type2raw_declarator: Dict[str, str] = dict()
         # 函数指针类型对应的参数类型
@@ -201,8 +203,10 @@ class GlobalVisitor(ASTVisitor):
     def process_struct_specifier(self, node: Node, struct_name: str):
         struct_field_visitor = StructFieldVisitor()
         struct_field_visitor.traverse_node(node)
+        # 是结构体定义而不是结构体声明
         if len(struct_field_visitor.field_name_2_type) > 0:
             self.struct_infos[struct_name] = struct_field_visitor.field_name_2_type
+            self.struct_name2declarator[struct_name] = node.text.decode('utf8')
         # 第一个结构体field的类型
         if struct_field_visitor.first_field_type is not None:
             self.struct_first_field_types[struct_name] = struct_field_visitor.first_field_type
