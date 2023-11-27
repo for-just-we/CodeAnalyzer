@@ -99,6 +99,8 @@ class TypeAnalyzer:
                 with open(self.log_declarator_res, 'w', encoding='utf-8'):
                     pass
 
+        self.processed_icall_num: int = 1
+
     def process_all(self):
         # 遍历每个函数
         for func_key, func_info in self.collector.func_info_dict.items():
@@ -137,13 +139,14 @@ class TypeAnalyzer:
         for icall_loc in icall_locs:
             callsite_key: str = f"{func_info.file}:{icall_loc[0] + 1}:{icall_loc[1] + 1}"
             # 如果该indirect-call对应的call expression没有被正确解析，跳过。
-            logging.info("visiting icall {}".format(callsite_key))
+            logging.info("visiting {}-th icall {}".format(self.processed_icall_num, callsite_key))
             if icall_loc not in func_body_visitor.icall_nodes.keys():
                 self.callees[callsite_key] = set()
                 continue
             self.icall_nodes[callsite_key] = func_body_visitor.icall_nodes[icall_loc]
             self.icall_2_func[callsite_key] = func_key
             self.process_indirect_call(callsite_key, icall_loc, func_body_visitor)
+            self.processed_icall_num += 1
 
     # 处理一个indirect-call
     def process_indirect_call(self, callsite_key: str, icall_loc: Tuple[int, int],
@@ -156,8 +159,8 @@ class TypeAnalyzer:
             if arg_type is not None:
                 self.match_with_types(arg_type, callsite_key)
             else:
-                logging.debug("error parsing arguments for indirect-callsite: {}".
-                              format(callsite_key))
+                logging.debug("error parsing arguments for {}-th indirect-callsite: {}".
+                              format(self.processed_icall_num, callsite_key))
 
             # 根据函数指针声明的形参类型进行匹配
             func_pointer_arg_type: List[str] = func_body_visitor.icall_2_decl_param_types.\
@@ -170,8 +173,8 @@ class TypeAnalyzer:
                 arg_num = len(func_pointer_arg_type)
                 self.match_with_types(func_pointer_arg_types, callsite_key, var_arg)
             else:
-                logging.debug("fail to find function pointer declaration for indirect-callsite: {}".
-                              format(callsite_key))
+                logging.debug("fail to find function pointer declaration for {}-th indirect-callsite: {}".
+                              format(self.processed_icall_num, callsite_key))
                 arg_num = 0
                 var_arg = False
 
@@ -181,7 +184,7 @@ class TypeAnalyzer:
             # 需要llm辅助类型分析
             if self.llm_analyzer is not None and \
                     function_pointer_declarator is not None:
-                print("function pointer declarator is: {}".format(function_pointer_declarator))
+                logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
                 self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
                                                 arg_num, var_arg)
 
@@ -374,8 +377,8 @@ class TypeAnalyzer:
                                             new_func_keys))
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
-            pbar = tqdm(total=len(new_func_keys), desc="matcing type for icall {}"
-                        .format(callsite_key))
+            pbar = tqdm(total=len(new_func_keys), desc="matcing type for {}-th icall {}"
+                        .format(self.processed_icall_num, callsite_key))
             futures = []
 
             def update_progress(future):
@@ -451,8 +454,8 @@ class TypeAnalyzer:
                                         new_func_keys))
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
-            pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for icall {}"
-                        .format(callsite_key))
+            pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for {}-th icall {}"
+                        .format(self.processed_icall_num, callsite_key))
             futures = []
 
             def update_progress(future):
