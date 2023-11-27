@@ -241,7 +241,8 @@ class ProjectAnalyzer:
         if self.args.llm == "gpt":
             llm_analyzer = GPTAnalyzer(self.model_name, self.args.key)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, scope_strategy, llm_analyzer,
-                                                   self.args.log_llm_output, self.project)
+                                                   self.args.log_llm_output, self.project,
+                                                   self.args.num_worker)
         type_analyzer.process_all()
         return type_analyzer
 

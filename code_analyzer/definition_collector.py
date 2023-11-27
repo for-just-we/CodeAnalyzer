@@ -35,8 +35,8 @@ class BaseInfoCollector:
                 global_visitor.func_struct_field_declarators
 
         # 函数指针全局变量
-        if len(global_visitor.func_var2param_types):
-            self.func_var2param_types: Dict[str, List[str]] = global_visitor.func_var2param_types
+        #if len(global_visitor.func_var2param_types):
+        self.func_var2param_types: Dict[str, List[str]] = global_visitor.func_var2param_types
         # 包含的enum定义
         self.enum_infos: Set[str] = global_visitor.enum_infos
         # 宏函数
