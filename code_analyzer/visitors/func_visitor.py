@@ -1,7 +1,7 @@
-from tree_sitter import Node
-from typing import Dict, List, Tuple, DefaultDict, Set
+from code_analyzer.schemas.ast_node import ASTNode
+from typing import Dict, List, Tuple, Set
 
-from code_analyzer.visitors.tree_sitter_base_visitor import ASTVisitor
+from code_analyzer.visitors.base_visitor import ASTVisitor
 from code_analyzer.visitors.util_visitor import CastTypeDescriptorVisitor
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.schemas.enums import TypeEnum
@@ -16,23 +16,27 @@ import logging
 
 # 遍历函数名称和参数列表部分
 class FunctionDeclaratorVisitor(ASTVisitor):
-    def __init__(self, parentVisitor, func_body: Node, raw_declarator_text):
-        self.parentVisitor = parentVisitor
-        self.func_body = func_body
-        self.raw_declarator_text = raw_declarator_text
+    def __init__(self, parentVisitor: 'FunctionDefVisitor', func_body: ASTNode, raw_declarator_text: str):
+        self.parentVisitor: 'FunctionDefVisitor' = parentVisitor
+        self.func_body: ASTNode = func_body
+        self.raw_declarator_text: str = raw_declarator_text
 
-    def visit_function_declarator(self, node: Node):
-        if node.children[0].type == "identifier":
-            func_name_node = node.children[0]
-        elif node.children[0].type == "qualified_identifier":
-            assert node.children[0].children[-1].type == "identifier"
-            func_name_node = node.children[0].children[-1]
+    def visit_function_declarator(self, node: ASTNode):
+        if hasattr(node, "identifier"):
+            func_name: str = node.identifier.node_text
+        elif hasattr(node, "qualified_identifier"):
+            from code_analyzer.visitors.util_visitor import FuncNameExtractor
+            func_name_extractor = FuncNameExtractor()
+            func_name_extractor.traverse_node(node.qualified_identifier)
+            func_name: str = func_name_extractor.identifier
+            if func_name is None:
+                logging.debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
+                return False
         else:
             logging.debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
             return False
         # assert node.children[1].type == "parameter_list"
         parameter_visitor = ParameterListVisitor()
-        func_name: str = func_name_node.text.decode('utf8')
         self.parentVisitor.func_name_sets.add(func_name)
         func_key: str = self.parentVisitor.current_file + "<" + str(node.start_point[0] + 1)
         parameter_visitor.traverse_node(node)
@@ -51,7 +55,8 @@ class FunctionDeclaratorVisitor(ASTVisitor):
             self.parentVisitor.error_funcs[func_key] = self.raw_declarator_text
         del parameter_visitor
 
-    def visit_compound_statement(self, node: Node):
+    # 不分析函数体
+    def visit_compound_statement(self, node: ASTNode):
         return False
 
 
@@ -64,11 +69,13 @@ class FunctionDefVisitor(ASTVisitor):
         self.current_file: str = ""
         self.func_name_sets: Set[str] = set()
 
-    def visit_function_definition(self, node: Node):
-        assert node.children[-1].type == "compound_statement"
-        raw_declarator_text = " ".join(list(map(lambda n: n.text.decode('utf8'),
-                                                node.children[:-1])))
-        func_body: Node = node.children[-1]
+    def visit_function_definition(self, node: ASTNode):
+        assert hasattr(node, "compound_statement")
+        func_body: ASTNode = node.compound_statement
+        full_text: str = node.node_text
+        func_body_text: str = func_body.node_text
+        idx = full_text.find(func_body_text)
+        raw_declarator_text: str = full_text[: idx]
         # 考虑到error_node存在
         declarator_visitor = FunctionDeclaratorVisitor(self, func_body, raw_declarator_text)
         declarator_visitor.traverse_node(node)
@@ -88,14 +95,14 @@ class ParameterListVisitor(ASTVisitor):
         # 出现函数指针时，会进一步解析该函数指针参数的参数类型。但是，如果是类型定义或者函数参数的function declarator，
         # 遇到函数指针直接将类型标记为function declarator
         # flag为true表示遍历的是function definition，为false表示遍历的是param declaraton或者type definition
-        self.flag = flag
+        self.flag: bool = flag
         if flag:
             self.param_name2types: Dict[str, List[str]] = dict()
             self.var_arg_var_params: Set[str] = set()
 
 
-    # 处理declarator
-    def process_declarator(self, declarator: Node) -> Tuple[str, str, Node]:
+    # 处理局部变量declarator
+    def process_declarator(self, declarator: ASTNode) -> Tuple[str, str, ASTNode]:
         suffix: str = ""
         while declarator.type != "identifier" and declarator.type != "function_declarator":
             if declarator.type == "pointer_declarator":
@@ -110,22 +117,25 @@ class ParameterListVisitor(ASTVisitor):
             else:
                 raise DeclareTypeException("The type under parameter declarator should not beyond"
                                    " reference, array, pointer")
-        return suffix, declarator.text.decode('utf8'), declarator
+        return suffix, declarator.node_text, declarator
 
     # 没有默认参数
-    def visit_parameter_declaration(self, node: Node):
+    def visit_parameter_declaration(self, node: ASTNode):
         # void func(void) 属于只有1个子节点的情况，这个时候直接跳过
         if node.child_count < 2:
+            type_name = node.children[0].node_text
+            if type_name != "void":
+                self.parameter_types.append((type_name, "_"))
             return False
-        type_node: Node = node.children[-2]
-        while type_node.type == "struct_specifier":
+        type_node: ASTNode = node.children[0]
+        if type_node.node_type in {"struct_specifier", "union_specifier"}:
             type_node = type_node.children[1]
-        base_type: str = type_node.text.decode('utf8')
-        declarator: Node = node.children[-1]
+        base_type: str = type_node.node_text
+        declarator: ASTNode = node.children[-1]
 
         try:
             suffix, param_name, cur_node = process_declarator(declarator)
-            if cur_node.type == "function_declarator":
+            if cur_node.node_type == "function_declarator":
                 param_type: str = TypeEnum.FunctionType.value
                 param_name = get_func_pointer_name(cur_node, node)
                 if self.flag:
@@ -141,7 +151,7 @@ class ParameterListVisitor(ASTVisitor):
             else:
                 param_type: str = base_type if suffix == "" else base_type + " " + suffix
             self.parameter_types.append((param_type, param_name))
-            self.name_2_declarator_text[param_name] = node.text.decode('utf8')
+            self.name_2_declarator_text[param_name] = node.node_text
         except DeclareTypeException as e:
             self.parameter_types.append((TypeEnum.UnknownType.value, "unknown"))
             # raise DeclareTypeException("caught Declare Type Exception")
@@ -149,27 +159,32 @@ class ParameterListVisitor(ASTVisitor):
         return False
 
     # 有默认参数，不过benchmark中不一定有默认参数的case
-    def visit_optional_parameter_declaration(self, node: Node):
+    def visit_optional_parameter_declaration(self, node: ASTNode):
         assert node.child_count >= 2
-        assert node.children[-2].type == "="
-        base_type: str = node.children[-4].text.decode('utf8')
-        declarator: Node = node.children[-3]
-        suffix, param_name, _ = process_declarator(declarator)
-        param_type: str = base_type if suffix == "" else base_type + " " + suffix
-        self.parameter_types.append((param_type, param_name))
+        assert node.children[-2].node_text == "="
+        base_type: str = node.children[0].node_text
+        declarator: ASTNode = node.children[1]
+        try:
+            suffix, param_name, _ = process_declarator(declarator)
+            param_type: str = base_type if suffix == "" else base_type + " " + suffix
+            self.parameter_types.append((param_type, param_name))
+        except DeclareTypeException as e:
+            logging.debug("traversing node: ", node.node_text,
+                  " location: ", node.start_point, " error")
+            return False
         return False
 
-    def visit(self, node: Node):
+    def visit(self, node: ASTNode):
         # 可变参数
-        if node.type == "...":
+        if node.node_type == "...":
             self.var_arg = True
         return True
 
-    def visit_variadic_parameter(self, node: Node):
+    def visit_variadic_parameter(self, node: ASTNode):
         self.var_arg = True
         return False
 
-def extract_param_types(declarator: Node) -> Tuple[List[str], bool]:
+def extract_param_types(declarator: ASTNode) -> Tuple[List[str], bool]:
     param_visitor: ParameterListVisitor = ParameterListVisitor(False)
     param_visitor.traverse_node(declarator)
     param_types: List[str] = list(map(lambda t: t[0], param_visitor.parameter_types))
@@ -196,7 +211,7 @@ class FunctionBodyVisitor(ASTVisitor):
         self.arg_info_4_callsite: Dict[Tuple[int, int], List[Tuple[str, int]]] = dict()
 
         # 每一个indirect-call的文本s
-        self.icall_nodes: Dict[Tuple[int, int], Node] = dict()
+        self.icall_nodes: Dict[Tuple[int, int], ASTNode] = dict()
         # 每一个indirect-call对应的函数指针声明的参数类型
         self.icall_2_decl_param_types: Dict[Tuple[int, int], List[str]] = dict()
         # 每一个indirect-call对应的函数指针声明的文本
@@ -220,7 +235,7 @@ class FunctionBodyVisitor(ASTVisitor):
     def set_var_arg_func_var(self, var_arg_func_var: Set[str]):
         self.var_arg_func_var: Set[str] = var_arg_func_var
 
-    def visit_call_expression(self, node: Node):
+    def visit_call_expression(self, node: ASTNode):
         if not node.start_point in self.icall_infos:
             return True
         # 为宏函数
@@ -245,7 +260,7 @@ class FunctionBodyVisitor(ASTVisitor):
         self.icall_nodes[node.start_point] = node
         return True
 
-    def process_argument_list(self, node: Node) -> List[Tuple[str, int]]:
+    def process_argument_list(self, node: ASTNode) -> List[Tuple[str, int]]:
         assert node.children[0].type == "("
         if node.children[1].type == ")":
             return []
@@ -266,7 +281,7 @@ class FunctionBodyVisitor(ASTVisitor):
     # 处理函数调用的实参数，返回实际参数的base type和pointer level，
     # 如果base type = char*, pointer level = 1 , final type = char**
     # 如果base type = char*, pointer level = -1, final type = char
-    def process_argument(self, node: Node, pointer_level: int, icall_loc:
+    def process_argument(self, node: ASTNode, pointer_level: int, icall_loc:
                 Tuple[int, int] = None) -> Tuple[str, int]:
         if node.type == "identifier":
             def get_base_type(var_name: str, source_dict: Dict[str, str],
@@ -397,7 +412,7 @@ class FunctionBodyVisitor(ASTVisitor):
 
 # 遍历函数体，收集函数体中的局部遍量定义
 class LocalVarVisitor(ASTVisitor):
-    def __init__(self):
+    def __init__(self, global_visitor=None):
         self.local_var_infos: Dict[str, str] = dict()
         # 局部变量名映射为declarator
         self.local_var_2_declarator_text: Dict[str, str] = dict()
@@ -405,10 +420,11 @@ class LocalVarVisitor(ASTVisitor):
         self.func_var2param_types: Dict[str, List[str]] = dict()
         # 局部变量中支持可变参数的函数指针
         self.local_var_param_var_arg: Set[str] = set()
+        self.global_visitor = global_visitor
 
-    def visit_declaration(self, node: Node):
+    def visit_declaration(self, node: ASTNode):
         infos: Tuple[List[Tuple[str, str]], Dict[str, List[str]], Set[str]] \
-            = process_multi_var_declaration(node)
+            = process_multi_var_declaration(node, global_visitor=self.global_visitor)
         # 是函数声明
         if len(infos) == 0:
             return
@@ -432,7 +448,7 @@ class LocalFunctionRefVisitor(ASTVisitor):
         self.arg_names: Set[str] = arg_names
         self.refered_func: Set[str] = refered_funcs
 
-    def visit_identifier(self, node: Node):
+    def visit_identifier(self, node: ASTNode):
         identifier: str = node.text.decode('utf8')
         # 引用的是函数名而不是局部变量名，这里我们假设局部变量和函数重名时会优先引用局部变量
         if identifier in self.func_set and identifier not in self.local_vars and\
@@ -441,12 +457,12 @@ class LocalFunctionRefVisitor(ASTVisitor):
             if not (node.parent.type == "call_expression" and node == node.parent.children[0]):
                 self.refered_func.add(identifier)
 
-    def visit_function_declarator(self, node: Node):
+    def visit_function_declarator(self, node: ASTNode):
         return False
 
-    def visit_function_definition(self, node: Node):
+    def visit_function_definition(self, node: ASTNode):
         return False
 
     # 不考虑宏定义
-    def visit_preproc_def(self, node: Node):
+    def visit_preproc_def(self, node: ASTNode):
         return False

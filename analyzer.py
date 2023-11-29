@@ -8,6 +8,8 @@ import logging
 
 from scope_strategy.base_strategy import BaseStrategy
 
+from code_analyzer.preprocessor.node_processor import processor
+from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisitor, LocalFunctionRefVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
@@ -182,22 +184,23 @@ class ProjectAnalyzer:
         global_visitor = GlobalVisitor()
         from code_analyzer.config import parser
 
-        parsed_tree: List[Tree] = list()
+        parsed_trees: List[ASTNode] = list()
         for file in tqdm(c_h_files, desc="parsing source files into trees"):
             relative_path = file[len(self.project_root) + 1:]
             logging.debug(relative_path)
             code: bytes = open(file, 'rb').read()
             tree: Tree = parser.parse(code)
+            root_node = processor.visit(tree.root_node)
             funcdef_visitor.current_file = relative_path
-            funcdef_visitor.walk(tree)
+            funcdef_visitor.traverse_node(root_node)
             global_visitor.current_file = relative_path
-            global_visitor.walk(tree)
-            parsed_tree.append(tree)
+            global_visitor.traverse_node(root_node)
+            parsed_trees.append(root_node)
 
         # 第二次扫描文件，统计每个函数global范围内被引用的函数
         global_ref_func_visitor = GlobalFunctionRefVisitor(set(funcdef_visitor.func_name_sets))
-        for tree in parsed_tree:
-            global_ref_func_visitor.walk(tree)
+        for tree in parsed_trees:
+            global_ref_func_visitor.traverse_node(tree)
         refered_func_names: Set[str] = global_ref_func_visitor.refered_func
         func_set: Set[str] = global_ref_func_visitor.func_name_set
         logging.info("function name set has {} functions.".format(len(func_set)))
@@ -208,7 +211,7 @@ class ProjectAnalyzer:
 
         # 第一次逐函数扫描，统计每个函数的局部变量定义和被引用的函数
         for func_key, func_info in tqdm(func_info_dict.items(), desc="parsing function infos"):
-            local_var_visitor = LocalVarVisitor()
+            local_var_visitor = LocalVarVisitor(global_visitor)
             local_var_visitor.traverse_node(func_info.func_body)
             # 支持可变参数的函数指针局部变量
             if len(local_var_visitor.local_var_param_var_arg) > 0:

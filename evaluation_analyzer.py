@@ -9,7 +9,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     subparsers = parser.add_subparsers(dest='llm')
 
     gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')
-    gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4'])
+    gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4', 'gpt-4-1106-preview'])
     gpt_parser.add_argument('--key', type=str, help='api key of openai')
 
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')

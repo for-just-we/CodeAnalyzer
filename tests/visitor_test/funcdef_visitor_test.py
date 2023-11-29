@@ -1,4 +1,6 @@
 from tree_sitter import Tree
+from code_analyzer.schemas.ast_node import ASTNode
+from code_analyzer.preprocessor.node_processor import processor
 
 from code_analyzer.config import parser
 from code_analyzer.visitors.func_visitor import FunctionDefVisitor
@@ -6,15 +8,14 @@ from code_analyzer.visitors.func_visitor import FunctionDefVisitor
 from typing import List
 
 func_case1 = """
-    static inline ngx_int_sig** add_sig(const char* data[], int& u = 1, struct type1 c, type2& d,
-        const char* str = "abcd", int* arr = {1, 2, 3}, ...) {
+    static inline ngx_int_sig** add_sig(const char* data[], int& u, struct type1 c, type2 & d, const char* str, int* arr, ...) {
         return NULL;
     }
 """
 
 func_case2 = """
     void ngx_cdecl ngx_conf_log_error(ngx_uint_t level, ngx_conf_t *cf, struct ngx_err_t* err, const char *fmt, ...)
-{
+{   const int& a = b; }
 """
 
 func_case3 = """
@@ -48,6 +49,7 @@ static enum update_result uf_natint_255(struct ddsi_cfgst *cfgst, void *parent, 
 }
 """
 
+# 用c解析器解析的出来而用c++不行
 func_case9 = """
 int test_run(void (*const test_functions[])(void))
 {
@@ -185,9 +187,14 @@ H5AC__check_if_write_permitted(const H5F_t
 """
 
 def testFuncDef():
-    tree: Tree = parser.parse(func_case18.encode("utf-8"))
-    func_visitor = FunctionDefVisitor()
-    func_visitor.walk(tree)
+    func_decls = [func_case1, func_case2, func_case3, func_case4, func_case5, func_case6, func_case7, func_case8,
+                  func_case9, func_case10, func_case11, func_case12, func_case13, func_case14, func_case15,
+                  func_case16, func_case17, func_case18]
+    for i, decl in enumerate(func_decls):
+        tree: Tree = parser.parse(decl.encode("utf-8"))
+        root_node: ASTNode = processor.visit(tree.root_node)
+        func_visitor = FunctionDefVisitor()
+        func_visitor.traverse_node(root_node)
     pass
 
 if __name__ == '__main__':

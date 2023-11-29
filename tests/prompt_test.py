@@ -14,27 +14,43 @@ func_declarator = """char *
 ngx_conf_set_sec_slot(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)"""
 
 if __name__ == '__main__':
-    api_key = sys.argv[1]
-    openai.api_key = api_key
+    # api_key = sys.argv[1]
+    # openai.api_key = api_key
+    #
+    # dialog1 = [{"role": "system", "content": SystemPrompt1},
+    #            {"role": "user",
+    #             "content": UserPrompt1.format(icall_context[-1], "\n".join(icall_context)
+    #                                            , "\n\n".join(func_declarator))}]
+    # print(UserPrompt1.format(icall_context[-1], "\n".join(icall_context)
+    #                                            , func_declarator))
+    # response = openai.ChatCompletion.create(
+    #     model="gpt-3.5-turbo",
+    #     messages=dialog1
+    # )
+    # content1 = response.choices[0]["message"]["content"]
+    # print(content1)
+    #
+    # dialog2 = [{"role": "user",
+    #             "content": UserPrompt2.format(content1)}]
+    # response2 = openai.ChatCompletion.create(
+    #     model="gpt-3.5-turbo",
+    #     messages=dialog2
+    # )
+    # content2 = response2.choices[0]["message"]["content"]
+    # print(content2)
 
-    dialog1 = [{"role": "system", "content": SystemPrompt1},
-               {"role": "user",
-                "content": UserPrompt1.format(icall_context[-1], "\n".join(icall_context)
-                                               , "\n\n".join(func_declarator))}]
-    print(UserPrompt1.format(icall_context[-1], "\n".join(icall_context)
-                                               , func_declarator))
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=dialog1
-    )
-    content1 = response.choices[0]["message"]["content"]
-    print(content1)
+    from dataclasses import dataclass
 
-    dialog2 = [{"role": "user",
-                "content": UserPrompt2.format(content1)}]
-    response2 = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=dialog2
-    )
-    content2 = response2.choices[0]["message"]["content"]
-    print(content2)
+    @dataclass
+    class ASTNode:
+        node_type: str
+        node_text: str
+        start_point: tuple
+        end_point: tuple
+        children: list
+
+    node = ASTNode("primitive_type", "unsigned int", (1, 0), (2, 0), [])
+    print(node.node_type)
+    setattr(node, "child_count", 4)
+    print(getattr(node, "child_count"))
+    print(node)

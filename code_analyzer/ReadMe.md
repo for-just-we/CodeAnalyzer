@@ -1,4 +1,7 @@
 
+运行，code_analyzer基于[tree-sitter](https://github.com/tree-sitter/py-tree-sitter/)实现，使用前需要build一个 `my-languages.so` 或者 `my-languages.dylib` 放在根目录的 `resources` 目录下。
+
+可以直接通过在`<project_root>/resources` 目录下运行 `python build.py` build动态链接库，但是注意需要先下载[tree-sitter-c](https://github.com/tree-sitter/tree-sitter-c)和[tree-sitter-cpp](https://github.com/tree-sitter/tree-sitter-cpp)到 `resources` 目录下
 
 # 1.签名匹配
 
@@ -47,3 +50,9 @@ Challenge
 - 有的callsite只匹配了几个callee，甚至可能没有误报，也有可能全是误报。
 
 目前策略，采用批处理的方式，一次输入N个callee的信息和1个callsite交给大模型判断，让它过滤最不可能成为callee的一批函数。
+
+# 3.Edge case
+
+Declaration:
+
+`struct piddesc const * const table = piddesc_tables_all[k];`

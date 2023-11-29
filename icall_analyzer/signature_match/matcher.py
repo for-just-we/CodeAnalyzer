@@ -129,12 +129,12 @@ class TypeAnalyzer:
             func_body_visitor.set_func_var2param_types(func_info.func_var2param_types)
         if hasattr(func_info, "func_param2param_types"):
             func_body_visitor.set_func_param2param_types(func_info.func_param2param_types)
-        func_body_visitor.traverse_node(func_info.func_body)
         if hasattr(func_info, "var_arg_func_param"):
             func_body_visitor.set_var_arg_func_param(func_info.var_arg_func_param)
         if hasattr(func_info, "var_arg_func_var"):
             func_body_visitor.set_var_arg_func_var(func_info.var_arg_func_var)
 
+        func_body_visitor.traverse_node(func_info.func_body)
         # 遍历当前function中的每一个indirect-call
         for icall_loc in icall_locs:
             callsite_key: str = f"{func_info.file}:{icall_loc[0] + 1}:{icall_loc[1] + 1}"

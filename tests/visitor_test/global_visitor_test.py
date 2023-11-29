@@ -1,22 +1,27 @@
 from tree_sitter import Tree
 
+from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.config import parser
 from code_analyzer.visitors.global_visitor import GlobalVisitor
+from code_analyzer.preprocessor.node_processor import processor
 
 from typing import List
 
 visitor = GlobalVisitor()
 
 def testMacro():
-    macros: List[str] = ["#define Max()",
-                         "#define Max(_a, b)",
-                         "#define Max(_a, b) _a >= b ? _a : b",
-                         "#define ngx_add_event        ngx_event_actions.add",
-                         "#define _NGX_ARRAY_H_INCLUDED_"]
-    for macro in macros:
-        tree: Tree = parser.parse(macro.encode("utf-8"))
-        visitor.walk(tree)
+    macros: str = """
+    #define Max1(_a, b)
+    #define Max2(_a, b)
+    #define Max3(_a, b) _a >= b ? _a : b
+    #define ngx_add_event        ngx_event_actions.add
+    #define _NGX_ARRAY_H_INCLUDED_
+    """
+    tree: Tree = parser.parse(macros.encode("utf-8"))
 
+
+    root_node: ASTNode = processor.visit(tree.root_node)
+    visitor.traverse_node(root_node)
     pass
 
 Union_case1 = """
@@ -97,9 +102,6 @@ global_decl_case2 = """
 typedef int (*next_proto_cb)(SSL *ssl, const unsigned char **out,
                              unsigned char *outlen, const unsigned char *in,
                              unsigned int inlen, void *arg);
-typedef int (*next_proto_cb)(SSL *, const unsigned char **out,
-                             unsigned char *outlen, const unsigned char *in,
-                             unsigned int inlen, void *arg);
 typedef int (* const secstream_protocol_connect_munge_t)(lws_ss_handle_t *h,
 		char *buf, size_t len, struct lws_client_connect_info *i,
 		union lws_ss_contemp *ct);
@@ -121,14 +123,16 @@ def testTypeDef():
                 "typedef ngx_int_t (*ngx_output_chain_filter_pt)(void *ctx, ngx_chain_t *in);",
                 struct_case3,
                 func_ptr_case1,
-                Union_case1]
+                Union_case1,
+                struct_case1,
+                global_decl_case2]
 
-    for typeDef in typeDefs:
+    for i, typeDef in enumerate(typeDefs):
         print(typeDef)
         tree: Tree = parser.parse(typeDef.encode("utf-8"))
-        visitor.walk(tree)
+        ast_node: ASTNode = processor.visit(tree.root_node)
+        visitor.traverse_node(ast_node)
 
-    pass
 
 global_field_expr = """var1->f1->f2();"""
 
@@ -270,9 +274,94 @@ struct decoder_t
 };
 """
 
+muti_decl = """
+struct A a = {1, 2}, b = {2, 3}, c;
+"""
+
+decl_2 = """
+struct piddesc const * const table = piddesc_tables_all[k];
+struct flagset * const fs_dst = (entry->flags & PDF_QOS) ? &qfs_dst : &pfs_dst;
+"""
+
+union_decl = """
+union bpf_iter_link_info {
+	struct {
+		__u32	map_fd;
+	} map;
+};
+"""
+
+struct_decl = """
+struct isc_sockaddr {
+	union {
+		struct sockaddr		sa;
+		struct sockaddr_in	sin;
+		struct sockaddr_in6	sin6;
+		struct sockaddr_storage ss;
+	} type;
+	unsigned int length; /* XXXRTH beginning? */
+	ISC_LINK(struct isc_sockaddr) link;
+};
+"""
+
+struct_decl1 = """
+struct A {
+    int common; // 共享的内存空间
+    struct B{
+        int a;
+        char b;
+        float c;
+    };
+};
+"""
+
 def testsingle():
     tree: Tree = parser.parse(struct_def.encode("utf-8"))
-    visitor.walk(tree)
+    root_node = processor.visit(tree.root_node)
+    visitor.traverse_node(root_node)
+    pass
+
+modifier_decl = """
+inline int add(int a, int b) {
+    return a + b;
+}
+extern double a;
+
+_Alignas(16) int a;
+
+double _Complex z = 3.0 + 4.0 * I;
+
+_Imaginary double ci = 3.0i;
+
+void foo(int* restrict a, int* restrict b);
+
+_Thread_local int thread_local_variable;
+
+_Atomic int atomic_variable;
+
+_Noreturn void die(void) {
+    exit(1); // die函数不会返回
+}
+
+void status_prompt_menu_callback(__unused struct menu *menu, u_int idx, key_code key, void *data) {
+}
+"""
+
+enum_decl = """
+enum window_copy_cmd_action {
+	WINDOW_COPY_CMD_NOTHING,
+	WINDOW_COPY_CMD_REDRAW,
+	WINDOW_COPY_CMD_CANCEL,
+};
+
+enum window_copy_cmd_action wind;
+
+enum week { Mon=1, Tue, Wed, Thu, Fri Sat, Sun} days;
+
+typedef enum { Mon=1, Tue, Wed, Thu, Fri Sat, Sun} Workdays;
+
+enum {Yellow, Blue}* colors;
+"""
 
 if __name__ == '__main__':
-    testsingle()
+    testTypeDef()

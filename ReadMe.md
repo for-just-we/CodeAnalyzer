@@ -26,7 +26,7 @@ symbol类型包括：
 
 - 4.针对存在indirect-call的函数，收集该函数下的局部变量定义，对于icall，尝试基于参数类型匹配潜在的callee。
 
-llama默认用DistributedDataParrelle，是多进程模型，我们采用单进程多线程模式。
+传统静态分析部分参考[code-analyzer](code_analyzer/ReadMe.md)
 
 
 

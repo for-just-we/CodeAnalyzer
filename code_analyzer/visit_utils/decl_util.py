@@ -1,4 +1,4 @@
-from tree_sitter import Node
+from code_analyzer.schemas.ast_node import ASTNode
 from typing import Tuple, List, Dict, Set
 
 from code_analyzer.schemas.enums import TypeEnum
@@ -8,66 +8,25 @@ from code_analyzer.visitors.util_visitor import IdentifierExtractor, FieldIdenti
 class DeclareTypeException(Exception):
     pass
 
-def process_declarator(declarator: Node) -> Tuple[str, str, Node]:
-    suffix: str = ""
-    while declarator.type not in {"identifier", "function_declarator", "type_identifier"}:
-        if declarator.type == "pointer_declarator":
-            declarator = declarator.children[-1]
-            suffix += "*"
-        elif declarator.type == "reference_declarator":
-            declarator = declarator.children[-1]
-        # 函数形参一定是int a[]这种，不会有int[] a
-        elif declarator.type in {"array_declarator", "abstract_pointer_declarator"}:
-            suffix += "*"
-            declarator = declarator.children[0]
-        elif declarator.type == "*":
-            break
-        else:
-            raise DeclareTypeException("The type under parameter declarator should not beyond"
-                                       " reference, array, pointer")
-    return suffix, declarator.text.decode('utf8'), declarator
+# 在形参定义中以及类型定义中用到，因此&是引用不是取地址运算
+def process_declarator(declarator: ASTNode) -> Tuple[str, str, ASTNode]:
+    from code_analyzer.visitors.util_visitor import DeclaratorExtractor
+    extractor = DeclaratorExtractor()
+    extractor.traverse_node(declarator)
+    if extractor.key_node is None:
+        raise DeclareTypeException("Exception happen when processing declarator: {}".format(declarator.node_text))
+    return extractor.suffix, extractor.key_node.node_text, extractor.key_node
 
-
-def process_declaration(node: Node):
-    type_node: Node = node.children[-3]
-
-    if type_node.type == "struct_specifier":
-        type_name = type_node.children[1].text.decode('utf8')
-    elif type_node.type == "union_specifier":
-        type_name = TypeEnum.UnionType.value
-    else:
-        type_name = type_node.text.decode('utf8')
-
-    var_name_extractor = IdentifierExtractor()
-    var_node = node.children[-2]
-    # 有初始化参数
-    if var_node.type == "init_declarator":
-        var_name_extractor.traverse_node(var_node.children[0])
-    else:
-        var_name_extractor.traverse_node(var_node)
-
-    # 是函数声明
-    if var_name_extractor.is_function:
-        return None
-
-    # 如果是函数指针变量
-    if var_name_extractor.is_function_type:
-        type_name = TypeEnum.FunctionType.value
-
-    if not var_name_extractor.is_function_type and var_name_extractor.suffix != "":
-        type_name += " " + var_name_extractor.suffix
-
-    return (var_name_extractor.var_name, type_name)
 
 # 处理一个declaration语句定义了多个变量的情况
 # 第二个参数表明是否是在处理struct/union field定义
-def process_multi_var_declaration(node: Node, is_field_decl: bool = False)\
+def process_multi_var_declaration(node: ASTNode, is_field_decl: bool = False,
+                                  global_visitor = None)\
         -> Tuple[List[Tuple[str, str]], Dict[str, List[str]], Set[str]]:
-    assert node.children[-1].type == ";"
     var_list: List[Tuple[str, str]] = list() # 定义的变量类型以及名称
     unknown_var_type_list: List[Tuple[str, str]] = list() # 未知变量名以及prefix
     # 当前处理的变量
-    cur_var_decl_idx = -2
+    cur_var_decl_idx = -1
     # 将函数指针变量映射到对应的参数类型
     varname2param_types: Dict[str, List[str]] = dict()
     # 函数指针变量中支持可变参数
@@ -76,13 +35,11 @@ def process_multi_var_declaration(node: Node, is_field_decl: bool = False)\
     cls = FieldIdentifierExtractor if is_field_decl else IdentifierExtractor
 
     # 当前处理的依旧是变量定义部分
-    while abs(cur_var_decl_idx) < node.child_count and \
-        node.children[cur_var_decl_idx + 1].type in {",", ";"}:
-
+    while abs(cur_var_decl_idx) < node.child_count:
         var_name_extractor = cls()
-        var_node = node.children[cur_var_decl_idx]
+        var_node: ASTNode = node.children[cur_var_decl_idx]
         # 有初始化参数
-        if var_node.type == "init_declarator":
+        if var_node.node_type == "init_declarator":
             var_name_extractor.traverse_node(var_node.children[0])
         else:
             var_name_extractor.traverse_node(var_node)
@@ -106,24 +63,36 @@ def process_multi_var_declaration(node: Node, is_field_decl: bool = False)\
         else:
             unknown_var_type_list.append((var_name_extractor.suffix,
                                           var_name_extractor.var_name))
-        cur_var_decl_idx -= 2
-    type_idx = cur_var_decl_idx + 1
-    while node.children[type_idx].type in {"storage_class_specifier", "type_qualifier"}:
-        type_idx += 1
-    type_node: Node = node.children[type_idx]
+        cur_var_decl_idx -= 1
+    type_node: ASTNode = node.children[cur_var_decl_idx]
 
-    if type_node.type == "struct_specifier":
-        root_type_name = type_node.children[1].text.decode('utf8')
-    elif type_node.type == "union_specifier":
-        root_type_name = TypeEnum.UnionType.value
-    elif type_node.type == "enum_specifier":
-        if type_node.children[1].type == "identifier":
-            root_type_name = type_node.children[1].text.decode('utf8')
-        # 匿名枚举
+    if type_node.node_type in {"struct_specifier", "union_specifier"}:
+        # 如果声明变量的时候同时出现匿名结构体定义
+        if hasattr(type_node, "field_declaration_list"):
+            assert global_visitor is not None
+            root_type_name, anno_num = global_visitor.process_complex_specifier(type_node,
+                                        TypeEnum.StructType.value, global_visitor.anonymous_struct_num)
+            global_visitor.anonymous_struct_num = anno_num
+            global_visitor.process_struct_specifier(type_node, root_type_name)
         else:
-            root_type_name = TypeEnum.EnumType.value
+            assert hasattr(type_node, "type_identifier")
+            root_type_name = type_node.type_identifier.node_text
+        if type_node.node_type == "struct_specifier":
+            global_visitor.struct_names.add(root_type_name)
+    # 枚举
+    elif type_node.node_type == "enum_specifier":
+        # 如果声明变量或者field的时候出现匿名枚举的定义
+        if hasattr(type_node, "enumerator_list"):
+            root_type_name, anno_num = global_visitor.process_complex_specifier(type_node,
+                                                                TypeEnum.EnumType.value,
+                                                                                global_visitor.anoymous_enum_num)
+            global_visitor.anoymous_enum_num = anno_num
+        else:
+            assert hasattr(type_node, "type_identifier")
+            root_type_name = type_node.type_identifier.node_text
+        global_visitor.enum_infos.add(root_type_name)
     else:
-        root_type_name = type_node.text.decode('utf8')
+        root_type_name = type_node.node_text
 
     for var_info in unknown_var_type_list:
         type_name = root_type_name

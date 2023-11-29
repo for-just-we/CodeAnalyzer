@@ -1,6 +1,5 @@
-from code_analyzer.visitors.tree_sitter_base_visitor import ASTVisitor
-
-from tree_sitter import Node
+from code_analyzer.visitors.base_visitor import ASTVisitor
+from code_analyzer.schemas.ast_node import ASTNode
 
 class IdentifierExtractor(ASTVisitor):
     def __init__(self):
@@ -9,29 +8,69 @@ class IdentifierExtractor(ASTVisitor):
         self.is_function_type: bool = False
         self.is_function: bool = False
 
-    def visit_pointer_declarator(self, node: Node):
+    def visit_pointer_declarator(self, node: ASTNode):
         self.suffix += "*"
         return True
 
-    def visit_array_declarator(self, node: Node):
+    def visit_array_declarator(self, node: ASTNode):
         self.suffix += "*"
         return True
 
-    def visit_identifier(self, node: Node):
+    def visit_identifier(self, node: ASTNode):
         if self.var_name == "":
-            self.var_name = node.text.decode('utf8')
+            self.var_name = node.node_text
         return False
 
-    def visit_function_declarator(self, node: Node):
+    def visit_function_declarator(self, node: ASTNode):
         # 如果是int (*add)() 则为函数指针变量
-        if node.children[0].type == "parenthesized_declarator":
+        if node.children[0].node_type == "parenthesized_declarator":
             self.is_function_type = True
         # 不然就是函数声明
         else:
             self.is_function = True
         return True
 
-    def visit_parameter_list(self, node: Node):
+    def visit_parameter_list(self, node: ASTNode):
+        return False
+
+class FuncNameExtractor(ASTVisitor):
+    def __init__(self):
+        self.identifier: str = None
+        self.key_node: ASTNode = None
+
+    def visit_identifier(self, node: ASTNode):
+        self.identifier = node.node_text
+        self.key_node = node
+
+# 这里不考虑引用：int& a，引用对应的表达式类型是reference_declarator
+class DeclaratorExtractor(ASTVisitor):
+    def __init__(self):
+        self.key_node: ASTNode = None
+        self.suffix: str = ""
+
+    def visit_pointer_declarator(self, node: ASTNode):
+        self.suffix += "*"
+        return True
+
+    def visit_array_declarator(self, node: ASTNode):
+        self.suffix += "*"
+        return True
+
+    def visit_abstract_pointer_declarator(self, node: ASTNode):
+        self.suffix += "*"
+        self.key_node = node
+        return False
+
+    def visit_identifier(self, node: ASTNode):
+        self.key_node = node
+        return False
+
+    def visit_function_declarator(self, node: ASTNode):
+        self.key_node = node
+        return False
+
+    def visit_type_identifier(self, node: ASTNode):
+        self.key_node = node
         return False
 
 # 识别结构体定义中field的名称和类型名
@@ -39,11 +78,11 @@ class FieldIdentifierExtractor(IdentifierExtractor):
     def __init__(self):
         super().__init__()
 
-    def visit_identifier(self, node: Node):
+    def visit_identifier(self, node: ASTNode):
         return False
 
-    def visit_field_identifier(self, node: Node):
-        self.var_name = node.text.decode('utf8')
+    def visit_field_identifier(self, node: ASTNode):
+        self.var_name = node.node_text
         return False
 
 class CastTypeDescriptorVisitor(ASTVisitor):
@@ -51,10 +90,10 @@ class CastTypeDescriptorVisitor(ASTVisitor):
         self.type_name: str = ""
         self.pointer_level: int = 0
 
-    def visit_type_identifier(self, node: Node):
-        self.type_name = node.text.decode('utf8')
+    def visit_type_identifier(self, node: ASTNode):
+        self.type_name = node.node_text
         return False
 
-    def visit_abstract_pointer_declarator(self, node: Node):
+    def visit_abstract_pointer_declarator(self, node: ASTNode):
         self.pointer_level += 1
         return True

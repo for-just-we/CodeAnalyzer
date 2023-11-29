@@ -15,13 +15,13 @@ XXH_PUBLIC_API XXH32_hash_t XXH32 (const void* input, size_t len, XXH32_hash_t s
 {
 }
 
-typedef cairo_warn cairo_status_t
+typedef cairo_status_t
 (*cairo_spline_add_point_func_t) (void *closure,
 				  const cairo_point_t *point,
 				  const cairo_slope_t *tangent);
 
 
-typedef BOOL (PASCAL FAR * LPFN_TRANSMITPACKETS) (
+typedef BOOL (* LPFN_TRANSMITPACKETS) (
     SOCKET hSocket,
     TRANSMIT_PACKETS_ELEMENT *lpPacketArray,
     DWORD nElementCount,
@@ -30,7 +30,7 @@ typedef BOOL (PASCAL FAR * LPFN_TRANSMITPACKETS) (
     DWORD dwFlags
     );
 
-typedef int (WSAAPI *ngx_wsapoll_pt)(
+typedef int (*ngx_wsapoll_pt)(
     LPWSAPOLLFD fdArray,
     ULONG fds,
     INT timeout

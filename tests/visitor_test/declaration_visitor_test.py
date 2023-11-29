@@ -2,6 +2,8 @@ from tree_sitter import Tree
 
 from code_analyzer.config import parser
 from code_analyzer.visitors.global_visitor import GlobalVisitor
+from code_analyzer.preprocessor.node_processor import processor
+from code_analyzer.schemas.ast_node import ASTNode
 
 global_decl_case1 = """
 static ngx_event_module_t  ngx_epoll_module_ctx = {
@@ -54,7 +56,10 @@ global_5 = """
 """
 
 if __name__ == '__main__':
-    tree: Tree = parser.parse(global_4.encode("utf-8"))
+    decls = [global_decl_case1, global_decl_case2, global_decl_case3, global_4, global_5]
     visitor = GlobalVisitor()
-    visitor.walk(tree)
+    for i, decl in enumerate(decls):
+        tree: Tree = parser.parse(decl.encode("utf-8"))
+        root_node: ASTNode = processor.visit(tree.root_node)
+        visitor.traverse_node(root_node)
     pass
