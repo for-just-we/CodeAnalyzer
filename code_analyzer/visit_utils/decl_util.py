@@ -26,7 +26,7 @@ def process_multi_var_declaration(node: ASTNode, is_field_decl: bool = False,
     var_list: List[Tuple[str, str]] = list() # 定义的变量类型以及名称
     unknown_var_type_list: List[Tuple[str, str]] = list() # 未知变量名以及prefix
     # 当前处理的变量
-    cur_var_decl_idx = -1
+    cur_var_decl_idx = 1
     # 将函数指针变量映射到对应的参数类型
     varname2param_types: Dict[str, List[str]] = dict()
     # 函数指针变量中支持可变参数
@@ -35,7 +35,7 @@ def process_multi_var_declaration(node: ASTNode, is_field_decl: bool = False,
     cls = FieldIdentifierExtractor if is_field_decl else IdentifierExtractor
 
     # 当前处理的依旧是变量定义部分
-    while abs(cur_var_decl_idx) < node.child_count:
+    while cur_var_decl_idx < node.child_count:
         var_name_extractor = cls()
         var_node: ASTNode = node.children[cur_var_decl_idx]
         # 有初始化参数
@@ -63,8 +63,8 @@ def process_multi_var_declaration(node: ASTNode, is_field_decl: bool = False,
         else:
             unknown_var_type_list.append((var_name_extractor.suffix,
                                           var_name_extractor.var_name))
-        cur_var_decl_idx -= 1
-    type_node: ASTNode = node.children[cur_var_decl_idx]
+        cur_var_decl_idx += 1
+    type_node: ASTNode = node.children[0]
 
     if type_node.node_type in {"struct_specifier", "union_specifier"}:
         # 如果声明变量的时候同时出现匿名结构体定义

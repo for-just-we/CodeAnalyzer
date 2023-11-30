@@ -124,7 +124,7 @@ class ParameterListVisitor(ASTVisitor):
                 self.parameter_types.append((type_name, "_"))
             return False
         type_node: ASTNode = node.children[0]
-        if type_node.node_type in {"struct_specifier", "union_specifier"}:
+        if type_node.node_type in {"struct_specifier", "union_specifier", "enum_specifier"}:
             type_node = type_node.children[1]
         base_type: str = type_node.node_text
         declarator: ASTNode = node.children[-1]

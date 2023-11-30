@@ -12,3 +12,7 @@ typedef struct {
     void*  resPtr;
     size_t resSize;
 } blockParam_t;
+
+struct Student {
+    int num, stunumber, *datas, friend_ids[10];
+};

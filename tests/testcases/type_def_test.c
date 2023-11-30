@@ -58,3 +58,10 @@ typedef struct dns_rdata_ #{
 			 /* type & class specific elements */
 }
 dns_rdata_ #_t;
+
+typedef void timeout_callback_t(void *context);
+
+typedef void iostream_pump_callback_t(enum iostream_pump_status status,
+				      void *context);
+
+typedef pam_const void *pam_item_t;

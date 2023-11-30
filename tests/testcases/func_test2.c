@@ -3,6 +3,7 @@
 static void
 status_prompt_menu_callback(__unused struct menu *menu, u_int idx, key_code key,
     void *data) {
+    fp = (ngx_flag_t *) (p + cmd->offset);
 }
 
 static int
@@ -43,4 +44,10 @@ publish_key(dns_diff_t *diff, dns_dnsseckey_t *key, const dns_name_t *origin,
 	    dns_ttl_t ttl, isc_mem_t *mctx,
 	    void (*report)(const char *, ...) ISC_FORMAT_PRINTF(1, 2)) {
 	    dns_rdata_ #_t *# = source;
+}
+
+
+void
+dns_rdatalist_disassociate(dns_rdataset_t *rdataset DNS__DB_FLARG) {
+	UNUSED(rdataset);
 }
