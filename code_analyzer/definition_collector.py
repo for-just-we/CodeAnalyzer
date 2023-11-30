@@ -20,9 +20,11 @@ class BaseInfoCollector:
         self.global_var_info: Dict[str, str] = global_visitor.global_var_info
         self.global_var_2_declarator_text: Dict[str, str] = \
             global_visitor.global_var_2_declarator_text
-        # 结构体field信息
+        # 结构体名字集合
+        self.struct_names: Set[str] = global_visitor.struct_names
+        # 结构体和联合体field信息
         self.struct_infos: DefaultDict[str, Dict[str, str]] = global_visitor.struct_infos
-        # 结构体定义
+        # 结构体和联合体定义
         self.struct_name2declarator: Dict[str, str] = global_visitor.struct_name2declarator
         # 将函数指针类型映射回原本定义
         self.func_type2raw_declarator: Dict[str, str] = global_visitor.func_type2raw_declarator

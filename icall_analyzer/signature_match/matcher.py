@@ -254,8 +254,9 @@ class TypeAnalyzer:
 
     # 确认类型1是否可能包含类型2
     def is_type_contain(self, type1: Tuple[str, int], type2: Tuple[str, int]) -> bool:
-        # 如果type1不是结构体类型，不予考虑
-        if type1[0] not in self.collector.struct_infos.keys():
+        # 如果type1不是结构体类型或者找不到对应的结构体定义，不予考虑
+        if type1[0] not in self.collector.struct_names or \
+                type1[0] not in self.collector.struct_infos.keys():
             return False
         first_field_of_type1 = self.collector.struct_first_field_types.get(type1[0],
                                                                            None)

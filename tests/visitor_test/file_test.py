@@ -6,12 +6,16 @@ from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.preprocessor.node_processor import processor
 
 file = "../testcases/struct_case1.c"
+file2 = "../testcases/func_test2.c"
 
 if __name__ == '__main__':
-    code = open(file, 'rb').read()
-    tree: Tree = parser.parse(code)
-    root_node: ASTNode = processor.visit(tree.root_node)
-    visitor = FunctionDefVisitor()
-    visitor.walk(tree)
     global_visitor = GlobalVisitor()
-    global_visitor.walk(tree)
+    visitor = FunctionDefVisitor()
+    for i, file_name in enumerate([file, file2]):
+        code = open(file_name, 'rb').read()
+        tree: Tree = parser.parse(code)
+        root_node: ASTNode = processor.visit(tree.root_node)
+        global_visitor.traverse_node(root_node)
+        visitor.traverse_node(root_node)
+        pass
+    print()

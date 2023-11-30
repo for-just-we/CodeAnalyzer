@@ -97,51 +97,55 @@ class GlobalVisitor(ASTVisitor):
 
     # 处理类型定义
     def visit_type_definition(self, node: ASTNode):
-        assert node.child_count == 2
-        dst_declarator: ASTNode = node.children[1]
-        try:
-            suffix, _, declarator = process_declarator(dst_declarator)
-        except DeclareTypeException as e:
-            logging.debug("traversing node: ", node.node_text,
-                  " location: ", node.start_point, " error")
-            return False
-        # 如果是函数指针定义，只记录它是个函数类型，而不指示具体类型
-        if declarator.node_type == "function_declarator":
-            dst_type: str = TypeEnum.FunctionType.value
-            from code_analyzer.visitors.func_visitor import extract_param_types
-            src_type = get_func_pointer_name(declarator, node)
-            infos = extract_param_types(declarator)
-            param_types: List[str] = infos[0]
-            var_arg: bool = infos[1]
-            if var_arg:
-                self.var_param_func_type.add(src_type)
-            self.func_type2param_types[src_type] = param_types
-            self.func_type2raw_declarator[src_type] = node.node_text
-        # 处理非函数指针类型
+        # 可能会有一个类型定义定义多个类型
+        assert node.child_count >= 2
+        dst_type_node: ASTNode = node.children[0]
+        # 先计算dst类型
+        # 同等对待struct和union
+        if dst_type_node.node_type in {"struct_specifier", "union_specifier"}:
+            dst_type, anno_num = self.process_complex_specifier(dst_type_node,
+                                                                TypeEnum.StructType.value, self.anonymous_struct_num)
+            self.anonymous_struct_num = anno_num
+            self.process_struct_specifier(dst_type_node, dst_type)
+            if dst_type_node.node_type == "struct_specifier":
+                self.struct_names.add(dst_type)
+        elif dst_type_node.node_type == "enum_specifier":
+            # 只会记录enum的类型名，不会记录定义的enum值
+            dst_type, anno_num = self.process_complex_specifier(dst_type_node,
+                                                                TypeEnum.EnumType.value, self.anoymous_enum_num)
+            self.anoymous_enum_num = anno_num
+            self.enum_infos.add(dst_type)
         else:
-            assert declarator.node_type == "type_identifier"
-            dst_type_node: ASTNode = node.children[0]
-            src_type = declarator.node_text
+            dst_type = dst_type_node.node_text
 
-            # 同等对待struct和union
-            if dst_type_node.node_type in {"struct_specifier", "union_specifier"}:
-                dst_type, anno_num = self.process_complex_specifier(dst_type_node,
-                                        TypeEnum.StructType.value, self.anonymous_struct_num)
-                self.anonymous_struct_num = anno_num
-                self.process_struct_specifier(dst_type_node, dst_type)
-                if dst_type_node.node_type == "struct_specifier":
-                    self.struct_names.add(dst_type)
-            elif dst_type_node.node_type == "enum_specifier":
-                # 只会记录enum的类型名，不会记录定义的enum值
-                dst_type, anno_num = self.process_complex_specifier(dst_type_node,
-                                        TypeEnum.EnumType.value, self.anoymous_enum_num)
-                self.anoymous_enum_num = anno_num
-                self.enum_infos.add(dst_type)
+        dst_declarators: List[ASTNode] = node.children[1:]
+        for dst_declarator in dst_declarators:
+            try:
+                # 寻找类型名
+                suffix, _, declarator = process_declarator(dst_declarator, False)
+            except DeclareTypeException as e:
+                logging.debug("traversing node: ", node.node_text,
+                    " location: ", node.start_point, " error")
+                return False
+            # 如果是函数指针定义，只记录它是个函数类型，而不指示具体类型
+            if declarator.node_type == "function_declarator":
+                cur_dst_type: str = TypeEnum.FunctionType.value
+                from code_analyzer.visitors.func_visitor import extract_param_types
+                src_type = get_func_pointer_name(declarator, node)
+                infos = extract_param_types(declarator)
+                param_types: List[str] = infos[0]
+                var_arg: bool = infos[1]
+                if var_arg:
+                    self.var_param_func_type.add(src_type)
+                self.func_type2param_types[src_type] = param_types
+                self.func_type2raw_declarator[src_type] = node.node_text
+            # 处理非函数指针类型
             else:
-                dst_type = dst_type_node.node_text
-            dst_type: str = dst_type if suffix == "" else dst_type + " " + suffix
-        if src_type != dst_type:
-            self.type_alias_infos[src_type] = dst_type
+                assert declarator.node_type == "type_identifier"
+                src_type = declarator.node_text
+                cur_dst_type: str = dst_type if suffix == "" else dst_type + " " + suffix
+            if src_type != cur_dst_type:
+                self.type_alias_infos[src_type] = cur_dst_type
         return False
 
     def process_complex_specifier(self, dst_type_node: ASTNode, type_value: str, anno_num: int):

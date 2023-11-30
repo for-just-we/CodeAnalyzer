@@ -186,10 +186,22 @@ H5AC__check_if_write_permitted(const H5F_t
                                }
 """
 
+# 可变参数
+func_case19 = """
+void
+isc_error_unexpected(const char *arg, int num, const char *arg1, const char *arg2, ...) {
+}
+
+static void
+parser_complain(cfg_parser_t *pctx, bool is_warning, unsigned int flags,
+		const char *format, va_list args) {
+}
+"""
+
 def testFuncDef():
     func_decls = [func_case1, func_case2, func_case3, func_case4, func_case5, func_case6, func_case7, func_case8,
                   func_case9, func_case10, func_case11, func_case12, func_case13, func_case14, func_case15,
-                  func_case16, func_case17, func_case18]
+                  func_case16, func_case17, func_case18, func_case19]
     for i, decl in enumerate(func_decls):
         tree: Tree = parser.parse(decl.encode("utf-8"))
         root_node: ASTNode = processor.visit(tree.root_node)

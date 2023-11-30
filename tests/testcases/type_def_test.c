@@ -2,6 +2,8 @@
 size_t const a;
 static const size_t b;
 
+typedef ngx_int_t (*ngx_shm_zone_init_pt) (ngx_shm_zone_t *zone, void *data);
+
 typedef size_t ZSTD_sequenceProducer_F (
   void* sequenceProducerState,
   ZSTD_Sequence* outSeqs, size_t outSeqsCapacity,
@@ -10,6 +12,14 @@ typedef size_t ZSTD_sequenceProducer_F (
   int compressionLevel,
   size_t windowSize
 );
+
+// 定义了3种不同的类型，其中2种为指针类型
+typedef struct _TRANSMIT_FILE_BUFFERS {
+    LPVOID Head;
+    DWORD HeadLength;
+    LPVOID Tail;
+    DWORD TailLength;
+} TRANSMIT_FILE_BUFFERS, *PTRANSMIT_FILE_BUFFERS, FAR *LPTRANSMIT_FILE_BUFFERS;
 
 XXH_PUBLIC_API XXH32_hash_t XXH32 (const void* input, size_t len, XXH32_hash_t seed)
 {
@@ -35,3 +45,16 @@ typedef int (*ngx_wsapoll_pt)(
     ULONG fds,
     INT timeout
     );
+
+// 支持可变参数
+typedef void (*isc_errorcallback_t)(const char *, int, const char *,
+				 const char *, va_list);
+
+typedef ns_hooklist_t ns_hooktable_t[NS_HOOKPOINTS_COUNT];
+
+typedef struct dns_rdata_ #{
+	dns_rdatacommon_t common;
+	isc_mem_t *mctx; /* if required */
+			 /* type & class specific elements */
+}
+dns_rdata_ #_t;

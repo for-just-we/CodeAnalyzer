@@ -132,7 +132,7 @@ def testTypeDef():
         tree: Tree = parser.parse(typeDef.encode("utf-8"))
         ast_node: ASTNode = processor.visit(tree.root_node)
         visitor.traverse_node(ast_node)
-
+    print()
 
 global_field_expr = """var1->f1->f2();"""
 

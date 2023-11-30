@@ -42,11 +42,17 @@ class FuncNameExtractor(ASTVisitor):
         self.identifier = node.node_text
         self.key_node = node
 
+    def visit_type_identifier(self, node: ASTNode):
+        self.identifier = node.node_text
+        self.key_node = node
+
 # 这里不考虑引用：int& a，引用对应的表达式类型是reference_declarator
 class DeclaratorExtractor(ASTVisitor):
-    def __init__(self):
+    def __init__(self, find_var_name: bool=True):
         self.key_node: ASTNode = None
         self.suffix: str = ""
+        # 为True表示寻找变量名identifier、为False表示寻找类型名type_identifier
+        self.find_var_name: bool = find_var_name
 
     def visit_pointer_declarator(self, node: ASTNode):
         self.suffix += "*"
@@ -62,7 +68,8 @@ class DeclaratorExtractor(ASTVisitor):
         return False
 
     def visit_identifier(self, node: ASTNode):
-        self.key_node = node
+        if self.find_var_name:
+            self.key_node = node
         return False
 
     def visit_function_declarator(self, node: ASTNode):
@@ -70,7 +77,8 @@ class DeclaratorExtractor(ASTVisitor):
         return False
 
     def visit_type_identifier(self, node: ASTNode):
-        self.key_node = node
+        if not self.find_var_name:
+            self.key_node = node
         return False
 
 # 识别结构体定义中field的名称和类型名
