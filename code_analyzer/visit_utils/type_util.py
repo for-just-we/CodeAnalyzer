@@ -3,14 +3,15 @@ from typing import Tuple, Dict
 from code_analyzer.schemas.enums import TypeEnum
 
 # 处理指针类型，如果不是指针类型，那相当于没处理
+# 需要考虑的是unsigned char这种类型由2个token组成
 def parsing_type(cur_type: Tuple[str, int]) -> Tuple[str, int]:
     src_type = cur_type[0]
     pointer_level = cur_type[1]
     # 如果是指针类型
     if src_type.endswith("*"):
         res = src_type.split(" ")
-        src_type = res[0]
-        pointer_level += len(res[1])
+        src_type = ' '.join(res[:-1])
+        pointer_level += len(res[-1])
     return (src_type, pointer_level)
 
 #  c语言存在下面语法：

@@ -50,6 +50,7 @@ class TypeAnalyzer:
         logging.info("thread num: {}".format(num_worker))
 
         self.log_flag: bool = log_flag
+        self.macro_callsites: Set[str] = set()
         # 如果需要log LLM的输出结果
         if log_flag and llm_analyzer is not None:
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -148,6 +149,8 @@ class TypeAnalyzer:
             self.process_indirect_call(callsite_key, icall_loc, func_body_visitor)
             self.processed_icall_num += 1
 
+
+
     # 处理一个indirect-call
     def process_indirect_call(self, callsite_key: str, icall_loc: Tuple[int, int],
                               func_body_visitor: FunctionBodyVisitor):
@@ -203,6 +206,9 @@ class TypeAnalyzer:
                     content: str = \
                         f"{callsite_key}|{','.join(self.llm_declarator_analysis[callsite_key])}"
                     open(self.log_declarator_res, 'a', encoding='utf-8').write(content + "\n")
+
+        else:
+            self.macro_callsites.add(callsite_key)
 
     # 根据参数类型进行匹配
     # 后面两个参数表示原始类型参数名，没有映射到别名类型前的参数名

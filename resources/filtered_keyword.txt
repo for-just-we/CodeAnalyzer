@@ -1,1 +1,1 @@
-storage_class_specifier type_qualifier , ; #define static ( ) comment typedef [ ] { }
+attribute_specifier storage_class_specifier type_qualifier , ; #define static ( ) comment typedef [ ] { }

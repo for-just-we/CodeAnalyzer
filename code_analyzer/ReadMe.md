@@ -82,7 +82,9 @@ cb->func (&surface->base, surface->target, cb->data);
 
 上述误报可能基于传统策略进行优化，因此这些难题我们尝试通过LLM优化。
 
+局限性，主要来自宏定义：
 
+- address-taken function的函数名会被赋值给宏名，然后通过宏名进一步进行赋值，这会导致address-taken function的分析出现误报。
 
 # 4.Hard Case
 
@@ -136,8 +138,6 @@ typedef struct dns_qpreader {
 } dns_qpreader_t;
 ```
 
-
-
 ## 4.2.cyclonedds
 
 
@@ -155,7 +155,7 @@ static int proc_elem_open (void *varg, UNUSED_ARG (uintptr_t parentinfo), UNUSED
 }
 ```
 
-## 4.1.dovecot
+## 4.3.dovecot
 
 下面示例 `pam_const` 本来是个宏，预处理后为 `typedef void* pam_item_t;`，
 但是这里错误解析成了 `pam_const` 和 `void` 的类型别名以及 `pam_item_t` 和 `pam_const*`。
@@ -163,6 +163,126 @@ static int proc_elem_open (void *varg, UNUSED_ARG (uintptr_t parentinfo), UNUSED
 ```cpp
 #  define pam_const
 typedef pam_const void *pam_item_t;
+```
+
+## 4.4.hdf5
+
+下面case宏 `H5E_BEGIN_TRY` 和 `H5E_END_TRY` 的存在导致下面 `if` 语句被错误识别为 `function_declarator`。
+
+```cpp
+H5E_BEGIN_TRY
+{
+   dataset = H5Dcreate2(FAKE_ID, DSET_NAME, H5T_STD_I32BE, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+}
+H5E_END_TRY
+
+/* Create the dataset */
+if ((dataset = H5Dcreate2(file, DSET_NAME, H5T_STD_I32BE, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) <
+        0) ...
+```
+
+下面宏定义将函数名 `H5P__ocrt_pipeline_copy` 分配给宏 `H5O_CRT_PIPELINE_COPY` 导致分析address-taken function的时候没有分析出 `H5P__ocrt_pipeline_copy` 是取地址函数。
+
+`unsigned H5_ATTR_UNUSED *des_flags` 的类型被错误解析为 `unsigned H5_ATTR_UNUSED*` 导致类型匹配失败。
+
+```cpp
+#define H5O_CRT_PIPELINE_COPY  H5P__ocrt_pipeline_copy
+
+static H5FS_section_info_t *
+H5MF__sect_deserialize(const H5FS_section_class_t *cls, const uint8_t H5_ATTR_UNUSED *buf, haddr_t sect_addr,
+                       hsize_t sect_size, unsigned H5_ATTR_UNUSED *des_flags) {
+                       
+                       }
+```
+
+## 4.5.igraph
+
+这个case中tree-sitter错误将这个全局变量定义解析为
+
+- 一个全局变量声明 `static IGRAPH_THREAD_LOCAL igraph_error_handler_t`，
+随后解析工具解析出变量 `igraph_error_handler_t` 的类型是 `IGRAPH_THREAD_LOCAL`。
+
+- 一个变量定义 `*igraph_i_error_handler = 0;`。
+
+```cpp
+
+static IGRAPH_THREAD_LOCAL igraph_error_handler_t *igraph_i_error_handler = 0;
+```
+
+## 4.6.pjsip
+
+下面示例中 `{status = PJ_EEXISTS; goto on_return;}` 的存在使得语法树解析错误，function definition在 `goto on_return` 截止。
+使得接下来的代码都没在function definition范围内，丢失了对应的indirect-call。
+
+```cpp
+PJ_DEF(pj_status_t) pjsip_endpt_register_module( pjsip_endpoint *endpt,
+                                                 pjsip_module *mod )
+{
+    ...
+    /* Make sure that this module has not been registered. */
+    PJ_ASSERT_ON_FAIL(  pj_list_find_node(&endpt->module_list, mod) == NULL,
+                        {status = PJ_EEXISTS; goto on_return;});
+
+    /* Make sure that no module with the same name has been registered. */
+    PJ_ASSERT_ON_FAIL(  pj_list_search(&endpt->module_list, &mod->name, 
+                                       &cmp_mod_name)==NULL,
+                        {status = PJ_EEXISTS; goto on_return; });
+
+    /* Find unused ID for this module. */
+    for (i=0; i<PJ_ARRAY_SIZE(endpt->modules); ++i) {
+        if (endpt->modules[i] == NULL)
+            break;
+    }
+    ...
+}
+```
+
+
+## 4.7.krb5
+
+下面类型定义中，函数指针定义中包括了空宏 `KRB5_CALLCONV`，这个宏的存在使得函数指针解析错误。
+
+```cpp
+// krb5 case, KRB5_CALLCONV的存在使得类型解析错误
+typedef struct gss_config {
+    gss_OID_desc    mech_type;
+    void *	    context;
+    OM_uint32       (KRB5_CALLCONV *gss_acquire_cred)
+	(
+		    OM_uint32*,		/* minor_status */
+		    gss_name_t,		/* desired_name */
+		    OM_uint32,		/* time_req */
+		    gss_OID_set,	/* desired_mechs */
+		    int,		/* cred_usage */
+		    gss_cred_id_t*,	/* output_cred_handle */
+		    gss_OID_set*,	/* actual_mechs */
+		    OM_uint32*		/* time_rec */
+		    );
+		    
+    ...
+} *gss_mechanism;
+```
+
+## 4.8.libucl
+
+下面case中条件编译代码 `#ifdef`, `#else`, `#endif` 的存在导致tree-sitter没有展开 `ucl_object_free_internal (obj, false, ucl_object_dtor_unref);` 的AST。
+也就是一个AST终端节点对应一个调用语句，这使得没有分析出 `ucl_object_dtor_unref` 是address-taken function从而导致没有分析出对应的call target。
+
+```cpp
+static void
+ucl_object_dtor_unref_single (ucl_object_t *obj)
+{
+	if (obj != NULL) {
+#ifdef HAVE_ATOMIC_BUILTINS
+		unsigned int rc = __sync_sub_and_fetch (&obj->ref, 1);
+		if (rc == 0) {
+#else
+		if (--obj->ref == 0) {
+#endif
+			ucl_object_free_internal (obj, false, ucl_object_dtor_unref);
+		}
+	}
+}
 ```
 
 # 5.Type Cast Case
@@ -180,5 +300,27 @@ static void test_server_continue(struct fuzzer_context *ctx)
 {
 	//instead of simple io_loop_stop so as to free input io
 	io_loop_stop_delayed(ctx->ioloop);
+}
+```
+
+
+hdf5 case
+
+
+```cpp
+// address-taken function
+static herr_t     H5E__print2(hid_t err_stack, FILE *stream);
+
+// 函数指针
+typedef herr_t (*H5E_auto2_t)(hid_t estack, void *client_data);
+```
+
+bluz case: `void* --> sdp_data_t*`
+
+```cpp
+// 函数指针类型定义
+typedef void(*sdp_free_func_t)(void *);
+
+void sdp_data_free(sdp_data_t *d) {
 }
 ```

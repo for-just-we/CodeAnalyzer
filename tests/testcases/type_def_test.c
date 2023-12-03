@@ -64,4 +64,31 @@ typedef void timeout_callback_t(void *context);
 typedef void iostream_pump_callback_t(enum iostream_pump_status status,
 				      void *context);
 
+// 宏定义影响
 typedef pam_const void *pam_item_t;
+
+// 宏定义影响
+typedef H5PL_type_t(__cdecl *H5PL_get_plugin_type_t)(void);
+
+// pjsip中的case
+typedef void *pj_hash_entry_buf[(PJ_HASH_ENTRY_BUF_SIZE+sizeof(void*)-1)/(sizeof(void*))];
+
+// error type
+typedef __u64 __bitwise __be64;
+
+// krb5 case, KRB5_CALLCONV的存在使得类型解析错误
+typedef struct gss_config {
+    gss_OID_desc    mech_type;
+    void *	    context;
+    OM_uint32       (KRB5_CALLCONV *gss_acquire_cred)
+	(
+		    OM_uint32*,		/* minor_status */
+		    gss_name_t,		/* desired_name */
+		    OM_uint32,		/* time_req */
+		    gss_OID_set,	/* desired_mechs */
+		    int,		/* cred_usage */
+		    gss_cred_id_t*,	/* output_cred_handle */
+		    gss_OID_set*,	/* actual_mechs */
+		    OM_uint32*		/* time_rec */
+		    );
+} *gss_mechanism;

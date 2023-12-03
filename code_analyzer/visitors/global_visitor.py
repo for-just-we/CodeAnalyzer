@@ -268,17 +268,26 @@ class StructFieldVisitor(ASTVisitor):
 
 # 在全局范围内搜索函数引用
 class GlobalFunctionRefVisitor(ASTVisitor):
-    def __init__(self, func_set: Set[str]):
+    def __init__(self, func_set: Set[str], macro_dict: Dict[str, str] = {}):
         self.func_name_set: Set[str] = func_set
         self.refered_func: Set[str] = set()
+        self.macro_dict: Dict[str, str] = macro_dict
 
     def visit_identifier(self, node: ASTNode):
         identifier: str = node.node_text
-        # 引用了函数名
-        if identifier in self.func_name_set:
+        # 引用了函数名或者通过宏定义引用函数名
+        # 引用了函数名或者通过宏定义引用函数名
+        func_name = identifier
+        flag = identifier in self.func_name_set
+
+        if not flag and identifier in self.macro_dict:
+            func_name = self.macro_dict[identifier].strip()
+            flag = func_name in self.func_name_set
+
+        if flag:
             # 不是直接函数调用
             if not (node.parent.node_type == "call_expression" and node == node.parent.children[0]):
-                self.refered_func.add(identifier)
+                self.refered_func.add(func_name)
 
     def visit_function_declarator(self, node: ASTNode):
         return False

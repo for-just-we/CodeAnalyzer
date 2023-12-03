@@ -234,6 +234,20 @@ class FunctionBodyVisitor(ASTVisitor):
     def set_var_arg_func_var(self, var_arg_func_var: Set[str]):
         self.var_arg_func_var: Set[str] = var_arg_func_var
 
+
+    # 这个函数是考虑到函数指针类型可能存在传递关系，比如
+    # typedef int(*add)(int, int);
+    # typedef add add_t;
+    # 在解析add_t的函数指针类型的时候需要先链接到add
+    # 这里我假设函数指针类型传递不存在指针关系。
+    def get_original_func_type(self, type_name: str) -> Tuple[str, bool]:
+        while type_name in self.collector.type_alias_infos.keys():
+            if type_name in self.collector.func_type2param_types.keys():
+                return (type_name, True)
+            type_name = self.collector.type_alias_infos[type_name]
+        return (type_name, False)
+
+
     def visit_call_expression(self, node: ASTNode):
         if not node.start_point in self.icall_infos:
             return True
@@ -246,15 +260,17 @@ class FunctionBodyVisitor(ASTVisitor):
         assert hasattr(node, "argument_list")
         # 解析callee expression
         type_name, pointer_level = self.process_argument(node.children[0], 0, node.start_point)
-        type_name, _ = parsing_type((type_name, pointer_level))
+        type_name, pointer_level = parsing_type((type_name, pointer_level))
+
+        potential_func_type_name, flag = self.get_original_func_type(type_name)
         # 当前callee expression一定是函数指针，
         # 但是如果type_name不是function_type说明函数类型被typedef
         if type_name != TypeEnum.FunctionType.value \
-                and type_name in self.collector.func_type2param_types.keys():
+                and flag:
             self.icall_2_decl_param_types[node.start_point] = \
-                    self.collector.func_type2param_types[type_name]
+                    self.collector.func_type2param_types[potential_func_type_name]
             self.icall_2_decl_text[node.start_point] = self.collector. \
-                                func_type2raw_declarator[type_name]
+                                func_type2raw_declarator[potential_func_type_name]
         # 解析argument_list
         arg_type_infos: List[Tuple[str, int]] = self.process_argument_list(node.argument_list)
         self.arg_info_4_callsite[node.start_point] = arg_type_infos
@@ -442,20 +458,29 @@ class LocalVarVisitor(ASTVisitor):
 # 遍历函数体，收集函数体中被引用的函数
 class LocalFunctionRefVisitor(ASTVisitor):
     def __init__(self, func_set: Set[str], local_vars: Set[str], arg_names: Set[str],
-                 refered_funcs: Set[str]):
+                 refered_funcs: Set[str], macro_dict: Dict[str, str]):
         self.func_set: Set[str] = func_set
         self.local_vars: Set[str] = local_vars
         self.arg_names: Set[str] = arg_names
         self.refered_func: Set[str] = refered_funcs
+        self.macro_dict: Dict[str, str] = macro_dict
 
     def visit_identifier(self, node: ASTNode):
         identifier: str = node.node_text
+
+        # 引用了函数名或者通过宏定义引用函数名
+        func_name = identifier
+        flag = identifier in self.func_set
+
+        if not flag and identifier in self.macro_dict:
+            func_name = self.macro_dict[identifier].strip()
+            flag = func_name in self.func_set
         # 引用的是函数名而不是局部变量名，这里我们假设局部变量和函数重名时会优先引用局部变量
-        if identifier in self.func_set and identifier not in self.local_vars and\
+        if flag and identifier not in self.local_vars and\
             identifier not in self.arg_names:
             # 不是直接函数调用
             if not (node.parent.node_type == "call_expression" and node == node.parent.children[0]):
-                self.refered_func.add(identifier)
+                self.refered_func.add(func_name)
 
     def visit_function_declarator(self, node: ASTNode):
         return False

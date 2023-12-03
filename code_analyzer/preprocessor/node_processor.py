@@ -11,11 +11,15 @@ def get_node_text(node: Node) -> str:
     return text
 
 class NodeProcessor:
-    def __init__(self, unwanted_node_type: Set[str] = {}):
+    def __init__(self, unwanted_node_type: Set[str] = {}, max_depth: int = 500):
         self.unwanted_node_type: Set[str] = unwanted_node_type
+        self.max_depth = max_depth
 
     # 处理类型定义
-    def visit(self, node: Node) -> ASTNode:
+    def visit(self, node: Node, depth: int = 0) -> ASTNode:
+        # 递归深度限制
+        if depth >= self.max_depth:
+            return None
         if node.type in self.unwanted_node_type:
             return None
         ast_node: ASTNode = ASTNode(node.type,
@@ -25,7 +29,7 @@ class NodeProcessor:
             child_type: str = child.type
             if child_type in self.unwanted_node_type:
                 continue
-            child_node: ASTNode = self.visit(child)
+            child_node: ASTNode = self.visit(child, depth + 1)
             if child_node is None:
                 continue
             child_node.parent = ast_node

@@ -198,7 +198,8 @@ class ProjectAnalyzer:
             parsed_trees.append(root_node)
 
         # 第二次扫描文件，统计每个函数global范围内被引用的函数
-        global_ref_func_visitor = GlobalFunctionRefVisitor(set(funcdef_visitor.func_name_sets))
+        global_ref_func_visitor = GlobalFunctionRefVisitor(set(funcdef_visitor.func_name_sets),
+                                                           global_visitor.macro_defs)
         for tree in parsed_trees:
             global_ref_func_visitor.traverse_node(tree)
         refered_func_names: Set[str] = global_ref_func_visitor.refered_func
@@ -222,7 +223,8 @@ class ProjectAnalyzer:
                 func_info.set_func_var2param_types(local_var_visitor.func_var2param_types)
             arg_names: Set[str] = set([param[1] for param in func_info.parameter_types])
             local_func_ref_visitor = LocalFunctionRefVisitor(func_set, local_vars,
-                                                             arg_names, refered_func_names)
+                                                             arg_names, refered_func_names,
+                                                             global_visitor.macro_defs)
             local_func_ref_visitor.traverse_node(func_info.func_body)
             func_info.set_local_var2declarator(local_var_visitor.local_var_2_declarator_text)
             func_key_2_name[func_key] = func_info.func_name
@@ -247,6 +249,8 @@ class ProjectAnalyzer:
                                                    self.args.log_llm_output, self.project,
                                                    self.args.num_worker)
         type_analyzer.process_all()
+        logging.debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
+        logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
         return type_analyzer
 
     def evaluate(self):

@@ -2,7 +2,10 @@ import logging
 from code_analyzer.schemas.ast_node import ASTNode
 
 def get_func_pointer_name(declarator: ASTNode, node: ASTNode):
-    assert declarator.child_count == 2
+    if declarator.child_count != 2:
+        logging.debug("error parsing function pointer: ", node.start_point, node.end_point,
+                      node.node_text)
+        return False
     if declarator.children[0].node_type == "parenthesized_declarator":
         from code_analyzer.visitors.util_visitor import FuncNameExtractor
         func_name_extractor = FuncNameExtractor()
