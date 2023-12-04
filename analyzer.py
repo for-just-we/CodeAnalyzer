@@ -17,42 +17,7 @@ from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer, GPTAnalyzer
-
-
-def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
-    logging.debug("start evaluating")
-    precs = [] # 查准率
-    recalls = [] # 召回率
-    F1s = []
-    count = 0
-    for icall_key, labeled_funcs in tqdm(ground_truths.items(), desc="evaluating"):
-        analyzed_targets: Set[str] = targets.get(icall_key, set())
-        TPs: Set[str] = analyzed_targets & labeled_funcs
-        if len(TPs) == 0:
-            logging.debug("file containing missed: {}".format(icall_key))
-            precs.append(0)
-            recalls.append(0)
-            F1s.append(0)
-            count += 1
-            continue
-        prec = len(TPs) / len(analyzed_targets)
-        recall = len(TPs) / len(labeled_funcs)
-        precs.append(prec)
-        recalls.append(recall)
-        if recall < 1:
-            logging.debug("file have missing: {}".format(icall_key))
-            logging.debug("missed functions are: {}".format(labeled_funcs - TPs))
-        if prec + recall == 0:
-            F1s.append(0)
-        else:
-            F1s.append(2 * prec * recall / (prec + recall))
-
-    P = np.mean(precs)
-    R = np.mean(recalls)
-    F1 = np.mean(F1s)
-    logging.debug(f"{count} examples didn't produce valid analyze results")
-
-    return (P, R, F1)
+from functools import reduce
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -122,40 +87,32 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
     return (P, R, F1)
 
 def evaluate_binary(ground_truths: Dict[str, Set[str]],
-                    icall_sig_matcher_targets: Dict[str, Set[str]],
-                    fp_dict: Dict[str, Set[str]]):
+                    predicted_t_keys_4_callsites: Dict[str, Set[str]],
+                    total_targets: Dict[str, Set[str]]):
     TP = 0
     TN = 0
     FP = 0
     FN = 0
-    fps: Dict[str, Set[str]] = {}
-    fns: Dict[str, Set[str]] = {}
     for callsite_key in ground_truths.keys():
-        if callsite_key not in icall_sig_matcher_targets.keys():
-            continue
-        matched_func_keys: Set[str] = icall_sig_matcher_targets[callsite_key]
+        label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
+        label_f_keys: Set[str] = total_targets.get(callsite_key, set()) - label_t_keys
+        predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
+        predicted_f_keys: Set[str] = total_targets.get(callsite_key, set())\
+                                     - predicted_t_keys
 
-        label_t_keys = matched_func_keys & ground_truths[callsite_key]
-        label_f_keys = matched_func_keys - ground_truths[callsite_key]
-        predicted_f_keys = fp_dict.get(callsite_key, set())
-        predicted_t_keys = matched_func_keys - predicted_f_keys
-        fp_set = label_f_keys & predicted_t_keys
-        fn_set = label_t_keys & predicted_f_keys
         TP += len(label_t_keys & predicted_t_keys)
         TN += len(label_f_keys & predicted_f_keys)
         FP += len(label_f_keys & predicted_t_keys)
         FN += len(label_t_keys & predicted_f_keys)
 
-        if len(fp_set) > 0:
-            fps[callsite_key] = fp_set
-        if len(fn_set) > 0:
-            fns[callsite_key] = fn_set
 
+    acc = (TP + TN) / (TP + TN + FP + FN) if (TP + TN + FP + FN) > 0 else 0
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0
     precision = TP / (TP + FP) if (TP + FP) > 0 else 0
     F1 = 2 * recall * precision / (recall + precision) if (recall + precision) > 0 else 0
-
-    return (precision, recall, F1, fps, fns)
+    fpr = FP / (FP + TN) if (TP + TN) > 0 else 0
+    fnr = FN / (FN + TP) if (FN + TP) > 0 else 0
+    return (acc, precision, recall, F1, fpr, fnr)
 
 
 class ProjectAnalyzer:
@@ -190,7 +147,7 @@ class ProjectAnalyzer:
             logging.debug(relative_path)
             code: bytes = open(file, 'rb').read()
             tree: Tree = parser.parse(code)
-            root_node = processor.visit(tree.root_node)
+            root_node: ASTNode = processor.visit(tree.root_node)
             funcdef_visitor.current_file = relative_path
             funcdef_visitor.traverse_node(root_node)
             global_visitor.current_file = relative_path
@@ -200,8 +157,8 @@ class ProjectAnalyzer:
         # 第二次扫描文件，统计每个函数global范围内被引用的函数
         global_ref_func_visitor = GlobalFunctionRefVisitor(set(funcdef_visitor.func_name_sets),
                                                            global_visitor.macro_defs)
-        for tree in parsed_trees:
-            global_ref_func_visitor.traverse_node(tree)
+        for root_node in parsed_trees:
+            global_ref_func_visitor.traverse_node(root_node)
         refered_func_names: Set[str] = global_ref_func_visitor.refered_func
         func_set: Set[str] = global_ref_func_visitor.func_name_set
         logging.info("function name set has {} functions.".format(len(func_set)))
@@ -262,7 +219,7 @@ class ProjectAnalyzer:
 
         # 如果要单独评估GPT在type analysis无法确定的部分的效果
         if self.args.evaluate_soly_for_llm:
-            llm_icall_2_targets: Dict[str, Set[str]] = dict()
+            logging.info("start evaluating soly for LLM")
             assert hasattr(type_analyzer, "llm_helped_type_analysis_icall_pair")
             assert hasattr(type_analyzer, "llm_declarator_analysis")
             # llm分析出的结果
@@ -273,15 +230,35 @@ class ProjectAnalyzer:
             llm_helped_analysis.update(llm_declarator_analysis)
 
             # traditional type analysis res
-            strict_type_match_res: Dict[str, Set[str]] = {key: llm_icall_2_targets[key] -
-                                          llm_helped_analysis.get(key, set()) for key in
-                               llm_icall_2_targets.keys()}
+            strict_type_match_res: Dict[str, Set[str]] = type_analyzer.strict_type_match_res
 
             # 去掉ground truth中传统类型分析已经可以覆盖的部分
             llm_ground_truth: Dict[str, Set[str]] = {key: self.ground_truths[key] -
                                           strict_type_match_res.get(key, set()) for key in
                                self.ground_truths.keys()}
-            logging.info("start evaluating soly for LLM")
-            P, R, F1 = evaluate(llm_helped_analysis, llm_ground_truth)
+            all_potential_targets: Dict[str, Set[str]] = type_analyzer.all_potential_targets
+            # 去掉ground truth中传统类型分析已经可以覆盖的部分
+            llm_all_potential_targets: Dict[str, Set[str]] = {key: all_potential_targets[key] -
+                                                          strict_type_match_res.get(key, set()) for key in
+                                                     all_potential_targets.keys()}
+
+            # 过滤ground_truth中不在scope范围内的
+            if type_analyzer.scope_strategy is not None:
+                llm_ground_truth = {callsite_key: set(filter(lambda func_key: type_analyzer.
+                                                             scope_strategy.analyze_key(callsite_key, func_key), value))
+                                    for callsite_key, value in llm_ground_truth.items()}
+
+            # 计算所有 Set[str] 类型值的总长度
+            total_ground_truth_length: int = reduce(lambda acc, s: acc + len(s), llm_ground_truth.values(), 0)
+            # 统计长度不为0的Set的数量
+            non_empty_sets_count: int = len(list(filter(lambda s: len(s) > 0, llm_ground_truth.values())))
+            logging.info("{} callsites remain ground-truth labeled call targets.\n"
+                         "Totally {} functions remains.".format(non_empty_sets_count,
+                                                                total_ground_truth_length))
+
+            acc, prec, recall, F1, fpr, fnr = \
+                evaluate_binary(llm_ground_truth, llm_helped_analysis,
+                                llm_all_potential_targets)
             logging.info(f"| {self.project} "
-                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+                         f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
+                         f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")

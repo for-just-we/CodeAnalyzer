@@ -32,8 +32,12 @@ class TypeAnalyzer:
         # scope策略
         self.scope_strategy: BaseStrategy = scope_strategy
 
+        # LLM访问过的所有函数
+        self.all_potential_targets: Dict[str, Set[str]] = dict()
         # 保存匹配上的函数名
         self.callees: Dict[str, Set[str]] = dict()
+        # 仅通过传统类型分析得到的结果
+        self.strict_type_match_res: Dict[str, Set[str]] = dict()
         # 将宏函数间接调用点映射为宏名称
         self.macro_icall2_callexpr: Dict[str, str] = dict()
         # 保存每个indirect-callsite的代码文本
@@ -387,6 +391,11 @@ class TypeAnalyzer:
                              var_arg: bool = False):
         if callsite_key not in self.callees.keys():
             self.callees[callsite_key] = set()
+        if callsite_key not in self.strict_type_match_res.keys():
+            self.strict_type_match_res[callsite_key] = set()
+        if callsite_key not in self.all_potential_targets.keys():
+            self.all_potential_targets[callsite_key] = set()
+
         # 参数数量
         arg_num: int = len(arg_type)
         fixed_arg_type: List[Tuple[str, int]] = list()
@@ -426,13 +435,18 @@ class TypeAnalyzer:
                                                                     param_types[:len(cur_fixed_arg_type)],
                                                                     ori_type_names,
                                                                     ori_param_type_names)
-                # 如果匹配成功
-                if flag:
-                    with lock:
+
+                with lock:
+                    self.all_potential_targets[callsite_key].add(func_key)
+                    # 如果匹配成功
+                    if flag:
                         func_set.add(func_key)
                         # 如果llm帮忙了
                         if llm_helped:
                             self.llm_helped_type_analysis_icall_pair[callsite_key].add(func_key)
+                        # 纯靠类型匹配
+                        else:
+                            self.strict_type_match_res[callsite_key].add(func_key)
 
             for func_key in new_func_keys:
                 future = executor.submit(worker, func_key)
@@ -472,6 +486,8 @@ class TypeAnalyzer:
                                      arg_num: int, var_arg: bool):
         if callsite_key not in self.callees.keys():
             self.callees[callsite_key] = set()
+        if callsite_key not in self.all_potential_targets.keys():
+            self.all_potential_targets[callsite_key] = set()
 
         func_set = set()
         def process_func_set(func_keys: Set[str]):
@@ -499,9 +515,10 @@ class TypeAnalyzer:
                 function_declarator: str = self.collector.func_key_2_declarator[func_key]
                 flag = self.match_single_declarator_text(func_pointer_declarator,
                                                          function_declarator)
-                # 如果匹配成功
-                if flag:
-                    with lock:
+                with lock:
+                    self.all_potential_targets[callsite_key].add(func_key)
+                    # 如果匹配成功
+                    if flag:
                         func_set.add(func_key)
                         # 如果llm帮忙了
                         self.llm_declarator_analysis[callsite_key].add(func_key)

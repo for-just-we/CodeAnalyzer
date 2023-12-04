@@ -34,6 +34,14 @@ tree-sitter自定义的AST直接使用起来体验非常不好，tree-sitter的A
 比如 `int a, b;`，其根节点为 `declarator`，子节点包含2个 `identifier`(`a`, `b`)。
 那么这个时候 `identifier` 就会变成一个 `List[ASTNode]`，元素为 `a`, `b` 对应的 `ASTNode`。
 
+C语言关键字列表包括:
+
+```
+extern, register, volatile, inline, restrict, _Bool, _ComPlex, Imaginary, 
+_Alignas, _Alignof, _Atomic, _Static_assert, _Noreturn, _Thread_local, _Generic
+_Alignas, _Alignof, _Atomic, _Static_assert, _Noreturn, _Thread_local,_Generic
+```
+
 # 2.遍历AST获取全局信息
 
 这一步主要遍历AST获取(不限于)：
