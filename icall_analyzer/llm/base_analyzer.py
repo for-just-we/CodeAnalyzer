@@ -24,6 +24,11 @@ class BaseLLMAnalyzer:
     def get_response(self, contents: List[str]) -> str:
         pass
 
+    @abc.abstractmethod
+    @property
+    def model_name(self):
+        pass
+
 
 openai_error_messages = {
     openai.error.APIError: "OpenAI API returned an API Error: {}",
@@ -36,9 +41,10 @@ openai_error_messages = {
 }
 
 class GPTAnalyzer(BaseLLMAnalyzer):
-    def __init__(self, model_type: str, api_key: str):
+    def __init__(self, model_type: str, api_key: str, temperature: float=0):
         super().__init__(model_type)
         openai.api_key = api_key
+        self.temperature = temperature
 
     # 向openai发送一次请求，返回一个response，可能会触发异常
     def get_openai_response(self, dialog: List[Dict[str, str]], times: int) -> Tuple[str, bool, int]:
@@ -53,7 +59,8 @@ class GPTAnalyzer(BaseLLMAnalyzer):
         try:
             response = openai.ChatCompletion.create(
                 model=self.model_type,
-                messages=dialog
+                messages=dialog,
+                temperature=self.temperature
             )
             resp = (response.choices[0]["message"]["content"], True, times)
         except tuple(openai_error_messages.keys()) as e:
@@ -84,3 +91,7 @@ class GPTAnalyzer(BaseLLMAnalyzer):
     def get_response(self, contents: List[str]) -> str:
         dialog: List[Dict[str, str]] = self.generate_diaglog(contents)
         return self.generate_response(dialog)
+
+    @property
+    def model_name(self):
+        return f"{self.model_type}-{self.temperature}"

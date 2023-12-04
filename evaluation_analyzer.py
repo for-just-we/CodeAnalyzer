@@ -11,7 +11,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')
     gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4', 'gpt-4-1106-preview'])
     gpt_parser.add_argument('--key', type=str, help='api key of openai')
-
+    gpt_parser.add_argument("--temperature", type=float, default=0, help="temperature for llm")
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
     hf_parser.add_argument('--ip', help='huggingface server ip, default to 127.0.0.1',
                            default='127.0.0.1')
@@ -31,6 +31,19 @@ def build_arg_parser():
                         help='scope strategy to use')
     parser.add_argument("--max_try_time", type=int, default=3, help="max trying time for one llm query")
     parser.add_argument("--num_worker", type=int, default=10, help="num worker used in sending request to llm")
+
+    parser.add_argument("--load_pre_type_analysis_res", action="store_true", default=False,
+                        help="If true, will load pre-analyzed type analyzed result.")
+
+    # running epoch用指定epoch轮次GPT的中间log位置，必须在log_llm_output=True或者load_pre_type_analysis_res=True时有效
+    parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running,"
+                                                                     "used only in experimental setting."
+                                                                     "Require --log_llm_output or --load_pre_type_analysis_res option")
+    # 投票次数
+    parser.add_argument("--vote_time", type=int, default=1, help="Vote time for llm.")
+    # 评估GPT在传统类型分析无法确定的部分的分析效果
+    parser.add_argument("--evaluate_soly_for_llm", action="store_true", default=False,
+                        help="If true, the tool will analyze How gpt perform when type analysis cannot determine.")
     add_subparser(parser)
     return parser
 

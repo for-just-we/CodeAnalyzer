@@ -244,10 +244,9 @@ class ProjectAnalyzer:
         collector.build_all()
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
-            llm_analyzer = GPTAnalyzer(self.model_name, self.args.key)
-        type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, scope_strategy, llm_analyzer,
-                                                   self.args.log_llm_output, self.project,
-                                                   self.args.num_worker)
+            llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
+        type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
+                                                   llm_analyzer, self.project)
         type_analyzer.process_all()
         logging.debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
         logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
@@ -260,3 +259,29 @@ class ProjectAnalyzer:
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project} "
                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+
+        # 如果要单独评估GPT在type analysis无法确定的部分的效果
+        if self.args.evaluate_soly_for_llm:
+            llm_icall_2_targets: Dict[str, Set[str]] = dict()
+            assert hasattr(type_analyzer, "llm_helped_type_analysis_icall_pair")
+            assert hasattr(type_analyzer, "llm_declarator_analysis")
+            # llm分析出的结果
+            llm_helped_analysis: Dict[str, Set[str]] = \
+                type_analyzer.llm_helped_type_analysis_icall_pair
+            llm_declarator_analysis: Dict[str, Set[str]] = \
+                type_analyzer.llm_declarator_analysis
+            llm_helped_analysis.update(llm_declarator_analysis)
+
+            # traditional type analysis res
+            strict_type_match_res: Dict[str, Set[str]] = {key: llm_icall_2_targets[key] -
+                                          llm_helped_analysis.get(key, set()) for key in
+                               llm_icall_2_targets.keys()}
+
+            # 去掉ground truth中传统类型分析已经可以覆盖的部分
+            llm_ground_truth: Dict[str, Set[str]] = {key: self.ground_truths[key] -
+                                          strict_type_match_res.get(key, set()) for key in
+                               self.ground_truths.keys()}
+            logging.info("start evaluating soly for LLM")
+            P, R, F1 = evaluate(llm_helped_analysis, llm_ground_truth)
+            logging.info(f"| {self.project} "
+                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")

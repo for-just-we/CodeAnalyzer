@@ -8,7 +8,7 @@ from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, summarizing_prompt
 
 from scope_strategy.base_strategy import BaseStrategy
-from tree_sitter import Node
+from code_analyzer.schemas.ast_node import ASTNode
 
 import os
 from tqdm import tqdm
@@ -20,14 +20,13 @@ import threading
 
 class TypeAnalyzer:
     def __init__(self, collector: BaseInfoCollector,
+                 args,
                  scope_strategy: BaseStrategy = None,
                  llm_analyzer: BaseLLMAnalyzer = None,
-                 log_flag: bool = False,
-                 project: str = "",
-                 num_worker: int = 1):
+                 project: str = ""):
         self.collector: BaseInfoCollector = collector
         # 保存每个indirect-callsite的代码文本
-        self.icall_nodes: Dict[str, Node] = dict()
+        self.icall_nodes: Dict[str, ASTNode] = dict()
         # 保存每个indirect-callsite所在的function
         self.icall_2_func: Dict[str, str] = dict()
         # scope策略
@@ -38,7 +37,7 @@ class TypeAnalyzer:
         # 将宏函数间接调用点映射为宏名称
         self.macro_icall2_callexpr: Dict[str, str] = dict()
         # 保存每个indirect-callsite的代码文本
-        self.icall_nodes: Dict[str, Node] = dict()
+        self.icall_nodes: Dict[str, ASTNode] = dict()
         # 保存每个indirect-callsite所在的function
         self.icall_2_func: Dict[str, str] = dict()
 
@@ -46,15 +45,23 @@ class TypeAnalyzer:
         # 如果LLM已经分析了两个结构体类型，跳过
         self.llm_analyzed_types: Dict[Tuple[str, str], bool] = dict()
         # 线程数
-        self.num_worker = num_worker
-        logging.info("thread num: {}".format(num_worker))
+        self.num_worker: int = args.num_worker
+        logging.info("thread num: {}".format(self.num_worker))
 
-        self.log_flag: bool = log_flag
+        self.log_flag: bool = args.log_llm_output
+        self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
+        self.running_epoch: int = args.running_epoch
         self.macro_callsites: Set[str] = set()
-        # 如果需要log LLM的输出结果
-        if log_flag and llm_analyzer is not None:
+
+        self.vote_time: int = args.vote_time
+
+        # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
+        if self.log_flag or self.load_pre_type_analysis_res:
+            # llm帮助分析过的icall以及func_key
+            self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
+            self.llm_declarator_analysis: DefaultDict[str, Set[str]] = defaultdict(set)
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-            log_dir = f"{root_path}/experimental_logs/type_analysis/{self.llm_analyzer.model_type}/" \
+            log_dir = f"{root_path}/experimental_logs/type_analysis/{self.running_epoch}/{self.llm_analyzer.model_name}/" \
                       f"{project}"
             if not os.path.exists(log_dir):
                 os.makedirs(log_dir)
@@ -63,42 +70,46 @@ class TypeAnalyzer:
             self.log_dir = log_dir
             self.struct_analysis_log_path = os.path.join(log_dir, "struct_relation")
             self.declarator_analysis_log_path = os.path.join(log_dir, "declarator_relation")
-            if not os.path.exists(self.struct_analysis_log_path):
-                os.mkdir(self.struct_analysis_log_path)
-            if not os.path.exists(self.declarator_analysis_log_path):
-                os.mkdir(self.declarator_analysis_log_path)
-            # llm帮助分析过的icall以及func_key
-            self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
-            self.llm_declarator_analysis: DefaultDict[str, Set[str]] = defaultdict(set)
 
-            # 如果llm之前已经分析过类型，那么导入已有的类型信息
-            if os.path.exists(self.log_type_alias_file):
-                with open(self.log_type_alias_file, 'r', encoding='utf-8') as file:
-                    lines = file.readlines()
-                    for line in lines:
-                        if line == "\n":
-                            continue
-                        struct_names, flag = line.strip().split(':')
-                        struct_name_set = struct_names.split(',')
-                        struct_name1, struct_name2 = struct_name_set[0], struct_name_set[1]
-                        self.llm_analyzed_types[(struct_name1, struct_name2)] = bool(flag)
-                    logging.info("loading analyzed type infos, size is: {}".format(len(self.llm_analyzed_types)))
+            # 需要log的话先设置好log路径，并清空相应文件
+            if self.log_flag and llm_analyzer is not None:
+                if not os.path.exists(self.struct_analysis_log_path):
+                    os.mkdir(self.struct_analysis_log_path)
+                if not os.path.exists(self.declarator_analysis_log_path):
+                    os.mkdir(self.declarator_analysis_log_path)
 
-            # 如果llm已经分析过declarator，导入过已有的declarator分析信息
-            if os.path.exists(self.log_declarator_res):
-                with open(self.log_declarator_res, 'r', encoding='utf-8') as file:
-                    lines = file.readlines()
-                    for line in lines:
-                        if line == "\n":
-                            continue
-                        callsite_key, func_keys_str = line.strip().split('|')
-                        func_keys: Set[str] = func_keys_str.split(',')
-                        self.llm_declarator_analysis[callsite_key].update(func_keys)
-                    logging.info("loading analyzed declarators, size is: {}"
-                             .format(len(self.llm_declarator_analysis)))
                 # 清空内容
                 with open(self.log_declarator_res, 'w', encoding='utf-8'):
                     pass
+
+            # 需要加载之前log分析结果
+            if self.load_pre_type_analysis_res:
+                # 如果llm之前已经分析过类型，那么导入已有的类型信息
+                if os.path.exists(self.log_type_alias_file):
+                    with open(self.log_type_alias_file, 'r', encoding='utf-8') as file:
+                        lines = file.readlines()
+                        for line in lines:
+                            if line == "\n":
+                                continue
+                            struct_names, flag = line.strip().split(':')
+                            struct_name_set = struct_names.split(',')
+                            struct_name1, struct_name2 = struct_name_set[0], struct_name_set[1]
+                            self.llm_analyzed_types[(struct_name1, struct_name2)] = bool(flag)
+                        logging.info("loading analyzed type infos, size is: {}".format(len(self.llm_analyzed_types)))
+
+                # 如果llm已经分析过declarator，导入过已有的declarator分析信息
+                if os.path.exists(self.log_declarator_res):
+                    with open(self.log_declarator_res, 'r', encoding='utf-8') as file:
+                        lines = file.readlines()
+                        for line in lines:
+                            if line == "\n":
+                                continue
+                            callsite_key, func_keys_str = line.strip().split('|')
+                            func_keys: Set[str] = func_keys_str.split(',')
+                            self.llm_declarator_analysis[callsite_key].update(func_keys)
+                        logging.info("loading analyzed declarators, size is: {}"
+                                .format(len(self.llm_declarator_analysis)))
+
 
         self.processed_icall_num: int = 1
 
@@ -302,19 +313,24 @@ class TypeAnalyzer:
             struct_type2_definition=param_struct_def)
         contents: List[str] = [system_prompt, user_prompt_content]
         prompt_log: str = system_prompt + "\n\n" + user_prompt_content
-        answer: str = self.llm_analyzer.get_response(contents)
-        prompt_log += "\n\n========================\n" + answer
-        # 如果回答的太长了，让它summarize一下
-        tokens = answer.split(' ')
-        if len(tokens) >= 8:
-            answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
-            prompt_log += "\n\n===========================\n" + summarizing_prompt.format(answer)
-            prompt_log += "\n\n" + answer
 
-        if 'yes' in answer.lower():
-            flag = True
-        else:
-            flag = False
+        yes_time = 0
+        # 投票若干次
+        for i in range(self.vote_time):
+            answer: str = self.llm_analyzer.get_response(contents)
+            prompt_log += ("\n\nvote {}:========================\n".format(i + 1) + answer)
+            # 如果回答的太长了，让它summarize一下
+            tokens = answer.split(' ')
+            if len(tokens) >= 8:
+                summarizing_text: str = summarizing_prompt.format(answer)
+                answer = self.llm_analyzer.get_response([summarizing_text])
+                prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_text
+                prompt_log += "\n\n" + answer
+
+            if 'yes' in answer.lower():
+                yes_time += 1
+
+        flag = (yes_time > (self.vote_time / 2))
         self.llm_analyzed_types[(type1[0], type2[0])] = flag
 
         # 如果需要log
@@ -331,22 +347,25 @@ class TypeAnalyzer:
         prompts: List[str] = [system_prompt_declarator,
                               user_prompt_declarator.format(func_pointer_declarator
                                                             ,func_declarator)]
-        prompt_log: str = system_prompt + "\n\n" + \
+        prompt_log: str = system_prompt_declarator + "\n\n" + \
                           user_prompt_declarator.format(func_pointer_declarator
                                                             ,func_declarator)
-        answer: str = self.llm_analyzer.get_response(prompts)
-        prompt_log += "\n\n========================\n" + answer
-        # 如果回答的太长了，让它summarize一下
-        tokens = answer.split(' ')
-        if len(tokens) >= 8:
-            answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
-            prompt_log += "\n\n===========================\n" + summarizing_prompt.format(answer)
-            prompt_log += "\n\n" + answer
 
-        if 'yes' in answer.lower():
-            flag = True
-        else:
-            flag = False
+        yes_time: int = 0
+
+        # 投票若干次
+        for i in range(self.vote_time):
+            answer: str = self.llm_analyzer.get_response(prompts)
+            prompt_log += "\n\nvote {}:========================\n".format(i + 1) + answer
+            # 如果回答的太长了，让它summarize一下
+            tokens = answer.split(' ')
+            if len(tokens) >= 8:
+                answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
+                prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_prompt.format(answer)
+                prompt_log += "\n\n" + answer
+
+            if 'yes' in answer.lower():
+                yes_time += 1
 
         # 如果需要log
         if self.log_flag:
@@ -354,6 +373,9 @@ class TypeAnalyzer:
             prompt_file = f"{size + 1}.txt"
             open(os.path.join(self.declarator_analysis_log_path, prompt_file), 'w', encoding='utf-8') \
                 .write(prompt_log)
+
+        # 取多数次结果返回
+        flag = (yes_time > (self.vote_time / 2))
         return flag
 
     # 根据形参签名匹配indirect-call对应的潜在callee
