@@ -50,9 +50,7 @@ class TypeAnalyzer:
 
         self.log_flag: bool = args.log_llm_output
         self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
-        # 加载了预分析的结果就不再需要LLM了
-        if self.load_pre_type_analysis_res:
-            self.llm_analyzer = None
+
         self.running_epoch: int = args.running_epoch
         self.macro_callsites: Set[str] = set()
 
@@ -112,6 +110,9 @@ class TypeAnalyzer:
                             self.llm_declarator_analysis[callsite_key].update(func_keys)
                         logging.info("loading analyzed declarators, size is: {}"
                                 .format(len(self.llm_declarator_analysis)))
+
+                # 加载了预分析的结果就不需要llm了
+                self.llm_analyzer = None
 
 
         self.processed_icall_num: int = 1
