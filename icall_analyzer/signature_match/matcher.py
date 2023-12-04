@@ -50,6 +50,9 @@ class TypeAnalyzer:
 
         self.log_flag: bool = args.log_llm_output
         self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
+        # 加载了预分析的结果就不再需要LLM了
+        if self.load_pre_type_analysis_res:
+            self.llm_analyzer = None
         self.running_epoch: int = args.running_epoch
         self.macro_callsites: Set[str] = set()
 
