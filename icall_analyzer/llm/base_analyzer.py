@@ -24,8 +24,8 @@ class BaseLLMAnalyzer:
     def get_response(self, contents: List[str]) -> str:
         pass
 
-    @abc.abstractmethod
     @property
+    @abc.abstractmethod
     def model_name(self):
         pass
 
