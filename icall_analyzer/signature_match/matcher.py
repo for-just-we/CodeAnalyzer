@@ -87,34 +87,34 @@ class TypeAnalyzer:
                 with open(self.log_declarator_res, 'w', encoding='utf-8'):
                     pass
 
+            # 如果llm之前已经分析过类型，那么导入已有的类型信息
+            if os.path.exists(self.log_type_alias_file):
+                with open(self.log_type_alias_file, 'r', encoding='utf-8') as file:
+                    lines = file.readlines()
+                    for line in lines:
+                        if line == "\n":
+                            continue
+                        struct_names, flag = line.strip().split(':')
+                        struct_name_set = struct_names.split(',')
+                        struct_name1, struct_name2 = struct_name_set[0], struct_name_set[1]
+                        self.llm_analyzed_types[(struct_name1, struct_name2)] = bool(flag)
+                    logging.info("loading analyzed type infos, size is: {}".format(len(self.llm_analyzed_types)))
+
+            # 如果llm已经分析过declarator，导入过已有的declarator分析信息
+            if os.path.exists(self.log_declarator_res):
+                with open(self.log_declarator_res, 'r', encoding='utf-8') as file:
+                    lines = file.readlines()
+                    for line in lines:
+                        if line == "\n":
+                            continue
+                        callsite_key, func_keys_str = line.strip().split('|')
+                        func_keys: Set[str] = func_keys_str.split(',')
+                        self.llm_declarator_analysis[callsite_key].update(func_keys)
+                    logging.info("loading analyzed declarators, size is: {}"
+                            .format(len(self.llm_declarator_analysis)))
+
             # 需要加载之前log分析结果
             if self.load_pre_type_analysis_res:
-                # 如果llm之前已经分析过类型，那么导入已有的类型信息
-                if os.path.exists(self.log_type_alias_file):
-                    with open(self.log_type_alias_file, 'r', encoding='utf-8') as file:
-                        lines = file.readlines()
-                        for line in lines:
-                            if line == "\n":
-                                continue
-                            struct_names, flag = line.strip().split(':')
-                            struct_name_set = struct_names.split(',')
-                            struct_name1, struct_name2 = struct_name_set[0], struct_name_set[1]
-                            self.llm_analyzed_types[(struct_name1, struct_name2)] = bool(flag)
-                        logging.info("loading analyzed type infos, size is: {}".format(len(self.llm_analyzed_types)))
-
-                # 如果llm已经分析过declarator，导入过已有的declarator分析信息
-                if os.path.exists(self.log_declarator_res):
-                    with open(self.log_declarator_res, 'r', encoding='utf-8') as file:
-                        lines = file.readlines()
-                        for line in lines:
-                            if line == "\n":
-                                continue
-                            callsite_key, func_keys_str = line.strip().split('|')
-                            func_keys: Set[str] = func_keys_str.split(',')
-                            self.llm_declarator_analysis[callsite_key].update(func_keys)
-                        logging.info("loading analyzed declarators, size is: {}"
-                                .format(len(self.llm_declarator_analysis)))
-
                 # 加载了预分析的结果就不需要llm了
                 self.llm_analyzer = None
 
@@ -203,6 +203,11 @@ class TypeAnalyzer:
             # 根据函数指针declarator和function declarator进行匹配
             function_pointer_declarator: str = func_body_visitor\
                 .icall_2_decl_text.get(icall_loc, None)
+
+            # 如果加载了之前的分析结果
+            if hasattr(self, "llm_declarator_analysis") and \
+                callsite_key in self.llm_declarator_analysis.keys():
+                return
             # 需要llm辅助类型分析
             if self.llm_analyzer is not None and \
                     function_pointer_declarator is not None:
