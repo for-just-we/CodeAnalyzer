@@ -283,4 +283,4 @@ class ProjectAnalyzer:
         if self.args.evaluate_soly_for_llm:
             evaluate_icall_target(type_analyzer.llm_declarator_analysis, "llm-decl")
             analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
-                           type_analyzer.llm_declarator_analysis, "Cast-yes")
+                           type_analyzer.llm_declarator_analysis, "llm")
