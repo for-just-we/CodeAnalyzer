@@ -1,3 +1,12 @@
+#ifndef DDSI_UNUSED_H
+#define DDSI_UNUSED_H
+
+#ifdef __GNUC__
+#define UNUSED_ARG(x) x __attribute__ ((unused))
+#else
+
+#define UNUSED_PARAM(param) param __unused__
+
 
 // case from igraph，这个case中tree-sitter错误将这个全局变量定义解析为一个全局变量声明和一个变量定义。
 static IGRAPH_THREAD_LOCAL igraph_error_handler_t *igraph_i_error_handler = 0;

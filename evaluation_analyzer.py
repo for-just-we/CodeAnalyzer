@@ -39,6 +39,14 @@ def build_arg_parser():
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running,"
                                                                      "used only in experimental setting."
                                                                      "Require --log_llm_output or --load_pre_type_analysis_res option")
+
+    parser.add_argument("--count_uncertain", action="store_true", default=False,
+                        help="enable cast between void* or char* with other pointer type")
+    parser.add_argument("--count_cast", action="store_true", default=False,
+                        help="enable cast between void* or char* with other pointer type")
+    parser.add_argument("--log_res_to_file", action="store_true", default=False,
+                        help="If true, will log analysis result to file.")
+
     # 投票次数
     parser.add_argument("--vote_time", type=int, default=1, help="Vote time for llm.")
     # 评估GPT在传统类型分析无法确定的部分的分析效果

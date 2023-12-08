@@ -3,12 +3,15 @@ from code_analyzer.visit_utils.base_util import loc_inside
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_visitor import FunctionBodyVisitor
+from code_analyzer.schemas.ast_node import ASTNode
+from code_analyzer.schemas.enums import TypeEnum
+
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from icall_analyzer.signature_match.matching_result import MatchingResult
 from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, summarizing_prompt
 
 from scope_strategy.base_strategy import BaseStrategy
-from code_analyzer.schemas.ast_node import ASTNode
 
 import os
 from tqdm import tqdm
@@ -17,6 +20,8 @@ from typing import Dict, List, Tuple, Set, DefaultDict
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import threading
+
+base_pointer_type = {"void", "char"}
 
 class TypeAnalyzer:
     def __init__(self, collector: BaseInfoCollector,
@@ -60,11 +65,17 @@ class TypeAnalyzer:
 
         self.vote_time: int = args.vote_time
 
+        # llm帮助分析过的icall以及func_key
+        self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
+        self.llm_declarator_analysis: DefaultDict[str, Set[str]] = defaultdict(set)
+
+        # 通过cast分析后得到的matching result
+        self.cast_callees: DefaultDict[str, Set[str]] = defaultdict(set)
+        # 如果uncertain
+        self.uncertain_callees: DefaultDict[str, Set[str]] = defaultdict(set)
+
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
         if self.log_flag or self.load_pre_type_analysis_res:
-            # llm帮助分析过的icall以及func_key
-            self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
-            self.llm_declarator_analysis: DefaultDict[str, Set[str]] = defaultdict(set)
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
             log_dir = f"{root_path}/experimental_logs/type_analysis/{self.running_epoch}/{self.llm_analyzer.model_name}/" \
                       f"{project}"
@@ -82,10 +93,6 @@ class TypeAnalyzer:
                     os.mkdir(self.struct_analysis_log_path)
                 if not os.path.exists(self.declarator_analysis_log_path):
                     os.mkdir(self.declarator_analysis_log_path)
-
-                # 清空内容
-                with open(self.log_declarator_res, 'w', encoding='utf-8'):
-                    pass
 
             # 如果llm之前已经分析过类型，那么导入已有的类型信息
             if os.path.exists(self.log_type_alias_file):
@@ -169,118 +176,162 @@ class TypeAnalyzer:
             self.processed_icall_num += 1
 
 
-
     # 处理一个indirect-call
     def process_indirect_call(self, callsite_key: str, icall_loc: Tuple[int, int],
                               func_body_visitor: FunctionBodyVisitor):
-        # 如果不是宏函数
-        if icall_loc not in func_body_visitor.current_macro_funcs.keys():
+        # 如果是宏函数
+        if icall_loc in func_body_visitor.current_macro_funcs.keys():
+            self.macro_callsites.add(callsite_key)
+            return
+        arg_num = 0
+        var_arg = False
+        arg_type: List[Tuple[str, int]] = \
+            func_body_visitor.arg_info_4_callsite.get(icall_loc)
+        # 根据函数指针声明的形参类型进行匹配
+        func_pointer_arg_type: List[str] = func_body_visitor.icall_2_decl_param_types. \
+            get(icall_loc, None)
+        for matching_epoch in range(2):
+            # 如果不是宏函数
             # 根据参数的类型进行间接调用匹配
-            arg_type: List[Tuple[str, int]] = \
-                func_body_visitor.arg_info_4_callsite.get(icall_loc)
             if arg_type is not None:
-                self.match_with_types(arg_type, callsite_key)
+                self.match_with_types(arg_type, callsite_key, False, matching_epoch)
             else:
                 logging.debug("error parsing arguments for {}-th indirect-callsite: {}".
-                              format(self.processed_icall_num, callsite_key))
+                            format(self.processed_icall_num, callsite_key))
 
-            # 根据函数指针声明的形参类型进行匹配
-            func_pointer_arg_type: List[str] = func_body_visitor.icall_2_decl_param_types.\
-                get(icall_loc, None)
             if func_pointer_arg_type is not None:
                 func_pointer_arg_types: List[Tuple[str, int]] = [
                     (t, 0) for t in func_pointer_arg_type
                 ]
                 var_arg: bool = (icall_loc in func_body_visitor.var_arg_icalls)
                 arg_num = len(func_pointer_arg_type)
-                self.match_with_types(func_pointer_arg_types, callsite_key, var_arg)
+                self.match_with_types(func_pointer_arg_types, callsite_key, var_arg, matching_epoch)
             else:
                 logging.debug("fail to find function pointer declaration for {}-th indirect-callsite: {}".
-                              format(self.processed_icall_num, callsite_key))
+                            format(self.processed_icall_num, callsite_key))
                 arg_num = 0
                 var_arg = False
 
-            # 根据函数指针declarator和function declarator进行匹配
-            function_pointer_declarator: str = func_body_visitor\
-                .icall_2_decl_text.get(icall_loc, None)
+        # 根据函数指针declarator和function declarator进行匹配
+        function_pointer_declarator: str = func_body_visitor\
+            .icall_2_decl_text.get(icall_loc, None)
 
-            # 如果加载了之前的分析结果
-            if hasattr(self, "llm_declarator_analysis") and \
-                callsite_key in self.llm_declarator_analysis.keys():
-                return
-            # 需要llm辅助类型分析
-            if self.llm_analyzer is not None and \
-                    function_pointer_declarator is not None:
-                logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
-                self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
+        # 如果加载了之前的分析结果
+        if callsite_key in self.llm_declarator_analysis.keys():
+            return
+        # 需要llm辅助类型分析
+        if self.llm_analyzer is not None and \
+                function_pointer_declarator is not None:
+            logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
+            self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
                                                 arg_num, var_arg)
 
             # 有llm帮忙分析的callsite_key
             # 把llm的中间结果log出来
             if self.log_flag:
-                if hasattr(self, "llm_helped_type_analysis_icall_pair") \
-                    and len(self.llm_helped_type_analysis_icall_pair[callsite_key]) > 0:
+                if len(self.llm_helped_type_analysis_icall_pair[callsite_key]) > 0:
                     content: str = \
                         f"{callsite_key}|{','.join(self.llm_helped_type_analysis_icall_pair[callsite_key])}"
                     dump_file = os.path.join(self.log_dir, "llm_helped_type_analysis.txt")
                     open(dump_file, 'a', encoding='utf-8').write(content + "\n")
 
-                if hasattr(self, "llm_declarator_analysis") \
-                    and len(self.llm_declarator_analysis[callsite_key]) > 0:
+                if len(self.llm_declarator_analysis[callsite_key]) > 0:
                     content: str = \
                         f"{callsite_key}|{','.join(self.llm_declarator_analysis[callsite_key])}"
                     open(self.log_declarator_res, 'a', encoding='utf-8').write(content + "\n")
 
-        else:
-            self.macro_callsites.add(callsite_key)
 
     # 根据参数类型进行匹配
     # 后面两个参数表示原始类型参数名，没有映射到别名类型前的参数名
     def match_types_callsite_target(self, arg_types: List[Tuple[str, int]],
                                     param_types: List[Tuple[str, int]],
                                     ori_arg_type_names: List[str],
-                                    ori_param_type_names: List[str]) -> Tuple[bool, bool]:
+                                    ori_param_type_names: List[str],
+                                    matching_epoch: int = 0) -> Tuple[MatchingResult, bool]:
         """
         :return: 第一个bool表示类型是否匹配，第二个bool表示是否llm帮忙了
         """
         assert len(arg_types) == len(param_types)
         llm_helped_ = False
+        final_res = MatchingResult.YES
         # 逐个参数匹配
         for i in range(len(arg_types)):
             arg_type: Tuple[str, int] = arg_types[i]
             param_type: Tuple[str, int] = param_types[i]
             ori_arg_type_name: str = ori_arg_type_names[i]
             ori_param_type_name: str = ori_param_type_names[i]
-            flag, llm_helped = self.match_type(arg_type, param_type, ori_arg_type_name, ori_param_type_name)
-            llm_helped_ |= llm_helped
-            if not flag:
-                return False, llm_helped_
 
-        return True, llm_helped_
+            if matching_epoch == 0:
+                res: MatchingResult = self.strict_match_type(arg_type, param_type)
+            else:
+                res, llm_helped = self.cast_match_type(arg_type, param_type,
+                                                       ori_arg_type_name, ori_param_type_name)
+                llm_helped_ |= llm_helped
 
-    def match_type(self, arg_type: Tuple[str, int], param_type: Tuple[str, int],
-                   ori_arg_type_name: str, ori_param_type_name: str) -> Tuple[bool, bool]:
+            if res == MatchingResult.NO:
+                return MatchingResult.NO, llm_helped_
+            elif res == MatchingResult.UNCERTAIN:
+                final_res = MatchingResult.UNCERTAIN
+
+        return final_res, llm_helped_
+
+    def unknown_type(self, type_name: str) -> bool:
+        if type_name in {TypeEnum.UnknownType.value, "__unused__", "__attribute__"}:
+            return True
+        # 如果类型名是宏，也认为是unknown type
+        elif type_name in self.collector.ununsed_macros:
+            return True
+        return False
+
+    def strict_match_type(self, arg_type: Tuple[str, int], param_type: Tuple[str, int])\
+            -> MatchingResult:
         """
         :return: 第一个bool表示类型是否匹配，第二个bool表示是否用到llm作类型判断
         """
+        #  如果出现unknwon type，返回uncertain
+        if self.unknown_type(arg_type[0]) \
+            or self.unknown_type(param_type[0]):
+            return MatchingResult.UNCERTAIN
+
         # 如果严格类型匹配成功
         if arg_type[0] == param_type[0] and arg_type[1] == param_type[1]:
-            return True, False
+            return MatchingResult.YES
+
         # 考虑结构体、联合体之间的的指针类型转换关系
         # 如果都不是指针类型，不予考虑
         if arg_type[1] == 0 and param_type[1] == 0:
-            return False, False
+            return MatchingResult.NO
+
+        return MatchingResult.NO
+
+    def match_pointer_type(self, arg_type: Tuple[str, int],
+                           param_type: Tuple[str, int]) -> bool:
+        # 如果都是指针并且level相同
+        if arg_type[1] > 0 and param_type[1] > 0 and arg_type[1] == param_type[1]:
+            if arg_type[0] in base_pointer_type or param_type in base_pointer_type:
+                return True
+        return False
+
+    def cast_match_type(self, arg_type: Tuple[str, int], param_type: Tuple[str, int],
+                        ori_arg_type_name: str, ori_param_type_name: str
+                        ) \
+        -> Tuple[MatchingResult, bool]:
+        # 考虑void*, char*和其它类型指针转换关系
+        if self.match_pointer_type(arg_type, param_type):
+            return MatchingResult.YES, False
+
         if self.is_type_contain(arg_type, param_type):
-            return True, False
+            return MatchingResult.YES, False
         elif self.is_type_contain(param_type, arg_type):
-            return True, False
+            return MatchingResult.YES, False
+
         # 如果不需要LLM来辅助
         if self.llm_analyzer is None:
-            return False, False
+            return MatchingResult.NO, False
         elif self.is_parent_child_relation(arg_type, param_type,
                                            ori_arg_type_name, ori_param_type_name):
-            return True, True
-        return False, True
+            return MatchingResult.YES, True
+
 
     # 确认类型1是否可能包含类型2
     def is_type_contain(self, type1: Tuple[str, int], type2: Tuple[str, int]) -> bool:
@@ -393,7 +444,7 @@ class TypeAnalyzer:
 
     # 根据形参签名匹配indirect-call对应的潜在callee
     def match_with_types(self, arg_type: List[Tuple[str, int]], callsite_key: str,
-                             var_arg: bool = False):
+                             var_arg: bool = False, matching_epoch=0):
         if callsite_key not in self.callees.keys():
             self.callees[callsite_key] = set()
         if callsite_key not in self.strict_type_match_res.keys():
@@ -436,22 +487,32 @@ class TypeAnalyzer:
                 param_types: List[Tuple[str, int]] = self.collector.param_types.get(func_key)
                 # 原始参数类型名
                 ori_param_type_names: List[str] = self.collector.ori_param_types.get(func_key)
-                flag, llm_helped = self.match_types_callsite_target(cur_fixed_arg_type,
+                res, llm_helped = self.match_types_callsite_target(cur_fixed_arg_type,
                                                                     param_types[:len(cur_fixed_arg_type)],
                                                                     ori_type_names,
-                                                                    ori_param_type_names)
-
+                                                                    ori_param_type_names,
+                                                                    matching_epoch)
                 with lock:
                     self.all_potential_targets[callsite_key].add(func_key)
                     # 如果匹配成功
-                    if flag:
-                        func_set.add(func_key)
+                    if res == MatchingResult.YES:
+                        # 计算纯靠类型匹配得出的结果
+                        if matching_epoch == 0:
+                            func_set.add(func_key)
                         # 如果llm帮忙了
                         if llm_helped:
                             self.llm_helped_type_analysis_icall_pair[callsite_key].add(func_key)
                         # 纯靠类型匹配
                         else:
-                            self.strict_type_match_res[callsite_key].add(func_key)
+                            # 纯靠类型匹配
+                            if matching_epoch == 0:
+                                self.strict_type_match_res[callsite_key].add(func_key)
+                            else:
+                                self.cast_callees[callsite_key].add(func_key)
+
+                    # 如果uncertain
+                    elif res == MatchingResult.UNCERTAIN:
+                        self.uncertain_callees[callsite_key].add(func_key)
 
             for func_key in new_func_keys:
                 future = executor.submit(worker, func_key)

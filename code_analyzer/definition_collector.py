@@ -6,6 +6,14 @@ from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.global_visitor import GlobalVisitor
 
+unused_keywords = {"__attribute__", "__unused__", "__unused"}
+
+def unused_macro_check(macro_cotent: str) -> bool:
+    for keyword in unused_keywords:
+        if keyword in macro_cotent:
+            return True
+    return False
+
 # 收集类型别名、结构体定义等信息
 class BaseInfoCollector:
     def __init__(self, icall_dict: DefaultDict[str, List[Tuple[int, int]]],
@@ -43,6 +51,8 @@ class BaseInfoCollector:
         self.enum_infos: Set[str] = global_visitor.enum_infos
         # 宏函数
         self.macro_funcs: Set[str] = set(global_visitor.macro_func_bodies.keys())
+        self.ununsed_macros: Set[str] = set([key for key in global_visitor.macro_defs.keys()
+                                             if unused_macro_check(global_visitor.macro_defs[key])])
 
         # 参数数量对应的函数名
         self.param_nums_2_func_keys: DefaultDict[int, Set[str]] = defaultdict(set)

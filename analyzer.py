@@ -86,6 +86,26 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
 
     return (P, R, F1)
 
+
+def print_added_true_positive(ground_truths: Dict[str, Set[str]],
+                    predicted_t_keys_4_callsites: Dict[str, Set[str]]
+                    ):
+    for callsite_key in ground_truths.keys():
+        label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
+        predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
+
+        TPs: Set[str] = label_t_keys & predicted_t_keys
+        if len(TPs) > 0:
+            logging.debug("added true positive callsite: {}|{}".format(callsite_key, ",".join(TPs)))
+
+    for callsite_key in ground_truths.keys():
+        label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
+        predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
+        FPs: Set[str] = predicted_t_keys - label_t_keys
+        if len(FPs) > 0:
+            logging.debug("added false positive callsite: {}|{}".format(callsite_key, ",".join(FPs)))
+
+
 def evaluate_binary(ground_truths: Dict[str, Set[str]],
                     predicted_t_keys_4_callsites: Dict[str, Set[str]],
                     total_targets: Dict[str, Set[str]]):
@@ -104,7 +124,6 @@ def evaluate_binary(ground_truths: Dict[str, Set[str]],
         TN += len(label_f_keys & predicted_f_keys)
         FP += len(label_f_keys & predicted_t_keys)
         FN += len(label_t_keys & predicted_f_keys)
-
 
     acc = (TP + TN) / (TP + TN + FP + FN) if (TP + TN + FP + FN) > 0 else 0
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0
@@ -212,53 +231,52 @@ class ProjectAnalyzer:
     def evaluate(self):
         type_analyzer = self.analyze_c_files_sig_match()
         logging.info("result of project, Precision, Recall, F1 is:")
-        icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees
+        icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees.copy()
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project} "
                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+        if self.args.log_res_to_file:
+            open("result.txt", "a").write(f"| {self.project} | {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |\n")
 
-        # 如果要单独评估GPT在type analysis无法确定的部分的效果
-        if self.args.evaluate_soly_for_llm:
-            logging.info("start evaluating soly for LLM")
-            assert hasattr(type_analyzer, "llm_helped_type_analysis_icall_pair")
-            assert hasattr(type_analyzer, "llm_declarator_analysis")
-            # llm分析出的结果
-            llm_helped_analysis: Dict[str, Set[str]] = \
-                type_analyzer.llm_helped_type_analysis_icall_pair
-            llm_declarator_analysis: Dict[str, Set[str]] = \
-                type_analyzer.llm_declarator_analysis
-            llm_helped_analysis.update(llm_declarator_analysis)
+        def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
+            icall_2_targets1 = icall_2_targets.copy()
+            for key, values in new_icall_2_target.items():
+                icall_2_targets1[key] = icall_2_targets1.get(key, set()) | values
+            P, R, F1 = evaluate(icall_2_targets1, self.ground_truths)
+            logging.info(f"| {self.project}-{info} "
+                         f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+            if self.args.log_res_to_file:
+                open("result.txt", "a").write(
+                    f"| {self.project}-{info} | {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |\n")
 
-            # traditional type analysis res
-            strict_type_match_res: Dict[str, Set[str]] = type_analyzer.strict_type_match_res
-
-            # 去掉ground truth中传统类型分析已经可以覆盖的部分
-            llm_ground_truth: Dict[str, Set[str]] = {key: self.ground_truths[key] -
-                                          strict_type_match_res.get(key, set()) for key in
-                               self.ground_truths.keys()}
-            all_potential_targets: Dict[str, Set[str]] = type_analyzer.all_potential_targets
-            # 去掉ground truth中传统类型分析已经可以覆盖的部分
-            llm_all_potential_targets: Dict[str, Set[str]] = {key: all_potential_targets[key] -
-                                                          strict_type_match_res.get(key, set()) for key in
-                                                     all_potential_targets.keys()}
-
-            # 过滤ground_truth中不在scope范围内的
-            if type_analyzer.scope_strategy is not None:
-                llm_ground_truth = {callsite_key: set(filter(lambda func_key: type_analyzer.
-                                                             scope_strategy.analyze_key(callsite_key, func_key), value))
-                                    for callsite_key, value in llm_ground_truth.items()}
-
-            # 计算所有 Set[str] 类型值的总长度
-            total_ground_truth_length: int = reduce(lambda acc, s: acc + len(s), llm_ground_truth.values(), 0)
-            # 统计长度不为0的Set的数量
-            non_empty_sets_count: int = len(list(filter(lambda s: len(s) > 0, llm_ground_truth.values())))
-            logging.info("{} callsites remain ground-truth labeled call targets.\n"
-                         "Totally {} functions remains.".format(non_empty_sets_count,
-                                                                total_ground_truth_length))
-
+        def analyze_binary(all_potential_targets: Dict[str, Set[str]],
+                           all_ground_truths: Dict[str, Set[str]],
+                           analyzed_res: Dict[str, Set[str]], info: str):
+            partial_ground_truth: Dict[str, Set[str]] = {key: all_ground_truths[key] &
+                                                          all_potential_targets.get(key, set()) for key in
+                                                     all_ground_truths.keys()}
             acc, prec, recall, F1, fpr, fnr = \
-                evaluate_binary(llm_ground_truth, llm_helped_analysis,
-                                llm_all_potential_targets)
-            logging.info(f"| {self.project} "
+                evaluate_binary(partial_ground_truth, analyzed_res,
+                                all_potential_targets)
+            logging.info(f"| {self.project}-{info} "
                          f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                          f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
+
+        if self.args.count_uncertain:
+            evaluate_icall_target(type_analyzer.uncertain_callees, "UC")
+            analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
+                           type_analyzer.uncertain_callees, "UC-yes")
+            analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
+                           dict(), "UC-no")
+
+        if self.args.count_cast:
+            evaluate_icall_target(type_analyzer.cast_callees, "Cast")
+            analyze_binary(type_analyzer.cast_callees, self.ground_truths,
+                           type_analyzer.cast_callees, "Cast-yes")
+            analyze_binary(type_analyzer.cast_callees, self.ground_truths,
+                           dict(), "Cast-no")
+
+        if self.args.log_res_to_file:
+            open("result.txt", "a").write(
+                f"| ---- | ---- | ---- | ---- |\n")
+
