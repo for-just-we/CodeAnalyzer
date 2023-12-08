@@ -601,7 +601,7 @@ class TypeAnalyzer:
                     self.all_potential_targets[callsite_key].add(func_key)
                     # 如果匹配成功
                     if flag:
-                        func_set.add(func_key)
+                        # func_set.add(func_key)
                         # 如果llm帮忙了
                         self.llm_declarator_analysis[callsite_key].add(func_key)
 
@@ -637,4 +637,4 @@ class TypeAnalyzer:
                 if param_num > arg_num:
                     process_func_set(func_keys)
 
-        self.callees[callsite_key].update(func_set)
+        # self.callees[callsite_key].update(func_set)
