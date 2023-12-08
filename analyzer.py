@@ -269,7 +269,7 @@ class ProjectAnalyzer:
             analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
                            dict(), "UC-no")
 
-        if self.args.count_cast:
+        if self.args.count_cast and self.args.enable_cast:
             evaluate_icall_target(type_analyzer.cast_callees, "Cast")
             analyze_binary(type_analyzer.cast_callees, self.ground_truths,
                            type_analyzer.cast_callees, "Cast-yes")
@@ -279,4 +279,3 @@ class ProjectAnalyzer:
         if self.args.log_res_to_file:
             open("result.txt", "a").write(
                 f"| ---- | ---- | ---- | ---- |\n")
-

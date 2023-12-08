@@ -40,6 +40,7 @@ def build_arg_parser():
                                                                      "used only in experimental setting."
                                                                      "Require --log_llm_output or --load_pre_type_analysis_res option")
 
+    parser.add_argument("--enable_cast", action="store_true", default=False, help="enable cast between param types")
     parser.add_argument("--count_uncertain", action="store_true", default=False,
                         help="enable cast between void* or char* with other pointer type")
     parser.add_argument("--count_cast", action="store_true", default=False,

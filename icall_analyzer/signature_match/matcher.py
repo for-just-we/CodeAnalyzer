@@ -57,6 +57,9 @@ class TypeAnalyzer:
         self.num_worker: int = args.num_worker
         logging.info("thread num: {}".format(self.num_worker))
 
+        # 是否cast
+        self.enable_cast: bool = args.enable_cast
+
         self.log_flag: bool = args.log_llm_output
         self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
 
@@ -190,7 +193,9 @@ class TypeAnalyzer:
         # 根据函数指针声明的形参类型进行匹配
         func_pointer_arg_type: List[str] = func_body_visitor.icall_2_decl_param_types. \
             get(icall_loc, None)
-        for matching_epoch in range(2):
+
+        running_epochs = 2 if self.enable_cast else 1
+        for matching_epoch in range(running_epochs):
             # 如果不是宏函数
             # 根据参数的类型进行间接调用匹配
             if arg_type is not None:
@@ -308,7 +313,7 @@ class TypeAnalyzer:
                            param_type: Tuple[str, int]) -> bool:
         # 如果都是指针并且level相同
         if arg_type[1] > 0 and param_type[1] > 0 and arg_type[1] == param_type[1]:
-            if arg_type[0] in base_pointer_type or param_type in base_pointer_type:
+            if arg_type[0] in base_pointer_type or param_type[0] in base_pointer_type:
                 return True
         return False
 
@@ -316,6 +321,8 @@ class TypeAnalyzer:
                         ori_arg_type_name: str, ori_param_type_name: str
                         ) \
         -> Tuple[MatchingResult, bool]:
+        if self.strict_match_type(arg_type, param_type) == MatchingResult.YES:
+            return MatchingResult.YES, False
         # 考虑void*, char*和其它类型指针转换关系
         if self.match_pointer_type(arg_type, param_type):
             return MatchingResult.YES, False
@@ -473,6 +480,10 @@ class TypeAnalyzer:
                                             self.scope_strategy.analyze_key(callsite_key, func_key)
                                             and func_key not in self.callees[callsite_key],
                                             new_func_keys))
+            # 过滤掉已经分析过的
+            new_func_keys = set(filter(lambda func_key:
+                                    func_key not in self.callees.get(callsite_key, set()),
+                                        new_func_keys))
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing type for {}-th icall {}"
@@ -499,6 +510,8 @@ class TypeAnalyzer:
                         # 计算纯靠类型匹配得出的结果
                         if matching_epoch == 0:
                             func_set.add(func_key)
+                        else:
+                            self.cast_callees[callsite_key].add(func_key)
                         # 如果llm帮忙了
                         if llm_helped:
                             self.llm_helped_type_analysis_icall_pair[callsite_key].add(func_key)
@@ -507,8 +520,7 @@ class TypeAnalyzer:
                             # 纯靠类型匹配
                             if matching_epoch == 0:
                                 self.strict_type_match_res[callsite_key].add(func_key)
-                            else:
-                                self.cast_callees[callsite_key].add(func_key)
+
 
                     # 如果uncertain
                     elif res == MatchingResult.UNCERTAIN:
@@ -567,6 +579,10 @@ class TypeAnalyzer:
             new_func_keys = set(filter(lambda func_key:
                                         func_key not in self.llm_declarator_analysis[callsite_key],
                                         new_func_keys))
+            # 过滤掉不属于uncertain的
+            new_func_keys = set(filter(lambda func_key: func_key in self.uncertain_callees[callsite_key],
+                                       new_func_keys))
+
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for {}-th icall {}"

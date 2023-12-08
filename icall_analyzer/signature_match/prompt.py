@@ -28,7 +28,7 @@ Given a function pointer declarator and a function declarator, your task is to e
 
 1.Parameter Type and Name Matching:
 - Verify the correspondence of each parameter's type between the function pointer and the function.
-- Pay special attention to potential type-casting operations, especially between primitive types and void* to other pointer types.
+- Some parameter declaration may be wrapped or followed by macro like UNUSED_PARAM or __unused__.
 - If the parameter type is challenging to determine, consider assessing the similarity between parameter names.
 
 2.Naming Convention:
