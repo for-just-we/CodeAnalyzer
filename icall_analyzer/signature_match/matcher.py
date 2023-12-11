@@ -730,7 +730,7 @@ class TypeAnalyzer:
 
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
-            pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for {}-th icall {}"
+            pbar = tqdm(total=len(new_func_keys), desc="matcing context for {}-th icall {}"
                         .format(self.processed_icall_num, callsite_key))
             futures = []
 
