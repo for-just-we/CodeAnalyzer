@@ -102,6 +102,8 @@ class TypeAnalyzer:
                     os.mkdir(self.struct_analysis_log_path)
                 if not os.path.exists(self.declarator_analysis_log_path):
                     os.mkdir(self.declarator_analysis_log_path)
+                if not os.path.exists(self.context_analysis_log_path):
+                    os.mkdir(self.context_analysis_log_path)
 
             # 如果llm之前已经分析过类型，那么导入已有的类型信息
             if os.path.exists(self.log_type_alias_file):
