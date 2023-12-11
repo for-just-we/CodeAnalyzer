@@ -52,7 +52,7 @@ class GlobalVisitor(ASTVisitor):
         # struct_name --> field_name --> list of param types
         self.func_struct_fields: Dict[str, Dict[str, List[str]]] = dict()
         # struct_name --> field_name --> declarator
-        self.func_struct_field_declarators: Dict[str, Dict[str, str]] = dict()
+        self.struct_field_declarators: Dict[str, Dict[str, str]] = dict()
 
         # 全局函数指针变量中支持可变参数的变量
         self.var_param_func_var: Set[str] = set()
@@ -205,14 +205,14 @@ class GlobalVisitor(ASTVisitor):
         if len(struct_field_visitor.field_name_2_type) > 0:
             self.struct_infos[struct_name] = struct_field_visitor.field_name_2_type
             self.struct_name2declarator[struct_name] = node.node_text
+            self.struct_field_declarators[struct_name] = \
+                struct_field_visitor.field2declarator_str
         # 第一个结构体field的类型
         if struct_field_visitor.first_field_type is not None:
             self.struct_first_field_types[struct_name] = struct_field_visitor.first_field_type
         # 存在函数指针field
         if len(struct_field_visitor.func_field2param_types) > 0:
             self.func_struct_fields[struct_name] = struct_field_visitor.func_field2param_types
-            self.func_struct_field_declarators[struct_name] = \
-                struct_field_visitor.func_field2declarator_str
         # 存在支持可变参数的函数指针field
         if len(struct_field_visitor.var_arg_func_fields) > 0:
             self.var_param_func_struct_fields[struct_name] = \
@@ -229,7 +229,7 @@ class GlobalVisitor(ASTVisitor):
 class StructFieldVisitor(ASTVisitor):
     def __init__(self, global_visitor=None):
         self.field_name_2_type: Dict[str, str] = dict()
-        self.func_field2declarator_str: Dict[str, str] = dict()
+        self.field2declarator_str: Dict[str, str] = dict()
         self.func_field2param_types: Dict[str, List[str]] = dict()
         self.var_arg_func_fields: Set[str] = set()
         # 结构体第一个field的类型，cast分析时会用到
@@ -259,10 +259,10 @@ class StructFieldVisitor(ASTVisitor):
             if self.first_field_type is None:
                 self.first_field_type = var_info[0]
             self.field_name_2_type[var_info[1]] = var_info[0]
+            self.field2declarator_str[var_info[1]] = node.node_text
             # 如果该field是函数指针定义
             if var_info[1] in func_field2param_types.keys():
                 self.func_field2param_types[var_info[1]] = func_field2param_types[var_info[1]]
-                self.func_field2declarator_str[var_info[1]] = node.node_text
         return False
 
 

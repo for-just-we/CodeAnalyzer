@@ -46,6 +46,37 @@ The function declarator is
 Answer the compatibility of the function pointer with the corresponding function with only 'yes' or 'no'.
 """
 
+system_prompt_context = """You are a text analyzer tasked with analyzing whether argument types
+ are compatible with parameter types of a function parameter."""
+
+user_prompt_context = """
+Given a text of a indirect-call, a function declarator text. I'm not sure whether their {idx} arguments and parameters types are compatible. 
+You need to help me determine.
+
+The indirect-call text is:
+
+{icall_text}
+
+Corresponding argument list is: {arg_text}
+
+The function declarator text is:
+
+{func_decl_text}
+
+{contexts}
+
+Analyze whether the {idx} argument types are compatible with the {idx} parameter types in two steps:
+
+- 1.Extract the expressions of {idx} arguments from argument list and analyze their types with corresponding variable declaration if provided.
+
+- 2.Extract the declarator of {idx} parameters from function declarator text and determine whether types of the parameters match corresponding arguments.
+
+Note that macros like UNUSED_PARAM could appear in declarations.
+If all {idx} arguments match {idx} parameters, answer me with only 'yes'. Otherwise, or if you feel the provided information is incomplete. Answer me with only 'no'.
+
+Provide your answer with only 'yes' or 'no'.
+"""
+
 summarizing_prompt = """Summarizing following text with only 'yes', 'no'.
 
 {}

@@ -215,6 +215,12 @@ class FunctionBodyVisitor(ASTVisitor):
         self.icall_2_decl_param_types: Dict[Tuple[int, int], List[str]] = dict()
         # 每一个indirect-call对应的函数指针声明的文本
         self.icall_2_decl_text: Dict[Tuple[int, int], str] = dict()
+        # 每一个indirect-call对应的每个参数的相关declarator
+        self.icall_2_arg_declarators: Dict[Tuple[int, int], List[List[str]]] = dict()
+        # 每一个indirect-call对应的文本
+        self.icall_2_text: Dict[Tuple[int, int], str] = dict()
+        # 每一个icall对应的argument_list文本
+        self.icall_2_arg_text: Dict[Tuple[int, int], str] = dict()
         # 支持可变参数的indirect-call
         self.var_arg_icalls: Set[Tuple[int, int]] = set()
 
@@ -258,6 +264,8 @@ class FunctionBodyVisitor(ASTVisitor):
                 self.current_macro_funcs[node.start_point] = call_expr_str
         # 解析函数指针变量的类型
         assert hasattr(node, "argument_list")
+        self.icall_2_text[node.start_point] = node.node_text
+        self.icall_2_arg_text[node.start_point] = node.argument_list.node_text
         # 解析callee expression
         type_name, pointer_level = self.process_argument(node.children[0], 0, node.start_point)
         type_name, pointer_level = parsing_type((type_name, pointer_level))
@@ -272,16 +280,20 @@ class FunctionBodyVisitor(ASTVisitor):
             self.icall_2_decl_text[node.start_point] = self.collector. \
                                 func_type2raw_declarator[potential_func_type_name]
         # 解析argument_list
-        arg_type_infos: List[Tuple[str, int]] = self.process_argument_list(node.argument_list)
+        arg_type_infos, all_arg_decls = self.process_argument_list(node.argument_list)
         self.arg_info_4_callsite[node.start_point] = arg_type_infos
+        self.icall_2_arg_declarators[node.start_point] = all_arg_decls
         self.icall_nodes[node.start_point] = node
         return True
 
-    def process_argument_list(self, node: ASTNode) -> List[Tuple[str, int]]:
+    def process_argument_list(self, node: ASTNode) -> Tuple[List[Tuple[str, int]],
+                                                            List[List[str]]]:
         if node.child_count == 0:
-            return []
+            return [], []
         arg_type_infos: List[Tuple[str, int]] = list()
         cur_arg_idx = 0
+
+        all_arg_decls: List[List[str]] = list()
 
         while cur_arg_idx < node.child_count:
             # 需要考虑ERROR情况
@@ -290,9 +302,11 @@ class FunctionBodyVisitor(ASTVisitor):
                 continue
             # 返回type, pointer level
             type_info: Tuple[str, int] = self.process_argument(node.children[cur_arg_idx], 0)
+            decls: List[str] = self.extract_decl_context(node.children[cur_arg_idx])
+            all_arg_decls.append(decls)
             arg_type_infos.append(type_info)
             cur_arg_idx += 1
-        return arg_type_infos
+        return arg_type_infos, all_arg_decls
 
     # 处理函数调用的实参数，返回实际参数的base type和pointer level，
     # 如果base type = char*, pointer level = 1 , final type = char**
@@ -307,13 +321,16 @@ class FunctionBodyVisitor(ASTVisitor):
                 base_type: str = source_dict.get(var_name, TypeEnum.UnknownType.value)
                 if base_type == TypeEnum.FunctionType.value and param_types_dict is not None:
                     param_types = param_types_dict.get(var_name, None)
-                    if param_types is not None:
+                    if param_types is not None and icall_loc is not None:
                         self.icall_2_decl_param_types[icall_loc] = param_types
                     # 支持可变参数
-                    if var_arg_func_vars is not None and var_name in var_arg_func_vars:
+                    if var_arg_func_vars is not None and var_name in var_arg_func_vars \
+                            and icall_loc is not None:
                         self.var_arg_icalls.add(icall_loc)
 
-                if func_var2declarator is not None and var_name in func_var2declarator.keys():
+                # 必须是函数变量
+                if func_var2declarator is not None and var_name in func_var2declarator.keys() \
+                        and icall_loc is not None and base_type == TypeEnum.FunctionType.value:
                     self.icall_2_decl_text[icall_loc] = func_var2declarator[var_name]
                 return base_type
 
@@ -392,7 +409,7 @@ class FunctionBodyVisitor(ASTVisitor):
                     original_src_type, {}).get(field_name, None)
                 if param_types is not None:
                     self.icall_2_decl_param_types[icall_loc] = param_types
-                func_declarator: str = self.collector.func_struct_field_declarators\
+                func_declarator: str = self.collector.struct_field_declarators\
                     .get(original_src_type,{}).get(field_name, None)
                 if func_declarator is not None:
                     self.icall_2_decl_text[icall_loc] = func_declarator
@@ -425,6 +442,49 @@ class FunctionBodyVisitor(ASTVisitor):
         # 其它复杂表达式
         else:
             return (TypeEnum.UnknownType.value, 0)
+
+    # 提取每个实参表达式对应变量的context
+    def extract_decl_context(self, node: ASTNode) -> List[str]:
+        if node.node_type == "identifier":
+            var_name: str = node.node_text
+            # 局部变量
+            if var_name in self.local_var_infos.keys():
+                return [self.local_var2declarator[var_name]]
+            elif var_name in self.arg_infos.keys():
+                return [self.arg_declarators[var_name]]
+            elif var_name in self.collector.global_var_info.keys():
+                return [self.collector.global_var_2_declarator_text[var_name]]
+            return []
+        elif node.node_type == "subscript_expression":
+            return self.extract_decl_context(node.children[0])
+        elif node.node_type == "pointer_expression":
+            return self.extract_decl_context(node.children[1])
+        elif node.node_type == "field_expression":
+            assert node.child_count == 3
+            base_type: Tuple[str, int] = self.process_argument(node.children[0], 0, None)
+            # 如果解不出base的类型，那么返回未知
+            if base_type[0] == TypeEnum.UnknownType.value:
+                return []
+            # 假定src_type一定指向一个结构体类型
+            src_type: Tuple[str, int] = parsing_type(base_type)
+            original_src_type, _ = get_original_type(src_type,
+                                                     self.collector.type_alias_infos)
+            # 如果其类型不在已知结构体类型中，直接返回未知
+            if original_src_type not in self.collector.struct_infos.keys():
+                return []
+            field_name_2_type: Dict[str, str] = self.collector.struct_field_declarators[original_src_type]
+            # 如果找不到当前field信息，返回未知
+            assert node.children[2].node_type == "field_identifier"
+            field_name: str = node.children[2].node_text
+            if field_name not in field_name_2_type.keys():
+                return []
+            return [field_name_2_type.get(field_name)]
+        else:
+            decls: List[str] = []
+            for child in node.children:
+                decls.extend(self.extract_decl_context(child))
+            return decls
+
 
 # 遍历函数体，收集函数体中的局部遍量定义
 class LocalVarVisitor(ASTVisitor):

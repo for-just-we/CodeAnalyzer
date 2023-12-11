@@ -9,7 +9,9 @@ from code_analyzer.schemas.enums import TypeEnum
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.signature_match.matching_result import MatchingResult
 from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
-    system_prompt_declarator, user_prompt_declarator, summarizing_prompt
+    system_prompt_declarator, user_prompt_declarator, \
+    system_prompt_context, user_prompt_context, \
+    summarizing_prompt
 
 from scope_strategy.base_strategy import BaseStrategy
 
@@ -22,6 +24,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import threading
 
 base_pointer_type = {"void", "char"}
+idx_text_gen = {1: '2nd', 2: '3rd'}
+idx_2_text = lambda idx: idx_text_gen.get(idx, f'{idx + 1}th')
 
 class TypeAnalyzer:
     def __init__(self, collector: BaseInfoCollector,
@@ -76,6 +80,7 @@ class TypeAnalyzer:
         self.cast_callees: DefaultDict[str, Set[str]] = defaultdict(set)
         # 如果uncertain
         self.uncertain_callees: DefaultDict[str, Set[str]] = defaultdict(set)
+        self.uncertain_idxs: DefaultDict[str, Dict[str, Set[int]]] = defaultdict(dict)
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
         if self.log_flag or self.load_pre_type_analysis_res:
@@ -89,6 +94,7 @@ class TypeAnalyzer:
             self.log_dir = log_dir
             self.struct_analysis_log_path = os.path.join(log_dir, "struct_relation")
             self.declarator_analysis_log_path = os.path.join(log_dir, "declarator_relation")
+            self.context_analysis_log_path = os.path.join(log_dir, "context_relation")
 
             # 需要log的话先设置好log路径，并清空相应文件
             if self.log_flag and llm_analyzer is not None:
@@ -214,22 +220,29 @@ class TypeAnalyzer:
             else:
                 logging.debug("fail to find function pointer declaration for {}-th indirect-callsite: {}".
                             format(self.processed_icall_num, callsite_key))
-                arg_num = 0
+                # arg_num = 0
                 var_arg = False
 
         # 根据函数指针declarator和function declarator进行匹配
         function_pointer_declarator: str = func_body_visitor\
             .icall_2_decl_text.get(icall_loc, None)
-
+        decl_context: List[List[str]] = func_body_visitor.icall_2_arg_declarators.get(icall_loc, None)
+        callsite_text: str = func_body_visitor.icall_2_text.get(icall_loc, None)
+        arg_list_text: str = func_body_visitor.icall_2_arg_text.get(icall_loc, None)
         # 如果加载了之前的分析结果
         if callsite_key in self.llm_declarator_analysis.keys():
             return
+
         # 需要llm辅助类型分析
-        if self.llm_analyzer is not None and \
-                function_pointer_declarator is not None:
-            logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
-            self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
+        if self.llm_analyzer is not None:
+            if function_pointer_declarator is not None:
+                logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
+                self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
                                                 arg_num, var_arg)
+            elif (decl_context is not None and callsite_text is not None):
+                logging.info("indirect-call declarator context is: {}".format(decl_context))
+                self.match_with_decl_contexts(callsite_text, arg_list_text,
+                                              decl_context, callsite_key, len(arg_type), False)
 
             # 有llm帮忙分析的callsite_key
             # 把llm的中间结果log出来
@@ -248,7 +261,8 @@ class TypeAnalyzer:
 
     # 根据参数类型进行匹配
     # 后面两个参数表示原始类型参数名，没有映射到别名类型前的参数名
-    def match_types_callsite_target(self, arg_types: List[Tuple[str, int]],
+    def match_types_callsite_target(self, callsite_key: str, func_key: str,
+                                    arg_types: List[Tuple[str, int]],
                                     param_types: List[Tuple[str, int]],
                                     ori_arg_type_names: List[str],
                                     ori_param_type_names: List[str],
@@ -259,6 +273,8 @@ class TypeAnalyzer:
         assert len(arg_types) == len(param_types)
         llm_helped_ = False
         final_res = MatchingResult.YES
+
+        uncertain_idx: Set[int] = set()
         # 逐个参数匹配
         for i in range(len(arg_types)):
             arg_type: Tuple[str, int] = arg_types[i]
@@ -277,6 +293,10 @@ class TypeAnalyzer:
                 return MatchingResult.NO, llm_helped_
             elif res == MatchingResult.UNCERTAIN:
                 final_res = MatchingResult.UNCERTAIN
+                uncertain_idx.add(i)
+
+        if final_res == MatchingResult.UNCERTAIN and func_key not in self.uncertain_idxs[callsite_key].keys():
+            self.uncertain_idxs[callsite_key][func_key] = uncertain_idx
 
         return final_res, llm_helped_
 
@@ -498,7 +518,8 @@ class TypeAnalyzer:
                 param_types: List[Tuple[str, int]] = self.collector.param_types.get(func_key)
                 # 原始参数类型名
                 ori_param_type_names: List[str] = self.collector.ori_param_types.get(func_key)
-                res, llm_helped = self.match_types_callsite_target(cur_fixed_arg_type,
+                res, llm_helped = self.match_types_callsite_target(callsite_key, func_key,
+                                                                   cur_fixed_arg_type,
                                                                     param_types[:len(cur_fixed_arg_type)],
                                                                     ori_type_names,
                                                                     ori_param_type_names,
@@ -638,3 +659,113 @@ class TypeAnalyzer:
                     process_func_set(func_keys)
 
         # self.callees[callsite_key].update(func_set)
+
+
+    def match_with_single_decl_text(self, callsite_text: str, arg_list_text: str, decl_contexts: List[List[str]],
+                                    function_declarator: str, uncertain_idxs: Set[int]) -> bool:
+        sorted_list: List[int] = sorted(uncertain_idxs)
+        idx_text: str = ','.join(idx_2_text(idx) for idx in sorted_list)
+
+        items: List[str] = list()
+        for idx in sorted_list:
+            if len(decl_contexts[idx]) == 0:
+                continue
+            temp_text: str = "The declarations of variable in {} arguments are:\n{}".format(idx_2_text(idx),
+                                            '\n'.join(decl_contexts[idx]))
+            items.append(temp_text)
+
+        decl_context_text: str = "\n\n".join(items)
+        prompts: List[str] = [system_prompt_context,
+                              user_prompt_context.format(icall_text = callsite_text, func_decl_text = function_declarator,
+                                                         idx = idx_text, contexts=decl_context_text, arg_text = arg_list_text)]
+        prompt_log: str = prompts[0] + "\n\n" + prompts[1]
+
+        yes_time: int = 0
+
+        # 投票若干次
+        for i in range(self.vote_time):
+            answer: str = self.llm_analyzer.get_response(prompts)
+            prompt_log += "\n\nvote {}:========================\n".format(i + 1) + answer
+            # 如果回答的太长了，让它summarize一下
+            tokens = answer.split(' ')
+            if len(tokens) >= 8:
+                answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
+                prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_prompt.format(
+                    answer)
+                prompt_log += "\n\n" + answer
+
+            if 'yes' in answer.lower():
+                yes_time += 1
+
+        # 如果需要log
+        if self.log_flag:
+            size = len(os.listdir(self.context_analysis_log_path))
+            prompt_file = f"{size + 1}.txt"
+            open(os.path.join(self.context_analysis_log_path, prompt_file), 'w', encoding='utf-8') \
+                .write(prompt_log)
+
+        # 取多数次结果返回
+        flag = (yes_time > (self.vote_time / 2))
+        return flag
+
+
+    def match_with_decl_contexts(self, callsite_text: str, arg_list_text: str,
+                                 decl_contexts: List[List[str]], callsite_key: str, arg_num: int, var_arg: bool):
+        def process_func_set(func_keys: Set[str]):
+            new_func_keys = func_keys.copy()
+            if self.scope_strategy is not None:
+                new_func_keys = set(filter(lambda func_key:
+                                           self.scope_strategy.analyze_key(callsite_key, func_key)
+                                           and func_key not in self.callees[callsite_key],
+                                           new_func_keys))
+            # 过滤掉已经分析过declarator的
+            new_func_keys = set(filter(lambda func_key:
+                                        func_key not in self.llm_declarator_analysis[callsite_key],
+                                        new_func_keys))
+            # 过滤掉不属于uncertain的
+            new_func_keys = set(filter(lambda func_key: func_key in self.uncertain_callees[callsite_key],
+                                       new_func_keys))
+
+            lock = threading.Lock()
+            executor = ThreadPoolExecutor(max_workers=self.num_worker)
+            pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for {}-th icall {}"
+                        .format(self.processed_icall_num, callsite_key))
+            futures = []
+
+            def update_progress(future):
+                pbar.update(1)
+
+            def worker(func_key: str):
+                uncertain_idxs: Set[int] = self.uncertain_idxs[callsite_key][func_key]
+                # 基于callsite的形参和call target实参进行类型匹配
+                function_declarator: str = self.collector.func_key_2_declarator[func_key]
+                flag = self.match_with_single_decl_text(callsite_text, arg_list_text, decl_contexts,
+                                    function_declarator, uncertain_idxs)
+                with lock:
+                    self.all_potential_targets[callsite_key].add(func_key)
+                    # 如果匹配成功
+                    if flag:
+                        # func_set.add(func_key)
+                        # 如果llm帮忙了
+                        self.llm_declarator_analysis[callsite_key].add(func_key)
+
+            for func_key in new_func_keys:
+                future = executor.submit(worker, func_key)
+                future.add_done_callback(update_progress)
+                futures.append(future)
+
+            for future in as_completed(futures):
+                try:
+                    future.result(timeout=60)
+                except TimeoutError:
+                    logging.info("thread time out")
+
+        # 遍历固定参数数量的函数列表
+        fixed_num_func_keys: Set[str] = self.collector.param_nums_2_func_keys.get(arg_num, {})
+        process_func_set(fixed_num_func_keys)
+
+        # 遍历可变参数函数列表
+        for param_num, func_keys in self.collector.var_arg_param_nums_2_func_keys.items():
+            # 可能被调用
+            if param_num <= arg_num:
+                process_func_set(func_keys)

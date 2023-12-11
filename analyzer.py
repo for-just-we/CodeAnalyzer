@@ -129,7 +129,7 @@ def evaluate_binary(ground_truths: Dict[str, Set[str]],
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0
     precision = TP / (TP + FP) if (TP + FP) > 0 else 0
     F1 = 2 * recall * precision / (recall + precision) if (recall + precision) > 0 else 0
-    fpr = FP / (FP + TN) if (TP + TN) > 0 else 0
+    fpr = FP / (FP + TN) if (FP + TN) > 0 else 0
     fnr = FN / (FN + TP) if (FN + TP) > 0 else 0
     return (acc, precision, recall, F1, fpr, fnr)
 

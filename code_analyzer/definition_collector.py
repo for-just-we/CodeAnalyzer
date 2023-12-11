@@ -41,8 +41,8 @@ class BaseInfoCollector:
         # 结构体函数指针field
         self.func_struct_fields: Dict[str, Dict[str, List[str]]] = \
                 global_visitor.func_struct_fields
-        self.func_struct_field_declarators: Dict[str, Dict[str, str]] = \
-                global_visitor.func_struct_field_declarators
+        self.struct_field_declarators: Dict[str, Dict[str, str]] = \
+                global_visitor.struct_field_declarators
 
         # 函数指针全局变量
         #if len(global_visitor.func_var2param_types):
