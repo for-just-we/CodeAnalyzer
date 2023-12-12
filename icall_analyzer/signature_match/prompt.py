@@ -24,16 +24,13 @@ system_prompt_declarator = """You are a text analyzer tasked with analyzing the 
 """
 
 user_prompt_declarator = """
-Given a function pointer declarator and a function declarator, your task is to evaluate whether the function pointer can correctly invoke the function. Consider the following criteria:
+Given a function pointer declarator and a function declarator, your task is to evaluate whether the parameter types of function pointer can match that of the function in following steps:
 
-1.Parameter Type and Name Matching:
-- Verify the correspondence of each parameter's type between the function pointer and the function.
-- Some parameter declaration may be wrapped or followed by macro like UNUSED_PARAM or __unused__.
-- If the parameter type is challenging to determine, consider assessing the similarity between parameter names.
+- 1.Extract the parameter list separately from both the function pointer declarator and the function declarator.
 
-2.Naming Convention:
-- Examine whether the name of the function pointer aligns with the function name.
-- Consider similarities in naming conventions to determine the relationship between the function pointer and the function.
+- 2.Compare the types of each parameter one by one to ensure a match.
+
+- 3.Note that some parameter declaration may be wrapped or followed by macro like UNUSED_PARAM or __unused__.
 
 The function pointer declarator is 
 
@@ -43,7 +40,7 @@ The function declarator is
 
 {}
 
-Answer the compatibility of the function pointer with the corresponding function with only 'yes' or 'no'.
+If the function pointer can correctly invoke the function, answer 'yes'. Otherwise, answer 'no'.
 """
 
 system_prompt_context = """You are a text analyzer tasked with analyzing whether argument types
@@ -73,8 +70,6 @@ Analyze whether the {idx} argument types are compatible with the {idx} parameter
 
 Note that macros like UNUSED_PARAM could appear in declarations.
 If all {idx} arguments match {idx} parameters, answer me with only 'yes'. Otherwise, or if you feel the provided information is incomplete. Answer me with only 'no'.
-
-Provide your answer with only 'yes' or 'no'.
 """
 
 summarizing_prompt = """Summarizing following text with only 'yes', 'no'.

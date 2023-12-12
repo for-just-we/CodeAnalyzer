@@ -81,6 +81,8 @@ class TypeAnalyzer:
         # 如果uncertain
         self.uncertain_callees: DefaultDict[str, Set[str]] = defaultdict(set)
         self.uncertain_idxs: DefaultDict[str, Dict[str, Set[int]]] = defaultdict(dict)
+        # 确定为false的部分
+        self.no_match_callees: DefaultDict[str, Set[str]] = defaultdict(set)
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
         if self.log_flag or self.load_pre_type_analysis_res:
@@ -138,6 +140,16 @@ class TypeAnalyzer:
 
 
         self.processed_icall_num: int = 1
+
+    # 删除掉uncertain部分中已经确定为true的部分
+    # def clean_uncertain_callee(self, callsite_key):
+    #     yes_call_targets: Set[str] = self.callees.get(callsite_key, set())
+    #     uncertain_calltargets: Set[str] = self.uncertain_callees.get(callsite_key, set())
+    #     uncertain_calltargets = uncertain_calltargets - yes_call_targets
+    #
+    #     no_call_targets: Set[str] = self.no_match_callees.get(callsite_key, set())
+    #     uncertain_calltargets = uncertain_calltargets - no_call_targets
+    #     self.uncertain_callees[callsite_key] = uncertain_calltargets
 
     def process_all(self):
         # 遍历每个函数
@@ -231,6 +243,7 @@ class TypeAnalyzer:
         decl_context: List[List[str]] = func_body_visitor.icall_2_arg_declarators.get(icall_loc, None)
         callsite_text: str = func_body_visitor.icall_2_text.get(icall_loc, None)
         arg_list_text: str = func_body_visitor.icall_2_arg_text.get(icall_loc, None)
+
         # 如果加载了之前的分析结果
         if callsite_key in self.llm_declarator_analysis.keys():
             return
@@ -305,6 +318,8 @@ class TypeAnalyzer:
     def unknown_type(self, type_name: str) -> bool:
         if type_name in {TypeEnum.UnknownType.value, "__unused__", "__attribute__"}:
             return True
+        elif "UNUSED" in type_name:
+            return True
         # 如果类型名是宏，也认为是unknown type
         elif type_name in self.collector.ununsed_macros:
             return True
@@ -343,8 +358,10 @@ class TypeAnalyzer:
                         ori_arg_type_name: str, ori_param_type_name: str
                         ) \
         -> Tuple[MatchingResult, bool]:
-        if self.strict_match_type(arg_type, param_type) == MatchingResult.YES:
-            return MatchingResult.YES, False
+        res = self.strict_match_type(arg_type, param_type)
+        # 必须为No才会继续分析
+        if res != MatchingResult.NO:
+            return res, False
         # 考虑void*, char*和其它类型指针转换关系
         if self.match_pointer_type(arg_type, param_type):
             return MatchingResult.YES, False
@@ -533,6 +550,9 @@ class TypeAnalyzer:
                         # 计算纯靠类型匹配得出的结果
                         if matching_epoch == 0:
                             func_set.add(func_key)
+                            # 如果在之前的匹配结果中匹配出了uncertain
+                            if func_key in self.uncertain_callees[callsite_key]:
+                                self.uncertain_callees[callsite_key].remove(func_key)
                         else:
                             self.cast_callees[callsite_key].add(func_key)
                         # 如果llm帮忙了
@@ -548,6 +568,16 @@ class TypeAnalyzer:
                     # 如果uncertain
                     elif res == MatchingResult.UNCERTAIN:
                         self.uncertain_callees[callsite_key].add(func_key)
+                        # 如果在之前的匹配结果中匹配出了No
+                        if func_key in self.no_match_callees[callsite_key]:
+                            self.no_match_callees[callsite_key].remove(func_key)
+
+                    # 如果为no
+                    elif res == MatchingResult.NO:
+                        self.no_match_callees[callsite_key].add(func_key)
+                        # 如果在之前的匹配结果中匹配出了uncertain
+                        if func_key in self.uncertain_callees[callsite_key]:
+                            self.uncertain_callees[callsite_key].remove(func_key)
 
             for func_key in new_func_keys:
                 future = executor.submit(worker, func_key)

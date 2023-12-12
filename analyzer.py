@@ -17,7 +17,6 @@ from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer, GPTAnalyzer
-from functools import reduce
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -281,6 +280,6 @@ class ProjectAnalyzer:
                 f"| ---- | ---- | ---- | ---- |\n")
 
         if self.args.evaluate_soly_for_llm:
-            evaluate_icall_target(type_analyzer.llm_declarator_analysis, "llm-decl")
+            evaluate_icall_target(type_analyzer.llm_declarator_analysis, self.args.model_type)
             analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
-                           type_analyzer.llm_declarator_analysis, "llm")
+                           type_analyzer.llm_declarator_analysis, self.args.model_type)

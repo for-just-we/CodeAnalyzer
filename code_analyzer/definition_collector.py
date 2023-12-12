@@ -6,7 +6,7 @@ from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.global_visitor import GlobalVisitor
 
-unused_keywords = {"__attribute__", "__unused__", "__unused"}
+unused_keywords = {"__attribute__", "unused"}
 
 def unused_macro_check(macro_cotent: str) -> bool:
     for keyword in unused_keywords:
