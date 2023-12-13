@@ -41,19 +41,19 @@ openai_error_messages = {
 }
 
 import tiktoken
+ENCODING = "cl100k_base"
 
-
-def num_tokens_from_string(string: str, encoding_name: str) -> int:
+def num_tokens_from_string(string: str) -> int:
     """Returns the number of tokens in a text string."""
-    encoding = tiktoken.get_encoding(encoding_name)
+    encoding = tiktoken.get_encoding(ENCODING)
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
-def get_num_tokens_for_dialog(dialog: List[Dict[str, str]], encoding_name: str) -> int:
+def get_num_tokens_for_dialog(dialog: List[Dict[str, str]]) -> int:
     num_tokens = 0
     for message in dialog:
         assert "content" in message.keys()
-        num_tokens += num_tokens_from_string(message["content"], encoding_name)
+        num_tokens += num_tokens_from_string(message["content"])
     return num_tokens
 
 class GPTAnalyzer(BaseLLMAnalyzer):
@@ -82,9 +82,9 @@ class GPTAnalyzer(BaseLLMAnalyzer):
                 messages=dialog,
                 temperature=self.temperature
             )
-            self.input_token_num += get_num_tokens_for_dialog(dialog, self.model_type)
+            self.input_token_num += get_num_tokens_for_dialog(dialog)
             resp = (response.choices[0]["message"]["content"], True, times)
-            self.output_token_num += num_tokens_from_string(resp[0], self.model_type)
+            self.output_token_num += num_tokens_from_string(resp[0])
         except tuple(openai_error_messages.keys()) as e:
             error_type = type(e)
             error_message: str = openai_error_messages.get(error_type,
