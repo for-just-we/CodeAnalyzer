@@ -137,6 +137,14 @@ def evaluate_binary(ground_truths: Dict[str, Set[str]],
     fnr = FN / (FN + TP) if (FN + TP) > 0 else 0
     return (acc, precision, recall, F1, fpr, fnr)
 
+def count_cost(input_token_num, output_token_num, input_price, output_price):
+    return (input_token_num * input_price + output_token_num * output_price) / 1000
+
+prices = {
+    "gpt-3.5-turbo": [0.001, 0.002],
+    "gpt-4-1106-preview": [0.01, 0.03],
+    "gpt-4": [0.03, 0.06]
+}
 
 class ProjectAnalyzer:
     def __init__(self, project_included_func_file: str, icall_infos_file: str, project_root: str,
@@ -292,6 +300,15 @@ class ProjectAnalyzer:
         if type_analyzer.llm_analyzer is not None and \
             hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
                 hasattr(type_analyzer.llm_analyzer, "output_token_num"):
-            logging.info("spent {} input tokens and {} output tokens for {}:".format(type_analyzer.llm_analyzer.input_token_num,
-                                                                                    type_analyzer.llm_analyzer.output_token_num,
-                                                                                    type_analyzer.llm_analyzer.model_type))
+            price = prices[type_analyzer.llm_analyzer.model_type]
+            cost = count_cost(type_analyzer.llm_analyzer.input_token_num,
+                              type_analyzer.llm_analyzer.output_token_num,
+                              price[0], price[1])
+            logging.info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
+                         .format(type_analyzer.llm_analyzer.input_token_num,
+                          type_analyzer.llm_analyzer.output_token_num,
+                          type_analyzer.llm_analyzer.model_type,
+                          cost))
+            logging.info("| {} | {} | {} | {} | {:.2f} |".format(self.project, type_analyzer.llm_analyzer.input_token_num,
+                                                        type_analyzer.llm_analyzer.output_token_num,
+                                                       type_analyzer.llm_analyzer.model_type ,cost))

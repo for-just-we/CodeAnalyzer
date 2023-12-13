@@ -439,7 +439,10 @@ class TypeAnalyzer:
                 prompt_log += "\n\n" + answer
 
             if 'yes' in answer.lower():
+                prompt_log += "\n\n" + "Answer: yes\n"
                 yes_time += 1
+            else:
+                prompt_log += "\n\n" + "Answer: no\n"
 
         flag = (yes_time > (self.vote_time / 2))
         self.llm_analyzed_types[(type1[0], type2[0])] = flag
@@ -736,15 +739,15 @@ class TypeAnalyzer:
             if 'yes' in answer.lower():
                 yes_time += 1
 
+        # 取多数次结果返回
+        flag = (yes_time > (self.vote_time / 2))
+        prompt_log += "\n\n===========================\n\n" + "Final answer is: {}".format("yes" if flag else "no")
         # 如果需要log
         if self.log_flag:
             size = len(os.listdir(self.context_analysis_log_path))
             prompt_file = f"{size + 1}.txt"
             open(os.path.join(self.context_analysis_log_path, prompt_file), 'w', encoding='utf-8') \
                 .write(prompt_log)
-
-        # 取多数次结果返回
-        flag = (yes_time > (self.vote_time / 2))
         return flag
 
 
