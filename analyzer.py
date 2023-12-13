@@ -119,10 +119,15 @@ def evaluate_binary(ground_truths: Dict[str, Set[str]],
         predicted_f_keys: Set[str] = total_targets.get(callsite_key, set())\
                                      - predicted_t_keys
 
-        TP += len(label_t_keys & predicted_t_keys)
-        TN += len(label_f_keys & predicted_f_keys)
-        FP += len(label_f_keys & predicted_t_keys)
-        FN += len(label_t_keys & predicted_f_keys)
+        TPs: Set[str] = label_t_keys & predicted_t_keys
+        TNs: Set[str] = label_f_keys & predicted_f_keys
+        FPs: Set[str] = label_f_keys & predicted_t_keys
+        FNs: Set[str] = label_t_keys & predicted_f_keys
+
+        TP += len(TPs)
+        TN += len(TNs)
+        FP += len(FPs)
+        FN += len(FNs)
 
     acc = (TP + TN) / (TP + TN + FP + FN) if (TP + TN + FP + FN) > 0 else 0
     recall = TP / (TP + FN) if (TP + FN) > 0 else 0

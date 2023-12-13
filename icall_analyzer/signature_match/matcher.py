@@ -241,6 +241,7 @@ class TypeAnalyzer:
         function_pointer_declarator: str = func_body_visitor\
             .icall_2_decl_text.get(icall_loc, None)
         decl_context: List[List[str]] = func_body_visitor.icall_2_arg_declarators.get(icall_loc, None)
+        arg_texts: List[str] = func_body_visitor.icall_2_arg_texts.get(icall_loc, None)
         callsite_text: str = func_body_visitor.icall_2_text.get(icall_loc, None)
         arg_list_text: str = func_body_visitor.icall_2_arg_text.get(icall_loc, None)
 
@@ -256,8 +257,8 @@ class TypeAnalyzer:
                                                 arg_num, var_arg)
             elif (decl_context is not None and callsite_text is not None):
                 logging.info("indirect-call declarator context is: {}".format(decl_context))
-                self.match_with_decl_contexts(callsite_text, arg_list_text,
-                                              decl_context, callsite_key, len(arg_type), False)
+                self.match_with_decl_contexts(callsite_text, arg_list_text, arg_texts,
+                                              decl_context, callsite_key, len(arg_type))
 
             # 有llm帮忙分析的callsite_key
             # 把llm的中间结果log出来
@@ -470,8 +471,9 @@ class TypeAnalyzer:
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')
             if len(tokens) >= 8:
-                answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
-                prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_prompt.format(answer)
+                summarizing_text: str = summarizing_prompt.format(answer)
+                answer = self.llm_analyzer.get_response([summarizing_text])
+                prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_text
                 prompt_log += "\n\n" + answer
 
             if 'yes' in answer.lower():
@@ -693,16 +695,18 @@ class TypeAnalyzer:
         # self.callees[callsite_key].update(func_set)
 
 
-    def match_with_single_decl_text(self, callsite_text: str, arg_list_text: str, decl_contexts: List[List[str]],
-                                    function_declarator: str, uncertain_idxs: Set[int]) -> bool:
+    def match_with_single_decl_text(self, callsite_text: str, arg_list_text: str, arg_texts: List[str],
+                                    decl_contexts: List[List[str]],
+                                    function_declarator: str, param_decl_texts: List[str], uncertain_idxs: Set[int]) -> bool:
         sorted_list: List[int] = sorted(uncertain_idxs)
         idx_text: str = ','.join(idx_2_text(idx) for idx in sorted_list)
 
         items: List[str] = list()
         for idx in sorted_list:
-            if len(decl_contexts[idx]) == 0:
-                continue
-            temp_text: str = "The declarations of variable in {} arguments are:\n{}".format(idx_2_text(idx),
+            temp_text: str = "The expression of {} argument is: {}\n".format(idx_2_text(idx), arg_texts[idx])
+            temp_text += "The declaration of {} function parameter is: {}\n".format(idx_2_text(idx), param_decl_texts[idx])
+            if len(decl_contexts[idx]) != 0:
+                temp_text += "The declarations of variables in {} argument are:\n{}".format(idx_2_text(idx),
                                             '\n'.join(decl_contexts[idx]))
             items.append(temp_text)
 
@@ -741,8 +745,8 @@ class TypeAnalyzer:
         return flag
 
 
-    def match_with_decl_contexts(self, callsite_text: str, arg_list_text: str,
-                                 decl_contexts: List[List[str]], callsite_key: str, arg_num: int, var_arg: bool):
+    def match_with_decl_contexts(self, callsite_text: str, arg_list_text: str, arg_texts: List[str],
+                                 decl_contexts: List[List[str]], callsite_key: str, arg_num: int):
         def process_func_set(func_keys: Set[str]):
             new_func_keys = func_keys.copy()
             if self.scope_strategy is not None:
@@ -771,8 +775,9 @@ class TypeAnalyzer:
                 uncertain_idxs: Set[int] = self.uncertain_idxs[callsite_key][func_key]
                 # 基于callsite的形参和call target实参进行类型匹配
                 function_declarator: str = self.collector.func_key_2_declarator[func_key]
-                flag = self.match_with_single_decl_text(callsite_text, arg_list_text, decl_contexts,
-                                    function_declarator, uncertain_idxs)
+                param_decl_texts: List[str] = self.collector.func_info_dict[func_key].declarator_texts
+                flag = self.match_with_single_decl_text(callsite_text, arg_list_text, arg_texts, decl_contexts,
+                                    function_declarator, param_decl_texts, uncertain_idxs)
                 with lock:
                     self.all_potential_targets[callsite_key].add(func_key)
                     # 如果匹配成功

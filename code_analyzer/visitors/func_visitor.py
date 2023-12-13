@@ -43,6 +43,7 @@ class FunctionDeclaratorVisitor(ASTVisitor):
         # 添加一下对va_list的处理
         func_info: FuncInfo = FuncInfo(parameter_visitor.parameter_types.copy(),
                                            parameter_visitor.name_2_declarator_text.copy(),
+                                           parameter_visitor.declarator_texts.copy(),
                                            parameter_visitor.var_arg, self.raw_declarator_text,
                                            self.func_body, self.parentVisitor.current_file, func_name)
         self.parentVisitor.func_info_dict[func_key] = func_info
@@ -89,6 +90,7 @@ class ParameterListVisitor(ASTVisitor):
         self.parameter_types: List[Tuple[str, str]] = list()
         # 将形参名映射为declarator文本，比如int* p中，p的declarator为int* p
         self.name_2_declarator_text: Dict[str, str] = dict()
+        self.declarator_texts: List[str] = list()
         self.var_arg: bool = False
         self.error: bool = False
         # 在解析function declarator时，如果解析的是function definition的declarator，那么当参数
@@ -149,6 +151,7 @@ class ParameterListVisitor(ASTVisitor):
                 param_type: str = base_type if suffix == "" else base_type + " " + suffix
             self.parameter_types.append((param_type, param_name))
             self.name_2_declarator_text[param_name] = node.node_text
+            self.declarator_texts.append(node.node_text)
         except DeclareTypeException as e:
             self.parameter_types.append((TypeEnum.UnknownType.value, "unknown"))
             # raise DeclareTypeException("caught Declare Type Exception")
@@ -217,6 +220,8 @@ class FunctionBodyVisitor(ASTVisitor):
         self.icall_2_decl_text: Dict[Tuple[int, int], str] = dict()
         # 每一个indirect-call对应的每个参数的相关declarator
         self.icall_2_arg_declarators: Dict[Tuple[int, int], List[List[str]]] = dict()
+        # 每一个indirect-call对应的每个参数的相关文本
+        self.icall_2_arg_texts: Dict[Tuple[int, int], List[str]] = dict()
         # 每一个indirect-call对应的文本
         self.icall_2_text: Dict[Tuple[int, int], str] = dict()
         # 每一个icall对应的argument_list文本
@@ -280,20 +285,23 @@ class FunctionBodyVisitor(ASTVisitor):
             self.icall_2_decl_text[node.start_point] = self.collector. \
                                 func_type2raw_declarator[potential_func_type_name]
         # 解析argument_list
-        arg_type_infos, all_arg_decls = self.process_argument_list(node.argument_list)
+        arg_type_infos, all_arg_decls, all_arg_texts = self.process_argument_list(node.argument_list)
+        self.icall_2_arg_texts[node.start_point] = all_arg_texts
         self.arg_info_4_callsite[node.start_point] = arg_type_infos
         self.icall_2_arg_declarators[node.start_point] = all_arg_decls
         self.icall_nodes[node.start_point] = node
         return True
 
     def process_argument_list(self, node: ASTNode) -> Tuple[List[Tuple[str, int]],
-                                                            List[List[str]]]:
+                                                            List[List[str]],
+                                                            List[str]]:
         if node.child_count == 0:
-            return [], []
+            return [], [], []
         arg_type_infos: List[Tuple[str, int]] = list()
         cur_arg_idx = 0
 
         all_arg_decls: List[List[str]] = list()
+        all_arg_texts: List[str] = list()
 
         while cur_arg_idx < node.child_count:
             # 需要考虑ERROR情况
@@ -303,10 +311,12 @@ class FunctionBodyVisitor(ASTVisitor):
             # 返回type, pointer level
             type_info: Tuple[str, int] = self.process_argument(node.children[cur_arg_idx], 0)
             decls: List[str] = self.extract_decl_context(node.children[cur_arg_idx])
+            arg_text: str = node.children[cur_arg_idx].node_text
+            all_arg_texts.append(arg_text)
             all_arg_decls.append(decls)
             arg_type_infos.append(type_info)
             cur_arg_idx += 1
-        return arg_type_infos, all_arg_decls
+        return arg_type_infos, all_arg_decls, all_arg_texts
 
     # 处理函数调用的实参数，返回实际参数的base type和pointer level，
     # 如果base type = char*, pointer level = 1 , final type = char**

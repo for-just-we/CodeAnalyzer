@@ -47,7 +47,7 @@ system_prompt_context = """You are a text analyzer tasked with analyzing whether
  are compatible with parameter types of a function parameter."""
 
 user_prompt_context = """
-Given a text of a indirect-call, a function declarator text. I'm not sure whether their {idx} arguments and parameters types are compatible. 
+Given an indirect-call, a function declarator. I'm not sure whether their {idx} arguments and parameters types are compatible. 
 You need to help me determine.
 
 The indirect-call text is:
