@@ -732,9 +732,9 @@ class TypeAnalyzer:
             tokens = answer.split(' ')
             if len(tokens) >= 8:
                 answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
-                prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_prompt.format(
+                prompt_log += "\n\nvote {}:**************************\n".format(i + 1) + summarizing_prompt.format(
                     answer)
-                prompt_log += "\n\n" + answer
+                prompt_log += "\n\nLLM response: " + answer
 
             if 'yes' in answer.lower():
                 yes_time += 1
