@@ -290,8 +290,8 @@ class ProjectAnalyzer:
                            type_analyzer.llm_declarator_analysis, self.args.model_type)
 
         if type_analyzer.llm_analyzer is not None and \
-            hasattr("input_token_num", type_analyzer.llm_analyzer) and \
-                hasattr("output_token_num", type_analyzer.llm_analyzer):
+            hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
+                hasattr(type_analyzer.llm_analyzer, "output_token_num"):
             logging.info("spent {} input tokens and {} output tokens for {}:".format(type_analyzer.llm_analyzer.input_token_num,
                                                                                     type_analyzer.llm_analyzer.output_token_num,
                                                                                     type_analyzer.llm_analyzer.model_type))
