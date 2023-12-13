@@ -30,7 +30,7 @@ Given a function pointer declarator and a function declarator, your task is to e
 
 - 2.Compare the types of each parameter one by one to ensure a match.
 
-- 3.Note that some parameter declaration may be wrapped or followed by macro like UNUSED_PARAM or __unused__.
+- 3.Note that certain parameter declarations may be wrapped or followed by macros like UNUSED_PARAM or unused, which do not impact the parameter type. Therefore, you should ignore such macros.
 
 The function pointer declarator is 
 

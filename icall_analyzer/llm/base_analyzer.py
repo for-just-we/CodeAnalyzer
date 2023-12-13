@@ -40,11 +40,31 @@ openai_error_messages = {
     openai.error.ServiceUnavailableError: "OpenAI API service unavailable: {}",
 }
 
+import tiktoken
+
+
+def num_tokens_from_string(string: str, encoding_name: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding(encoding_name)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+def get_num_tokens_for_dialog(dialog: List[Dict[str, str]], encoding_name: str) -> int:
+    num_tokens = 0
+    for message in dialog:
+        assert "content" in message.keys()
+        num_tokens += num_tokens_from_string(message["content"], encoding_name)
+    return num_tokens
+
 class GPTAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, temperature: float=0):
         super().__init__(model_type)
         openai.api_key = api_key
         self.temperature = temperature
+
+        # 只是用来记录输入和输出的token数
+        self.input_token_num: int = 0
+        self.output_token_num: int = 0
 
     # 向openai发送一次请求，返回一个response，可能会触发异常
     def get_openai_response(self, dialog: List[Dict[str, str]], times: int) -> Tuple[str, bool, int]:
@@ -62,7 +82,9 @@ class GPTAnalyzer(BaseLLMAnalyzer):
                 messages=dialog,
                 temperature=self.temperature
             )
+            self.input_token_num += get_num_tokens_for_dialog(dialog, self.model_type)
             resp = (response.choices[0]["message"]["content"], True, times)
+            self.output_token_num += num_tokens_from_string(resp[0], self.model_type)
         except tuple(openai_error_messages.keys()) as e:
             error_type = type(e)
             error_message: str = openai_error_messages.get(error_type,
