@@ -703,8 +703,11 @@ class TypeAnalyzer:
 
         items: List[str] = list()
         for idx in sorted_list:
-            temp_text: str = "The expression of {} argument is: {}\n".format(idx_2_text(idx), arg_texts[idx])
-            temp_text += "The declaration of {} function parameter is: {}\n".format(idx_2_text(idx), param_decl_texts[idx])
+            temp_text: str = ""
+            if idx < len(arg_texts):
+                temp_text += "The expression of {} argument is: {}\n".format(idx_2_text(idx), arg_texts[idx])
+            if idx < len(param_decl_texts):
+                temp_text += "The declaration of {} function parameter is: {}\n".format(idx_2_text(idx), param_decl_texts[idx])
             if len(decl_contexts[idx]) != 0:
                 temp_text += "The declarations of variables in {} argument are:\n{}".format(idx_2_text(idx),
                                             '\n'.join(decl_contexts[idx]))
