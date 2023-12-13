@@ -460,10 +460,15 @@ class FunctionBodyVisitor(ASTVisitor):
             # 局部变量
             if var_name in self.local_var_infos.keys():
                 return [self.local_var2declarator[var_name]]
+            # 形参
             elif var_name in self.arg_infos.keys():
                 return [self.arg_declarators[var_name]]
+            # 全局变量
             elif var_name in self.collector.global_var_info.keys():
                 return [self.collector.global_var_2_declarator_text[var_name]]
+            # 宏定义
+            elif var_name in self.collector.macro_defs.keys():
+                return [self.collector.macro_defs[var_name]]
             return []
         elif node.node_type == "subscript_expression":
             return self.extract_decl_context(node.children[0])

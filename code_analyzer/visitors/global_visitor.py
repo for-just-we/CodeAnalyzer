@@ -17,6 +17,7 @@ class GlobalVisitor(ASTVisitor):
         self.macro_defs: Dict[str, str] = dict()
         self.macro_func_args: DefaultDict[str, List[str]] = defaultdict(list)
         self.macro_func_bodies: Dict[str, str] = dict()
+        self.macro_texts: Dict[str, str] = dict()
 
         self.anonymous_struct_num: int = 0
         self.anoymous_enum_num: int = 0
@@ -77,6 +78,7 @@ class GlobalVisitor(ASTVisitor):
         macro: str = node.identifier.node_text
         preproc_arg: str = node.preproc_arg.node_text
         self.macro_defs[macro] = preproc_arg
+        self.macro_texts[macro] = node.node_text
         return False
 
     # 处理宏函数

@@ -51,6 +51,8 @@ class BaseInfoCollector:
         self.enum_infos: Set[str] = global_visitor.enum_infos
         # 宏函数
         self.macro_funcs: Set[str] = set(global_visitor.macro_func_bodies.keys())
+        # 所有的宏定义
+        self.macro_defs: Dict[str, str] = global_visitor.macro_texts
         self.ununsed_macros: Set[str] = set([key for key in global_visitor.macro_defs.keys()
                                              if unused_macro_check(global_visitor.macro_defs[key])])
 
