@@ -30,7 +30,11 @@ Given a function pointer declarator and a function declarator, your task is to e
 
 - 2.Compare the types of each parameter one by one to ensure a match.
 
-- 3.Note that certain parameter declarations may be wrapped or followed by macros like UNUSED_PARAM or unused, which do not impact the parameter type. For example, UNUSED_PARAM(int var) matches the type of int var.
+Note that:
+
+- 1.Certain parameter declarations may be wrapped or followed by macros like UNUSED_PARAM or unused, which do not impact the parameter type. For example, UNUSED_PARAM(int var) matches the type of int var.
+
+- 2.Types like int, long, size_t could be considered as compatible due to implicit cast.
 
 The function pointer declarator is 
 
@@ -68,7 +72,12 @@ Analyze whether the {idx} argument types are compatible with the {idx} parameter
 
 - 2.Extract the declarator of {idx} parameters from function declarator text and determine whether types of the parameters match corresponding arguments.
 
-Note that macros like UNUSED_PARAM could appear in declarations.
+Note that:
+
+- 1.Macros like UNUSED_PARAM could appear in declarations.
+
+- 2.Types like int, long, size_t could be considered as compatible due to implicit cast.
+
 If all {idx} arguments match {idx} parameters, answer me with only 'yes'. Otherwise, or if you feel the provided information is incomplete. Answer me with only 'no'.
 """
 
