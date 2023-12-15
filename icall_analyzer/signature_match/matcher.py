@@ -63,6 +63,8 @@ class TypeAnalyzer:
 
         # 是否cast
         self.enable_cast: bool = args.enable_cast
+        # 是否让llm辅助cast
+        self.llm_help_cast: bool = args.llm_help_cast
 
         self.log_flag: bool = args.log_llm_output
         self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
@@ -373,7 +375,7 @@ class TypeAnalyzer:
             return MatchingResult.YES, False
 
         # 如果不需要LLM来辅助
-        if self.llm_analyzer is None:
+        if self.llm_analyzer is None or not self.llm_help_cast:
             return MatchingResult.NO, False
         elif self.is_parent_child_relation(arg_type, param_type,
                                            ori_arg_type_name, ori_param_type_name):
