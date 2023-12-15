@@ -9,9 +9,19 @@ def add_subparser(parser: argparse.ArgumentParser):
     subparsers = parser.add_subparsers(dest='llm')
 
     gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')
-    gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4', 'gpt-4-1106-preview'])
+    gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4',
+                                                               'gpt-4-1106-preview'])
     gpt_parser.add_argument('--key', type=str, help='api key of openai')
-    gpt_parser.add_argument("--temperature", type=float, default=0, help="temperature for llm")
+    gpt_parser.add_argument("--temperature", type=float, default=0,
+                            help="temperature for chatgpt")
+
+    gemini_parser = subparsers.add_parser('gemini', help='using Google Gemini model')
+    gemini_parser.add_argument('--model_type', type=str, choices=['gemini-pro'],
+                            help='model type of gemini, currently only need gemini-pro not gemini-pro-vision,'
+                                 'for more details, see: https://github.com/google/generative-ai-docs/blob/main/site/en/tutorials/python_quickstart.ipynb')
+    gemini_parser.add_argument('--key', type=str, help='api key of google gemini')
+    gemini_parser.add_argument("--temperature", type=float, default=0, help="temperature for google gemini")
+
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
     hf_parser.add_argument('--ip', help='huggingface server ip, default to 127.0.0.1',
                            default='127.0.0.1')
@@ -72,7 +82,7 @@ def main():
 
     if args.llm == "hf":
         model_name = args.model_name
-    elif args.llm == "gpt":
+    elif args.llm in {"gpt", "gemini"}:
         model_name = args.model_type
     else:
         model_name = ""

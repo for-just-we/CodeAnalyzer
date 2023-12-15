@@ -16,7 +16,9 @@ from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionR
 from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer, GPTAnalyzer
+from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
+from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -233,6 +235,8 @@ class ProjectAnalyzer:
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
             llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
+        elif self.args.llm == "gemini":
+            llm_analyzer = GeminiAnalyzer(self.model_name, self.args.key, self.args.temperature)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project)
         type_analyzer.process_all()
