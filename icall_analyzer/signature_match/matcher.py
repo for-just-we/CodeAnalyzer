@@ -379,6 +379,8 @@ class TypeAnalyzer:
                                            ori_arg_type_name, ori_param_type_name):
             return MatchingResult.YES, True
 
+        return MatchingResult.NO, False
+
 
     # 确认类型1是否可能包含类型2
     def is_type_contain(self, type1: Tuple[str, int], type2: Tuple[str, int]) -> bool:
