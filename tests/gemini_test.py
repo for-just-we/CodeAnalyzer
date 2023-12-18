@@ -50,7 +50,7 @@ def main():
 
     list_models()
 
-    config = GenerationConfig(temperature=0)
+    config = GenerationConfig(temperature=0.8)
     model: GenerativeModel = GenerativeModel('gemini-pro', generation_config=config)
     print("==================")
     print(model)

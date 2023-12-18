@@ -11,16 +11,20 @@ Given a function pointer declarator and a function declarator, your task is to e
 
 - 2.Compare the types of each parameter one by one to ensure a match.
 
-- 3.Note that certain parameter declarations may be wrapped or followed by macros like UNUSED_PARAM or unused, which do not impact the parameter type. For example, UNUSED_PARAM(int var) matches the type of int var.
+Note that:
+
+- 1.Certain parameter declarations may be wrapped or followed by macros like UNUSED_PARAM or unused, which do not impact the parameter type. For example, UNUSED_PARAM(int var) matches the type of int var.
+
+- 2.Types like int, long, size_t could be considered as compatible due to implicit cast.
 
 The function pointer declarator is 
 
-typedef enum update_result (*update_fun_t) (struct ddsi_cfgst *cfgst, void *parent, struct cfgelem const * const cfgelem, int first, const char *value);
+int				(*handler)(struct input_ctx *);
 
-The function declarator is
+The function declarator is:
 
-static enum update_result uf_random_seed (struct ddsi_cfgst *cfgst, void *parent, struct cfgelem const * const cfgelem, UNUSED_ARG (int first), const char *value)
+static enum window_copy_cmd_action
+window_copy_cmd_cancel(__unused struct window_copy_cmd_state *cs)
 
-
-If the function pointer can correctly invoke the function, answer 'yes'. Otherwise, answer 'no'.
+Analyze the whether their types of parameters match. If match, answer 'yes', otherwise answer 'no'.
 """

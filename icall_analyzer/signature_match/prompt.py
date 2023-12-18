@@ -44,7 +44,7 @@ The function declarator is
 
 {}
 
-If the function pointer can correctly invoke the function, answer 'yes'. Otherwise, answer 'no'.
+If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'.
 """
 
 system_prompt_context = """You are a text analyzer tasked with analyzing whether argument types
@@ -78,7 +78,7 @@ Note that:
 
 - 2.Types like int, long, size_t could be considered as compatible due to implicit cast.
 
-If all {idx} arguments match {idx} parameters, answer me with only 'yes'. Otherwise, or if you feel the provided information is incomplete. Answer me with only 'no'.
+If all {idx} argument types match their respective parameters, respond with 'yes'. Otherwise, or if the information is incomplete, respond with 'no'.
 """
 
 summarizing_prompt = """Summarizing following text with only 'yes', 'no'.
