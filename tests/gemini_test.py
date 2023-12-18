@@ -44,6 +44,14 @@ def test_icall_decl(model: GenerativeModel):
         context)
     print(response.text)
 
+#     summarizing = """If the following text provides a positive response, answer with only 'yes'; else if it provides a negative response, answer with only 'no'.
+#
+# {}
+#     """
+#     summary_resp: GenerateContentResponse = model.generate_content(summarizing.format(response.text))
+#     print("==================")
+#     print(summary_resp.text)
+
 def main():
     api_key = sys.argv[1]
     genai.configure(api_key=api_key)

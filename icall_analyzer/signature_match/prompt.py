@@ -81,7 +81,7 @@ Note that:
 If all {idx} argument types match their respective parameters, respond with 'yes'. Otherwise, or if the information is incomplete, respond with 'no'.
 """
 
-summarizing_prompt = """Summarizing following text with only 'yes', 'no'.
+summarizing_prompt = """If the following text provides a positive response, answer with only 'yes'; else if it provides a negative response, answer with only 'no'.
 
 {}
 """
