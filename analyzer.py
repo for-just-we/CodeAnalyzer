@@ -223,6 +223,11 @@ class ProjectAnalyzer:
         # 开始签名匹配
         if self.args.scope_strategy == "base":
             scope_strategy = BaseStrategy()
+            if self.args.only_count_scope:
+                for callsite_key, targets in self.ground_truths.items():
+                    targets = set(filter(lambda func_key:
+                                         scope_strategy.analyze_key(callsite_key, func_key), targets))
+                    self.ground_truths[callsite_key] = targets
         else:
             scope_strategy = None
 
