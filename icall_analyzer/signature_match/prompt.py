@@ -28,7 +28,7 @@ Given a function pointer declarator and a function declarator, your task is to e
 
 - 1.Extract the parameter list separately from both the function pointer declarator and the function declarator.
 
-- 2.Compare the types of each parameter one by one to ensure a match.
+- 2.Compare each parameter's type individually for a match, ensuring identical names and pointer hierarchies for types to match.
 
 Note that:
 
@@ -70,7 +70,7 @@ Analyze whether the {idx} argument types are compatible with the {idx} parameter
 
 - 1.Extract the expressions of {idx} arguments from argument list and analyze their types with corresponding variable declaration if provided.
 
-- 2.Extract the declarator of {idx} parameters from function declarator text and determine whether types of the parameters match corresponding arguments.
+- 2.Extract the {idx} parameter declarator, ensuring exact match of its type with corresponding arguments. Note that two types match only with identical names and pointer hierarchies.
 
 Note that:
 
