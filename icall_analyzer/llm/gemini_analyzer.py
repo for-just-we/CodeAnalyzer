@@ -24,7 +24,7 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
         """
         def handle_error(exception, sleep_time):
             error_message = f"{exception.__class__.__name__} in request, message is: {exception}"
-            logging.error(error_message)
+            logging.debug(error_message)
             time.sleep(sleep_time)
             return str(exception), False, times
 

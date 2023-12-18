@@ -68,9 +68,9 @@ class GPTAnalyzer(BaseLLMAnalyzer):
             if error_type is not openai.error.RateLimitError:
                 times += 1
                 time.sleep(10)
-                logging.info("{}, sleeping 10s".format(error_message.format(e)))
+                logging.debug("{}, sleeping 10s".format(error_message.format(e)))
             else:
-                logging.info("{}, sleeping 60s".format(error_message.format(e)))
+                logging.debug("{}, sleeping 60s".format(error_message.format(e)))
                 time.sleep(60)
             resp = (error_message.format(e), False, times)
         return resp
