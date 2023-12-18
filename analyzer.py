@@ -302,9 +302,11 @@ class ProjectAnalyzer:
                 f"| ---- | ---- | ---- | ---- |\n")
 
         if self.args.evaluate_soly_for_llm:
-            evaluate_icall_target(type_analyzer.llm_declarator_analysis, self.args.model_type)
+            evaluate_icall_target(type_analyzer.llm_declarator_analysis,
+                                  self.args.model_type + '-' + str(self.args.temperature))
             analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
-                           type_analyzer.llm_declarator_analysis, self.args.model_type)
+                           type_analyzer.llm_declarator_analysis,
+                           self.args.model_type + '-' + str(self.args.temperature))
 
         if type_analyzer.llm_analyzer is not None and \
             hasattr(type_analyzer.llm_analyzer, "input_token_num") and \

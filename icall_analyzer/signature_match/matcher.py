@@ -11,7 +11,7 @@ from icall_analyzer.signature_match.matching_result import MatchingResult
 from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
     system_prompt_context, user_prompt_context, \
-    summarizing_prompt
+    summarizing_prompt, supplement_prompts
 
 from scope_strategy.base_strategy import BaseStrategy
 
@@ -61,6 +61,8 @@ class TypeAnalyzer:
         self.num_worker: int = args.num_worker
         logging.info("thread num: {}".format(self.num_worker))
 
+        # 是否采用二段式prompt
+        self.double_prompt: bool = args.double_prompt
         # 是否cast
         self.enable_cast: bool = args.enable_cast
         # 是否让llm辅助cast
@@ -462,12 +464,14 @@ class TypeAnalyzer:
 
     def match_single_declarator_text(self, func_pointer_declarator: str,
                                      func_declarator: str) -> bool:
+        supple = "" if self.double_prompt else supplement_prompts["user_prompt_declarator"]
+        user_prompt_text = user_prompt_declarator.format(func_pointer_declarator
+                                                            ,func_declarator,
+                                                         supple)
         prompts: List[str] = [system_prompt_declarator,
-                              user_prompt_declarator.format(func_pointer_declarator
-                                                            ,func_declarator)]
+                              user_prompt_text]
         prompt_log: str = system_prompt_declarator + "\n\n" + \
-                          user_prompt_declarator.format(func_pointer_declarator
-                                                            ,func_declarator)
+                          user_prompt_text
 
         yes_time: int = 0
 
@@ -721,9 +725,12 @@ class TypeAnalyzer:
             items.append(temp_text)
 
         decl_context_text: str = "\n\n".join(items)
+
+        supple = "" if self.double_prompt else supplement_prompts["user_prompt_context"].format(idx = idx_text)
+        user_prompt_text = user_prompt_context.format(icall_text = callsite_text, func_decl_text = function_declarator,
+                                                         idx = idx_text, contexts=decl_context_text, arg_text = arg_list_text) + supple
         prompts: List[str] = [system_prompt_context,
-                              user_prompt_context.format(icall_text = callsite_text, func_decl_text = function_declarator,
-                                                         idx = idx_text, contexts=decl_context_text, arg_text = arg_list_text)]
+                              user_prompt_text]
         prompt_log: str = prompts[0] + "\n\n" + prompts[1]
 
         yes_time: int = 0
