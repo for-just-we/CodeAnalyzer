@@ -30,15 +30,21 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
 
         try:
             response: GenerateContentResponse = self.model.generate_content(prompt)
-            return response.text, True, times
+            if hasattr(response, "text"):
+                return response.text, True, times
+            else:
+                times += 1
+                return "No text return", False, times
         # 达到rate limit
         except ResourceExhausted as e:
             return handle_error(e, 60)
         # server无法访问
         except ServerError as e:
+            times += 1
             return handle_error(e, 30)
         # 其他错误
         except GoogleAPIError as e:
+            times += 1
             return handle_error(e, 20)
 
     def get_response(self, contents: List[str]) -> str:
