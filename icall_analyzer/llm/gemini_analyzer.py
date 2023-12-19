@@ -5,7 +5,7 @@ from typing import List, Tuple
 import google.generativeai as genai
 from google.generativeai import GenerativeModel
 from google.generativeai.types.generation_types import GenerateContentResponse, GenerationConfig
-from google.api_core.exceptions import ResourceExhausted, ServerError, GoogleAPIError
+from google.api_core.exceptions import ResourceExhausted, GoogleAPIError
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 
@@ -30,22 +30,14 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
 
         try:
             response: GenerateContentResponse = self.model.generate_content(prompt)
-            if hasattr(response, "text"):
-                return response.text, True, times
-            else:
-                times += 1
-                return "No text return", False, times
+            return response.text, True, times
         # 达到rate limit
         except ResourceExhausted as e:
             return handle_error(e, 60)
-        # server无法访问
-        except ServerError as e:
+        # 其他GoogleAPIError或者没有返回text
+        except (GoogleAPIError, ValueError) as e:
             times += 1
             return handle_error(e, 30)
-        # 其他错误
-        except GoogleAPIError as e:
-            times += 1
-            return handle_error(e, 20)
 
     def get_response(self, contents: List[str]) -> str:
         assert len(contents) in {1, 2}
