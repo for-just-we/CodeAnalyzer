@@ -35,7 +35,7 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
         except ResourceExhausted as e:
             return handle_error(e, 60)
         # 其他GoogleAPIError或者没有返回text
-        except (GoogleAPIError, ValueError) as e:
+        except (GoogleAPIError, ValueError, IndexError) as e:
             times += 1
             return handle_error(e, 30)
 
