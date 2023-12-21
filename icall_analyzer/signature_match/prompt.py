@@ -80,10 +80,6 @@ Note that:
 
 """
 
-summarizing_prompt = """If the following text provides a positive response, answer with only 'yes'; else if it provides a negative response, answer with only 'no'.
-
-{}
-"""
 
 supplement_prompts = {
 "user_prompt_declarator": "If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'.",

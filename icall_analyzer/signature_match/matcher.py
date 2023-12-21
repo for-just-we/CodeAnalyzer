@@ -7,11 +7,12 @@ from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.enums import TypeEnum
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from icall_analyzer.llm.common_prompt import summarizing_prompt
 from icall_analyzer.signature_match.matching_result import MatchingResult
 from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
     system_prompt_context, user_prompt_context, \
-    summarizing_prompt, supplement_prompts
+    supplement_prompts
 
 from scope_strategy.base_strategy import BaseStrategy
 
@@ -142,20 +143,10 @@ class TypeAnalyzer:
                 # 加载了预分析的结果就不需要llm了
                 self.llm_analyzer = None
 
-
         self.processed_icall_num: int = 1
 
-    # 删除掉uncertain部分中已经确定为true的部分
-    # def clean_uncertain_callee(self, callsite_key):
-    #     yes_call_targets: Set[str] = self.callees.get(callsite_key, set())
-    #     uncertain_calltargets: Set[str] = self.uncertain_callees.get(callsite_key, set())
-    #     uncertain_calltargets = uncertain_calltargets - yes_call_targets
-    #
-    #     no_call_targets: Set[str] = self.no_match_callees.get(callsite_key, set())
-    #     uncertain_calltargets = uncertain_calltargets - no_call_targets
-    #     self.uncertain_callees[callsite_key] = uncertain_calltargets
-
     def process_all(self):
+        logging.info("type analysis start...")
         # 遍历每个函数
         for func_key, func_info in self.collector.func_info_dict.items():
             icall_locs: List[Tuple[int, int]] = self.collector.icall_dict.get(
@@ -568,6 +559,9 @@ class TypeAnalyzer:
                                 self.uncertain_callees[callsite_key].remove(func_key)
                         else:
                             self.cast_callees[callsite_key].add(func_key)
+                            # 如果在之前的匹配结果中匹配出了uncertain
+                            if func_key in self.uncertain_callees[callsite_key]:
+                                self.uncertain_callees[callsite_key].remove(func_key)
                         # 如果llm帮忙了
                         if llm_helped:
                             self.llm_helped_type_analysis_icall_pair[callsite_key].add(func_key)

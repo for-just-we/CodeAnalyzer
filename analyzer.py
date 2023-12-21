@@ -16,6 +16,7 @@ from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionR
 from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.semantic_match.matcher import SemanticMatcher
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
 from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
@@ -59,6 +60,8 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
     F1s = []
     count = 0
     for icall_key, labeled_funcs in tqdm(ground_truths.items(), desc="evaluating"):
+        if len(labeled_funcs) == 0:
+            continue
         analyzed_targets: Set[str] = targets.get(icall_key, set())
         TPs: Set[str] = analyzed_targets & labeled_funcs
         if len(TPs) == 0:
@@ -145,7 +148,9 @@ def count_cost(input_token_num, output_token_num, input_price, output_price):
 prices = {
     "gpt-3.5-turbo": [0.001, 0.002],
     "gpt-4-1106-preview": [0.01, 0.03],
-    "gpt-4": [0.03, 0.06]
+    "gpt-4": [0.03, 0.06],
+
+    "gemini-pro": [0.001, 0.002]
 }
 
 class ProjectAnalyzer:
@@ -247,17 +252,32 @@ class ProjectAnalyzer:
         type_analyzer.process_all()
         logging.debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
         logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
-        return type_analyzer
+
+        semantic_analyzer: SemanticMatcher = SemanticMatcher(collector, self.args,
+                                                             type_analyzer, llm_analyzer)
+        if self.args.pipeline == "full":
+            semantic_analyzer.process_all()
+
+        return type_analyzer, semantic_analyzer
 
     def evaluate(self):
-        type_analyzer = self.analyze_c_files_sig_match()
+        type_analyzer, semantic_analyzer = self.analyze_c_files_sig_match()
+        # 只进行类型分析
+        if self.args.pipeline == "only_type":
+            self.evaluate_type_analysis(type_analyzer)
+        # 随后进行语义匹配
+        elif self.args.pipeline == "full":
+            self.evaluate_semantic_analysis(semantic_analyzer)
+
+    def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
         logging.info("result of project, Precision, Recall, F1 is:")
         icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees.copy()
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project} "
-                        f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+                     f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         if self.args.log_res_to_file:
-            open("result.txt", "a").write(f"| {self.project} | {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |\n")
+            open("result.txt", "a").write(
+                f"| {self.project} | {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |\n")
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
@@ -274,8 +294,8 @@ class ProjectAnalyzer:
                            all_ground_truths: Dict[str, Set[str]],
                            analyzed_res: Dict[str, Set[str]], info: str):
             partial_ground_truth: Dict[str, Set[str]] = {key: all_ground_truths[key] &
-                                                          all_potential_targets.get(key, set()) for key in
-                                                     all_ground_truths.keys()}
+                                                              all_potential_targets.get(key, set()) for key in
+                                                         all_ground_truths.keys()}
             acc, prec, recall, F1, fpr, fnr = \
                 evaluate_binary(partial_ground_truth, analyzed_res,
                                 all_potential_targets)
@@ -309,7 +329,7 @@ class ProjectAnalyzer:
                            self.args.model_type + '-' + str(self.args.temperature))
 
         if type_analyzer.llm_analyzer is not None and \
-            hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
+                hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
                 hasattr(type_analyzer.llm_analyzer, "output_token_num"):
             price = prices[type_analyzer.llm_analyzer.model_type]
             cost = count_cost(type_analyzer.llm_analyzer.input_token_num,
@@ -317,9 +337,39 @@ class ProjectAnalyzer:
                               price[0], price[1])
             logging.info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
                          .format(type_analyzer.llm_analyzer.input_token_num,
-                          type_analyzer.llm_analyzer.output_token_num,
-                          type_analyzer.llm_analyzer.model_type,
-                          cost))
-            logging.info("| {} | {} | {} | {} | {:.2f} |".format(self.project, type_analyzer.llm_analyzer.input_token_num,
+                                 type_analyzer.llm_analyzer.output_token_num,
+                                 type_analyzer.llm_analyzer.model_type,
+                                 cost))
+            logging.info(
+                "| {} | {} | {} | {} | {:.2f} |".format(self.project, type_analyzer.llm_analyzer.input_token_num,
                                                         type_analyzer.llm_analyzer.output_token_num,
-                                                       type_analyzer.llm_analyzer.model_type ,cost))
+                                                        type_analyzer.llm_analyzer.model_type, cost))
+
+
+    def evaluate_semantic_analysis(self, semantic_analyzer: SemanticMatcher):
+        icall_2_targets: Dict[str, Set[str]] = semantic_analyzer.matched_callsites.copy()
+        P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
+        logging.info(f"| {self.project}-{semantic_analyzer.llm_analyzer.model_name} "
+                     f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+
+        llm_analyzer: BaseLLMAnalyzer = semantic_analyzer.llm_analyzer
+
+        acc, prec, recall, F1, fpr, fnr = \
+            evaluate_binary(self.ground_truths, icall_2_targets,
+                            semantic_analyzer.type_matched_callsites)
+        logging.info(f"| {self.project}-{llm_analyzer.model_name} "
+                     f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
+                     f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
+
+
+        if llm_analyzer is not None and hasattr(llm_analyzer, "input_token_num") and \
+                hasattr(llm_analyzer, "output_token_num"):
+            price = prices[llm_analyzer.model_type]
+            cost = count_cost(llm_analyzer.input_token_num, llm_analyzer.output_token_num,
+                              price[0], price[1])
+            logging.info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
+                         .format(llm_analyzer.input_token_num, llm_analyzer.output_token_num,
+                                 llm_analyzer.model_type, cost))
+            logging.info(
+                "| {} | {} | {} | {} | {:.2f} |".format(self.project, llm_analyzer.input_token_num,
+                                llm_analyzer.output_token_num, llm_analyzer.model_type, cost))

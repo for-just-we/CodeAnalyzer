@@ -1,6 +1,7 @@
 import logging
 import time
 from typing import List, Tuple
+import tiktoken
 
 import google.generativeai as genai
 from google.generativeai import GenerativeModel
@@ -9,6 +10,14 @@ from google.api_core.exceptions import ResourceExhausted, GoogleAPIError
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 
+ENCODING = "cl100k_base"
+
+def num_tokens_from_string(string: str) -> int:
+    """Returns the number of tokens in a text string."""
+    encoding = tiktoken.get_encoding(ENCODING)
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
 class GeminiAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, temperature: float=0):
         super().__init__(model_type)
@@ -16,6 +25,10 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
         self.temperature = temperature
         config = GenerationConfig(temperature=temperature)
         self.model: GenerativeModel = GenerativeModel(model_type, generation_config=config)
+
+        # 只是用来记录输入和输出的token数
+        self.input_token_num: int = 0
+        self.output_token_num: int = 0
 
     # 向google发送一次请求，返回一个response，可能会触发异常
     def get_gemini_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:
@@ -29,8 +42,11 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
             return str(exception), False, times
 
         try:
+            self.input_token_num += num_tokens_from_string(prompt)
             response: GenerateContentResponse = self.model.generate_content(prompt)
-            return response.text, True, times
+            resp_text: str = response.text
+            self.output_token_num += num_tokens_from_string(resp_text)
+            return resp_text, True, times
         # 达到rate limit
         except ResourceExhausted as e:
             return handle_error(e, 60)

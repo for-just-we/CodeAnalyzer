@@ -43,3 +43,7 @@ class FuncInfo:
 
     def set_local_var2declarator(self, local_var2declarator: Dict[str, str]):
         self.local_var2declarator: Dict[str, str] = local_var2declarator
+
+    @property
+    def func_def_text(self) -> str:
+        return self.raw_declarator_text + self.func_body.node_text
