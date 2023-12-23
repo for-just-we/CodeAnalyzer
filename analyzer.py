@@ -254,7 +254,7 @@ class ProjectAnalyzer:
         logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
 
         semantic_analyzer: SemanticMatcher = SemanticMatcher(collector, self.args,
-                                                             type_analyzer, llm_analyzer)
+                                                             type_analyzer, llm_analyzer, self.project)
         if self.args.pipeline == "full":
             semantic_analyzer.process_all()
 
