@@ -25,6 +25,7 @@ def build_arg_parser():
     parser.add_argument("--stage", type=int, choices=[1, 2], help='analyzing state, 1->only run signature match,'
                                                                   '2 -> run signature match first then use LLM to simply filter with function declarator.',
                         default=1)
+
     # evaluate的时候只考虑compile中的函数还是考虑所有的函数
     parser.add_argument("--only_compiled", action="store_true", default=False,
                         help='only consider compiled functions or all functions in a project.')
@@ -41,6 +42,8 @@ def build_arg_parser():
                              "This is considered due to explicit/implicit cast operations in C/C++ programs.")
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
+
+
     parser.add_argument("--log_llm_output", action="store_true", default=False,
                         help="If true, log llm output to log file")
     parser.add_argument("--run_all_groups", action="store_true", default=False,

@@ -1,5 +1,5 @@
 import os
-from typing import DefaultDict, List, Tuple, Set, Dict
+from typing import DefaultDict, List, Tuple, Set, Dict, Union
 from collections import defaultdict
 from tqdm import tqdm
 from tree_sitter import Tree
@@ -17,6 +17,7 @@ from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.semantic_match.matcher import SemanticMatcher
+from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
 from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
@@ -253,12 +254,18 @@ class ProjectAnalyzer:
         logging.debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
         logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
 
-        semantic_analyzer: SemanticMatcher = SemanticMatcher(collector, self.args,
-                                                             type_analyzer, llm_analyzer, self.project)
+        analyzer = None
         if self.args.pipeline == "full":
-            semantic_analyzer.process_all()
+            analyzer = SemanticMatcher(collector, self.args,
+                            type_analyzer, llm_analyzer, self.project)
+            analyzer.process_all()
+        elif self.args.pipeline == "single":
+            analyzer = SingleStepMatcher(collector, self.args,
+                            type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
+                                         self.project)
+            analyzer.process_all()
 
-        return type_analyzer, semantic_analyzer
+        return type_analyzer, analyzer
 
     def evaluate(self):
         type_analyzer, semantic_analyzer = self.analyze_c_files_sig_match()
@@ -275,9 +282,6 @@ class ProjectAnalyzer:
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
-        if self.args.log_res_to_file:
-            open("result.txt", "a").write(
-                f"| {self.project} | {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |\n")
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
@@ -286,9 +290,6 @@ class ProjectAnalyzer:
             P, R, F1 = evaluate(icall_2_targets1, self.ground_truths)
             logging.info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
-            if self.args.log_res_to_file:
-                open("result.txt", "a").write(
-                    f"| {self.project}-{info} | {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |\n")
 
         def analyze_binary(all_potential_targets: Dict[str, Set[str]],
                            all_ground_truths: Dict[str, Set[str]],
@@ -317,10 +318,6 @@ class ProjectAnalyzer:
             analyze_binary(type_analyzer.cast_callees, self.ground_truths,
                            dict(), "Cast-no")
 
-        if self.args.log_res_to_file:
-            open("result.txt", "a").write(
-                f"| ---- | ---- | ---- | ---- |\n")
-
         if self.args.evaluate_soly_for_llm:
             evaluate_icall_target(type_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
@@ -346,21 +343,25 @@ class ProjectAnalyzer:
                                                         type_analyzer.llm_analyzer.model_type, cost))
 
 
-    def evaluate_semantic_analysis(self, semantic_analyzer: SemanticMatcher):
-        icall_2_targets: Dict[str, Set[str]] = semantic_analyzer.matched_callsites.copy()
+    def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher]):
+        icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
-        logging.info(f"| {self.project}-{semantic_analyzer.llm_analyzer.model_name} "
+        logging.info(f"| {self.project}-{analyzer.llm_analyzer.model_name} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
 
-        llm_analyzer: BaseLLMAnalyzer = semantic_analyzer.llm_analyzer
+        llm_analyzer: BaseLLMAnalyzer = analyzer.llm_analyzer
 
         acc, prec, recall, F1, fpr, fnr = \
             evaluate_binary(self.ground_truths, icall_2_targets,
-                            semantic_analyzer.type_matched_callsites)
+                            analyzer.type_matched_callsites)
         logging.info(f"| {self.project}-{llm_analyzer.model_name} "
                      f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                      f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
 
+        line1 = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
+        line2 = f"{(acc * 100):.1f},{(prec * 100):.1f},{(recall * 100):.1f}," \
+                        f"{(F1 * 100):.1f},{(fpr * 100):.1f},{(fnr * 100):.1f}"
+        line = line1 + "\n" + line2
 
         if llm_analyzer is not None and hasattr(llm_analyzer, "input_token_num") and \
                 hasattr(llm_analyzer, "output_token_num"):
@@ -373,3 +374,10 @@ class ProjectAnalyzer:
             logging.info(
                 "| {} | {} | {} | {} | {:.2f} |".format(self.project, llm_analyzer.input_token_num,
                                 llm_analyzer.output_token_num, llm_analyzer.model_type, cost))
+            line3 = f"{llm_analyzer.input_token_num / 1000},{llm_analyzer.output_token_num / 1000},{llm_analyzer.model_type},{cost}"
+            line = line + "\n" + line3
+
+        if self.args.log_res_to_file:
+            assert hasattr(analyzer, "log_dir")
+            with open(f"{analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
+                f.write(line)

@@ -68,6 +68,8 @@ class TypeAnalyzer:
         self.enable_cast: bool = args.enable_cast
         # 是否让llm辅助cast
         self.llm_help_cast: bool = args.llm_help_cast
+        # 是否取消让llm进行uncertain分析
+        self.disable_llm_for_uncertain: bool = args.disable_llm_for_uncertain
 
         self.log_flag: bool = args.log_llm_output
         self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
@@ -88,6 +90,10 @@ class TypeAnalyzer:
         self.uncertain_idxs: DefaultDict[str, Dict[str, Set[int]]] = defaultdict(dict)
         # 确定为false的部分
         self.no_match_callees: DefaultDict[str, Set[str]] = defaultdict(set)
+
+        # 如果不需要llm分析
+        if self.disable_llm_for_uncertain:
+            self.llm_analyzer = None
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
         if self.log_flag or self.load_pre_type_analysis_res:

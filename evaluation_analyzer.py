@@ -31,7 +31,7 @@ def add_subparser(parser: argparse.ArgumentParser):
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
-    parser.add_argument("--pipeline", type=str, choices=['only_type', 'full'], default='full',)
+    parser.add_argument("--pipeline", type=str, choices=['only_type', 'full', 'single'], default='full',)
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
     parser.add_argument("--log_llm_output", action="store_true", default=False,
@@ -43,8 +43,12 @@ def build_arg_parser():
     parser.add_argument("--max_try_time", type=int, default=3, help="max trying time for one llm query")
     parser.add_argument("--num_worker", type=int, default=10, help="num worker used in sending request to llm")
 
+    parser.add_argument("--load_pre_single_step_analysis_res", action="store_true", default=False,
+                        help="If true, will load pre-analyzed single step analyzed result.")
     parser.add_argument("--load_pre_type_analysis_res", action="store_true", default=False,
                         help="If true, will load pre-analyzed type analyzed result.")
+    parser.add_argument("--load_pre_semantic_analysis_res", action="store_true", default=False,
+                        help="If true, will load pre-analyzed semantic analyzed result.")
 
     # running epoch用指定epoch轮次GPT的中间log位置，必须在log_llm_output=True或者load_pre_type_analysis_res=True时有效
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running,"
@@ -56,6 +60,7 @@ def build_arg_parser():
     parser.add_argument("--only_count_scope", action="store_true", default=False, help="only count ground_truth in scope")
     parser.add_argument("--enable_cast", action="store_true", default=False, help="enable cast between param types")
     parser.add_argument("--llm_help_cast", action="store_true", default=False, help="enable llm helped type analysis")
+    parser.add_argument("--disable_llm_for_uncertain", action="store_true", default=False)
     parser.add_argument("--count_uncertain", action="store_true", default=False,
                         help="enable cast between void* or char* with other pointer type")
     parser.add_argument("--count_cast", action="store_true", default=False,
