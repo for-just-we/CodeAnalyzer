@@ -90,10 +90,12 @@ class SingleStepMatcher:
                 matched_func_keys: Set[str] = getattr(self, f"{match_type}_type_matched_callsites", {}).get(
                     callsite_key, set())
 
-                for idx, func_key in tqdm(enumerate(matched_func_keys),
+                idx = 0
+                for func_key in tqdm(matched_func_keys,
                                           desc=f"semantic matching for {match_type} type matched callsite-{i}: {callsite_key}"):
                     flag = self.process_callsite_target(callsite_text, src_func_name, src_func_text,
                                                         target_analyze_log_dir, func_key, idx, match_type)
+                    idx += 1
                     if flag:
                         self.matched_callsites[callsite_key].add(func_key)
 
