@@ -4,6 +4,7 @@ from huggingface_hub import InferenceClient
 summarizing_prompt = """If the following text provides a positive response, answer with only 'yes'; else if it provides a negative response, answer with only 'no'.
 
 {}
+
 """
 
 def test_icall_decl(client: InferenceClient, double: bool=False):
