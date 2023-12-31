@@ -30,6 +30,7 @@ def test_icall_decl(client: InferenceClient, double: bool=False):
         response: str = client.text_generation(summ_token, max_new_tokens=1024)
         print("summ response is:")
         print(response)
+        print("size of summ response is: {}".format(len(response)))
 
 if __name__ == '__main__':
     address = sys.argv[1]
