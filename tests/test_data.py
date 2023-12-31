@@ -31,4 +31,5 @@ sftp_channel_default_subsystem_request(UNUSED_PARAM(ssh_session session),
 
 """
 
-summ = """If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'."""
+summ = """If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'.
+"""
