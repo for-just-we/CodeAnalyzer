@@ -34,5 +34,5 @@ import sys
 
 if __name__ == '__main__':
     address = sys.argv[1]
-    flag = bool(sys.argv[2])
+    flag = sys.argv[2] == "True"
     test_icall_decl(address, flag)
