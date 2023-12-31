@@ -3,19 +3,20 @@ import json
 
 def test_icall_decl(address: str, double: bool=False):
     from test_data import context, summ
+    input = context
     if not double:
-        context = context + "\n" + summ
+        input = input + "\n" + summ
 
     headers = {
         "Content-Type": "application/json"
     }
     data = {
-        "inputs": context,
+        "inputs": input,
         "parameters": {"max_new_tokens": 1024,
                        "temperature": 0.5}
     }
     print("query is:")
-    print(context)
+    print(input)
     print("===========================")
     server_url = "http://" + address + "/generate"  # 替换为实际的服务器地址和端口
     # 发送POST请求，将JSON数据发送到server
