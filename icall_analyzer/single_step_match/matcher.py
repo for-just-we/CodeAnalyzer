@@ -111,6 +111,12 @@ class SingleStepMatcher:
             analyze_callsite_type_matching(callsite_key, callsite_text, src_func_name, src_func_text,
                                                 target_analyze_log_dir, "uncertain")
 
+            # 如果log，记录下分析结果
+            if self.log_flag:
+                func_keys: Set[str] = self.matched_callsites[callsite_key]
+                content: str = callsite_key + "|" + ",".join(func_keys) + "\n"
+                with open(self.res_log_file, "a", encoding='utf-8') as f:
+                    f.write(content)
 
     def process_callsite_target(self, callsite_text: str,
                                 src_func_name: str, src_func_text: str,
