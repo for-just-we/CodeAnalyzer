@@ -7,9 +7,9 @@ from huggingface_hub import InferenceClient
 class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, address: str, temperature: float=0):
         super().__init__(model_type)
-        self.address = address
+        self.address = "http://" + address
         self.temperature = temperature
-        self.client = InferenceClient(model="address")
+        self.client = InferenceClient(self.address)
 
     def get_hf_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:
         """

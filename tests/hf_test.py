@@ -15,5 +15,5 @@ def test_icall_decl(client: InferenceClient, double: bool=False):
 if __name__ == '__main__':
     address = sys.argv[1]
     flag = bool(sys.argv[2])
-    client = InferenceClient(address)
+    client = InferenceClient(model="http://" + address)
     test_icall_decl(client)
