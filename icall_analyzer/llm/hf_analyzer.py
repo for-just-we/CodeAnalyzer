@@ -1,35 +1,42 @@
 import logging
 import time
 from typing import List, Tuple
+import json
+import requests
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
-from huggingface_hub import InferenceClient
 
 class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, address: str, temperature: float=0, max_new_tokens: int=20):
         super().__init__(model_type)
-        self.address = "http://" + address
+        self.address = "http://" + address + '/generate'
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
-        self.client = InferenceClient(self.address)
 
     def get_hf_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:
         """
         prompt: system_prompt + user_prompt
         """
-        def handle_error(exception, sleep_time):
-            error_message = f"{exception.__class__.__name__} in request, message is: {exception}"
-            logging.debug(error_message)
-            time.sleep(sleep_time)
-            return str(exception), False, times
-
-        try:
-            resp_text: str = self.client.text_generation(prompt,
-                                                temperature=self.temperature,
-                                                max_new_tokens=self.max_new_tokens)
+        headers = {
+            "Content-Type": "application/json"
+        }
+        data = {
+            "inputs": prompt,
+            "parameters": {"max_new_tokens": self.max_new_tokens,
+                           "temperature": self.temperature}
+        }
+        response = requests.post(self.address, headers=headers, data=json.dumps(data))
+        # 检查服务器的响应状态码
+        if response.status_code == 200 and not response.text.startswith("Invalid:"):
+            # 解析服务器的字符串响应
+            response_data_json: dict = json.loads(response.text)
+            resp_text: str = response_data_json['generated_text']
             return resp_text, True, times
-        # 达到rate limit
-        except Exception as e:
-            return handle_error(e, 60)
+        else:
+            error_msg = "Error: Server returned a non-200 status code {} " \
+                        "or return invalid response".format(response.status_code)
+            logging.debug(error_msg)
+            time.sleep(60)
+            return error_msg, False, times + 1
 
     def get_response(self, contents: List[str]) -> str:
         assert len(contents) in {1, 2}

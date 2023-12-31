@@ -11,7 +11,8 @@ def test_icall_decl(address: str, double: bool=False):
     }
     data = {
         "inputs": context,
-        "parameters": {"max_new_tokens": 1024}
+        "parameters": {"max_new_tokens": 1024,
+                       "temperature": 0.5}
     }
     print("query is:")
     print(context)
@@ -21,14 +22,12 @@ def test_icall_decl(address: str, double: bool=False):
     response = requests.post(server_url, headers=headers, data=json.dumps(data))
 
     # 检查服务器的响应状态码
-    if response.status_code == 200:
+    if response.status_code == 200 and response.text.startswith("Invalid:"):
         # 解析服务器的字符串响应
-        response_data = response.text
-        if not response_data.startswith("Invalid:"):
-            response_data = json.loads(response_data)
-        print("Response from server:\n", response_data)
+        response_data_json: dict = json.loads(response.text)
+        print("Response from server:\n", response_data_json['generated_text'])
     else:
-        print("Error: Server returned a non-200 status code")
+        print("Error: Server returned a non-200 status code or encounter invalid result")
 
 import sys
 
