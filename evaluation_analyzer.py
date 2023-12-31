@@ -6,28 +6,25 @@ from analyzer import ProjectAnalyzer
 import logging
 
 def add_subparser(parser: argparse.ArgumentParser):
+    parser.add_argument("--temperature", type=float, default=0.4,
+                            help="temperature for chatgpt")
     subparsers = parser.add_subparsers(dest='llm')
 
     gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')
     gpt_parser.add_argument('--model_type', type=str, choices=['gpt-3.5-turbo', 'gpt-4',
                                                                'gpt-4-1106-preview'])
     gpt_parser.add_argument('--key', type=str, help='api key of openai')
-    gpt_parser.add_argument("--temperature", type=float, default=0,
-                            help="temperature for chatgpt")
 
     gemini_parser = subparsers.add_parser('gemini', help='using Google Gemini model')
     gemini_parser.add_argument('--model_type', type=str, choices=['gemini-pro'],
                             help='model type of gemini, currently only need gemini-pro not gemini-pro-vision,'
                                  'for more details, see: https://github.com/google/generative-ai-docs/blob/main/site/en/tutorials/python_quickstart.ipynb')
     gemini_parser.add_argument('--key', type=str, help='api key of google gemini')
-    gemini_parser.add_argument("--temperature", type=float, default=0, help="temperature for google gemini")
 
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
-    hf_parser.add_argument('--ip', help='huggingface server ip, default to 127.0.0.1',
-                           default='127.0.0.1')
-    hf_parser.add_argument('--port', help='server port, default to 8888',
-                           default=8888)
-    hf_parser.add_argument('--model_name', help='specify model name used. Could be codellama or llama2')
+    hf_parser.add_argument('--address', help='huggingface server ip:port, default to 127.0.0.1:8080',
+                           default='127.0.0.1:8080')
+    hf_parser.add_argument('--model_name', help='specify model name used. Could be codellama or WizardCoder')
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")

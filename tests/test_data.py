@@ -29,5 +29,6 @@ sftp_channel_default_subsystem_request(UNUSED_PARAM(ssh_session session),
                                        UNUSED_PARAM(const char *subsystem),
                                        UNUSED_PARAM(void *userdata))
 
-If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'.
 """
+
+summ = """If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'."""

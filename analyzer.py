@@ -21,6 +21,7 @@ from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
 from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
+from icall_analyzer.llm.hf_analyzer import HuggingFaceAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -248,6 +249,8 @@ class ProjectAnalyzer:
             llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "gemini":
             llm_analyzer = GeminiAnalyzer(self.model_name, self.args.key, self.args.temperature)
+        elif self.args.llm == "hf":
+            llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project)
         type_analyzer.process_all()
