@@ -3,12 +3,13 @@ from huggingface_hub import InferenceClient
 
 def test_icall_decl(client: InferenceClient, double: bool=False):
     from test_data import context, summ
+    input = context
     if not double:
-        context = context + "\n" + summ
+        input = input + "\n" + summ
     print("query is:")
-    print(context)
+    print(input)
     print("===========================")
-    response: str = client.text_generation(context, max_new_tokens=1024)
+    response: str = client.text_generation(input, max_new_tokens=1024)
     print("response is:")
     print(response)
 
