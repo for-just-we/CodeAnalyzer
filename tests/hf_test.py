@@ -8,7 +8,7 @@ def test_icall_decl(client: InferenceClient, double: bool=False):
     print("query is:")
     print(context)
     print("===========================")
-    response: str = client.text_generation(context)
+    response: str = client.text_generation(context, max_new_tokens=1024)
     print("response is:")
     print(response)
 
