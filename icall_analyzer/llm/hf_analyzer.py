@@ -5,10 +5,11 @@ from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from huggingface_hub import InferenceClient
 
 class HuggingFaceAnalyzer(BaseLLMAnalyzer):
-    def __init__(self, model_type: str, address: str, temperature: float=0):
+    def __init__(self, model_type: str, address: str, temperature: float=0, max_new_tokens: int=20):
         super().__init__(model_type)
         self.address = "http://" + address
         self.temperature = temperature
+        self.max_new_tokens = max_new_tokens
         self.client = InferenceClient(self.address)
 
     def get_hf_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:
@@ -23,7 +24,8 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
 
         try:
             resp_text: str = self.client.text_generation(prompt,
-                                                temperature=self.temperature)
+                                                temperature=self.temperature,
+                                                max_new_tokens=self.max_new_tokens)
             return resp_text, True, times
         # 达到rate limit
         except Exception as e:
