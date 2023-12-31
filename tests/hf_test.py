@@ -17,4 +17,4 @@ if __name__ == '__main__':
     address = sys.argv[1]
     flag = sys.argv[2] == "True"
     client = InferenceClient(model="http://" + address)
-    test_icall_decl(client)
+    test_icall_decl(client, flag)
