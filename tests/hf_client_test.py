@@ -22,7 +22,7 @@ def test_icall_decl(address: str, double: bool=False):
     response = requests.post(server_url, headers=headers, data=json.dumps(data))
 
     # 检查服务器的响应状态码
-    if response.status_code == 200 and response.text.startswith("Invalid:"):
+    if response.status_code == 200 and not response.text.startswith("Invalid:"):
         # 解析服务器的字符串响应
         response_data_json: dict = json.loads(response.text)
         print("Response from server:\n", response_data_json['generated_text'])
