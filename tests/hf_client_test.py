@@ -29,3 +29,10 @@ def test_icall_decl(address: str, double: bool=False):
         print("Response from server:\n", response_data)
     else:
         print("Error: Server returned a non-200 status code")
+
+import sys
+
+if __name__ == '__main__':
+    address = sys.argv[1]
+    flag = bool(sys.argv[2])
+    test_icall_decl(address, flag)
