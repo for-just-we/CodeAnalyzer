@@ -26,7 +26,7 @@ def test_icall_decl(client: InferenceClient, double: bool=False):
         print(summ_token)
 
         print("******************")
-        response: str = client.text_generation(input, max_new_tokens=1024)
+        response: str = client.text_generation(summ_token, max_new_tokens=1024)
         print("summ response is:")
         print(response)
 
