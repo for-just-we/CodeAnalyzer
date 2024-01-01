@@ -16,7 +16,7 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def preprocess_prompt(self, prompt: str,
                           add_suffix: bool=False) -> str:
         if self.model_type == "wizardcoder":
-            prompt = wizardcoder_prompt.format(prompt)
+            prompt = wizardcoder_prompt.format(instruction=prompt)
             if add_suffix:
                 prompt = prompt + wizardcoder_cot_extra
         return prompt
