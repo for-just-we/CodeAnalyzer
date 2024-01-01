@@ -50,5 +50,6 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
         content: str = resp[0]
         return content
 
+    @property
     def model_name(self):
         return f"{self.model_type}-{self.temperature}"
