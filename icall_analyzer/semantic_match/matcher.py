@@ -122,10 +122,14 @@ class SemanticMatcher:
         prompt_log += "{}:\n{}\n=========================\n".format(self.llm_analyzer.model_name, func_summary)
 
         # 进行匹配
+        add_suffix = False
         user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
             icall_summary=icall_summary, func_summary=func_summary, func_name=func_name)
+        # 如果不需要二段式，也就是不需要COT
         if not self.double_prompt:
             user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
+        else:
+            add_suffix = True
 
         contents: List[str] = [System_Match, user_prompt_match]
 
@@ -134,7 +138,7 @@ class SemanticMatcher:
         yes_time = 0
         # 投票若干次
         for i in range(self.args.vote_time):
-            answer: str = self.llm_analyzer.get_response(contents)
+            answer: str = self.llm_analyzer.get_response(contents, add_suffix)
             prompt_log += "vote {}:\n{}\n\n".format(i + 1, answer)
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')

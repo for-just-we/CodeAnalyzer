@@ -85,7 +85,7 @@ class GPTAnalyzer(BaseLLMAnalyzer):
         content: str = resp[0]
         return content
 
-    def get_response(self, contents: List[str]) -> str:
+    def get_response(self, contents: List[str], add_suffix: bool=False) -> str:
         dialog: List[Dict[str, str]] = self.generate_diaglog(contents)
         return self.generate_response(dialog)
 

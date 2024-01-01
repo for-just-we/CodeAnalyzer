@@ -19,7 +19,7 @@ class BaseLLMAnalyzer:
                     {"role": "user", "content": contents[1]}]
 
     @abc.abstractmethod
-    def get_response(self, contents: List[str]) -> str:
+    def get_response(self, contents: List[str], add_suffix: bool=False) -> str:
         pass
 
     @property

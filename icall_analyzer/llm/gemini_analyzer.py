@@ -55,7 +55,7 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
             times += 1
             return handle_error(e, 30)
 
-    def get_response(self, contents: List[str]) -> str:
+    def get_response(self, contents: List[str], add_suffix: bool=False) -> str:
         assert len(contents) in {1, 2}
         prompt = "\n\n".join(contents)
         resp: Tuple[str, bool, int] = self.get_gemini_response(prompt, 0)

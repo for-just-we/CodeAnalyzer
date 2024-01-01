@@ -4,6 +4,7 @@ from typing import List, Tuple
 import json
 import requests
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from icall_analyzer.llm.common_prompt import wizardcoder_prompt, wizardcoder_cot_extra
 
 class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, address: str, temperature: float=0, max_new_tokens: int=20):
@@ -12,13 +13,23 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
         self.temperature = temperature
         self.max_new_tokens = max_new_tokens
 
-    def get_hf_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:
+    def preprocess_prompt(self, prompt: str,
+                          add_suffix: bool=False) -> str:
+        if self.model_type == "wizardcoder":
+            prompt = wizardcoder_prompt.format(prompt)
+            if add_suffix:
+                prompt = prompt + wizardcoder_cot_extra
+        return prompt
+
+    def get_hf_response(self, prompt: str, times: int,
+                        add_suffix: bool=False) -> Tuple[str, bool, int]:
         """
         prompt: system_prompt + user_prompt
         """
         headers = {
             "Content-Type": "application/json"
         }
+        prompt = self.preprocess_prompt(prompt, add_suffix)
         data = {
             "inputs": prompt,
             "parameters": {"max_new_tokens": self.max_new_tokens,
@@ -38,7 +49,7 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
             time.sleep(60)
             return error_msg, False, times + 1
 
-    def get_response(self, contents: List[str]) -> str:
+    def get_response(self, contents: List[str], add_suffix=False) -> str:
         assert len(contents) in {1, 2}
         prompt = "\n\n".join(contents)
         resp: Tuple[str, bool, int] = self.get_hf_response(prompt, 0)
