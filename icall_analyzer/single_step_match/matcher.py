@@ -36,6 +36,14 @@ class SingleStepMatcher:
         # 包含在uncertain部分的callsite
         self.uncertain_type_matched_callsites: Dict[str, Set[str]] = type_analyzer.uncertain_callees
 
+        self.type_matched_callsites: Dict[str, Set[str]] = dict()
+        for callsite_key in self.callsite_keys:
+            func_keys: Set[str] = set()
+            func_keys.update(self.strict_type_matched_callsites.get(callsite_key, set()))
+            func_keys.update(self.cast_type_matched_callsites.get(callsite_key, set()))
+            func_keys.update(self.uncertain_type_matched_callsites.get(callsite_key, set()))
+            self.type_matched_callsites[callsite_key] = func_keys
+
         # 保存语义匹配的callsite
         self.matched_callsites: DefaultDict[str, Set[str]] = defaultdict(set)
         self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
