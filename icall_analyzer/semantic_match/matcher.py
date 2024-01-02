@@ -65,6 +65,8 @@ class SemanticMatcher:
 
         # 遍历callsite
         for i, (callsite_key, func_keys) in enumerate(self.type_matched_callsites.items()):
+            if callsite_key not in self.icall_2_func.keys():
+                continue
             # 首先找出该callsite所在function
             parent_func_key: str = self.icall_2_func[callsite_key]
             parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]
