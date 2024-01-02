@@ -321,6 +321,18 @@ class ProjectAnalyzer:
             analyze_binary(type_analyzer.cast_callees, self.ground_truths,
                            dict(), "Cast-no")
 
+        if self.args.count_uncertain and self.args.count_cast and self.args.enable_cast:
+            total_extra_callees: Dict[str, Set[str]] = dict()
+            for callsite_key in self.ground_truths.keys():
+                total_extra_callees[callsite_key] = type_analyzer.cast_callees.get(callsite_key, set()) | \
+                                                    type_analyzer.uncertain_callees.get(callsite_key, set())
+            evaluate_icall_target(total_extra_callees, "TotalExtra")
+            analyze_binary(total_extra_callees, self.ground_truths,
+                           total_extra_callees, "TotalExtra-yes")
+            analyze_binary(total_extra_callees, self.ground_truths,
+                           dict(), "TotalExtra-no")
+
+
         if self.args.evaluate_soly_for_llm:
             evaluate_icall_target(type_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
