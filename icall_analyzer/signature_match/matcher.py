@@ -96,7 +96,7 @@ class TypeAnalyzer:
             self.llm_analyzer = None
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
-        if self.log_flag or self.load_pre_type_analysis_res:
+        if self.log_flag or self.load_pre_type_analysis_res and self.llm_analyzer is not None:
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
             log_dir = f"{root_path}/experimental_logs/type_analysis/{self.running_epoch}/{self.llm_analyzer.model_name}/" \
                       f"{project}"
