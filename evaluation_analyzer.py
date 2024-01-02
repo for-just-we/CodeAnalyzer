@@ -26,6 +26,7 @@ def add_subparser(parser: argparse.ArgumentParser):
                            default='127.0.0.1:8080')
     hf_parser.add_argument('--model_name', choices=['codellama', 'wizardcoder'],
                            help='specify model name used. Could be codellama or WizardCoder')
+    hf_parser.add_argument('--max_new_tokens', type=int, default=20)
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")

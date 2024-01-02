@@ -250,7 +250,7 @@ class ProjectAnalyzer:
         elif self.args.llm == "gemini":
             llm_analyzer = GeminiAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "hf":
-            llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature)
+            llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature, self.args.max_new_tokens)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project)
         type_analyzer.process_all()
