@@ -101,7 +101,7 @@ class TypeAnalyzer:
             self.llm_analyzer = None
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
-        if (self.log_flag or self.load_pre_type_analysis_res) and self.llm_analyzer is not None:
+        if (self.log_flag or self.load_pre_type_analysis_res) and self.llm_analyzer is not None and not self.disable_llm_for_uncertain:
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
             log_dir = f"{root_path}/experimental_logs/type_analysis/{self.running_epoch}/{self.llm_analyzer.model_name}/" \
                       f"{project}"
@@ -271,7 +271,7 @@ class TypeAnalyzer:
             return
 
         # 需要llm辅助类型分析
-        if self.llm_analyzer is not None:
+        if self.llm_analyzer is not None and not self.disable_llm_for_uncertain:
             if function_pointer_declarator is not None:
                 logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
                 self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
@@ -394,7 +394,7 @@ class TypeAnalyzer:
             return MatchingResult.YES, False
 
         # 如果不需要LLM来辅助
-        if self.llm_analyzer is None or not self.llm_help_cast:
+        if self.llm_analyzer is None or not self.llm_help_cast or self.disable_llm_for_uncertain:
             return MatchingResult.NO, False
         elif self.is_parent_child_relation(arg_type, param_type,
                                            ori_arg_type_name, ori_param_type_name):
