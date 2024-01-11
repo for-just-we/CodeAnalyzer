@@ -104,7 +104,7 @@ class SingleStepMatcher:
                     callsite_key, set())
 
                 lock = threading.Lock()
-                executor = ThreadPoolExecutor(max_workers=self.args.num_workers)
+                executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
                 pbar = tqdm(total=len(matched_func_keys),
                         desc=f"semantic matching for {match_type} type matched callsite-{i}: {callsite_key}")
                 futures = []
