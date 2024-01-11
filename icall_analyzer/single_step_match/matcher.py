@@ -106,7 +106,7 @@ class SingleStepMatcher:
                 lock = threading.Lock()
                 executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
                 pbar = tqdm(total=len(matched_func_keys),
-                        desc=f"semantic matching for {match_type} type matched callsite-{i}: {callsite_key}")
+                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}")
                 futures = []
 
                 def update_progress(future):
