@@ -332,3 +332,33 @@ typedef void(*sdp_free_func_t)(void *);
 void sdp_data_free(sdp_data_t *d) {
 }
 ```
+
+# 6.Error Case
+
+libucl
+
+下面case中由于条件编译宏的存在导致tree-sitter没有展开 `ucl_object_free_internal (obj, false, ucl_object_dtor_unref);` 的AST。
+从而没有识别出 `ucl_object_dtor_unref` 是address-taken function。
+
+```cpp
+static void
+ucl_object_dtor_unref_single (ucl_object_t *obj)
+{
+	if (obj != NULL) {
+#ifdef HAVE_ATOMIC_BUILTINS
+		unsigned int rc = __sync_sub_and_fetch (&obj->ref, 1);
+		if (rc == 0) {
+#else
+		if (--obj->ref == 0) {
+#endif
+			ucl_object_free_internal (obj, false, ucl_object_dtor_unref);
+		}
+	}
+}
+```
+
+这个case中tree-sitter会解析出两个preproc_call
+
+- `#else\n\tif (--obj->ref == 0) {\n`，其中包括 `preproc_directive` 为 `#else`，`preproc_arg` 为 `if (--obj->ref == 0) {`。
+
+- `#endif\n\t\tucl_object_free_internal (obj, false, ucl_object_dtor_unref);\n`，其中包括 `preproc_directive` 为 `#endif`，`preproc_arg` 为 `ucl_object_free_internal (obj, false, ucl_object_dtor_unref);`。

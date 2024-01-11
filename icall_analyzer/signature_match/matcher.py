@@ -42,6 +42,12 @@ class TypeAnalyzer:
         # scope策略
         self.scope_strategy: BaseStrategy = scope_strategy
 
+        self.icall_2_decl_text: Dict[str, str] = dict()
+        self.icall_2_decl_var_text: Dict[str, str] = dict()
+        self.icall_2_arg_declarators: Dict[str, List[List[str]]] = dict()
+        self.icall_2_arg_texts: Dict[str, List[str]] = dict()
+        self.icall_2_arg_text: Dict[str, str] = dict()
+
         # LLM访问过的所有函数
         self.all_potential_targets: Dict[str, Set[str]] = dict()
         # 保存匹配上的函数名
@@ -52,8 +58,7 @@ class TypeAnalyzer:
         self.macro_icall2_callexpr: Dict[str, str] = dict()
         # 保存每个indirect-callsite的代码文本
         self.icall_nodes: Dict[str, ASTNode] = dict()
-        # 保存每个indirect-callsite所在的function
-        self.icall_2_func: Dict[str, str] = dict()
+
 
         self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
         # 如果LLM已经分析了两个结构体类型，跳过
@@ -205,8 +210,21 @@ class TypeAnalyzer:
                               func_body_visitor: FunctionBodyVisitor):
         # 如果是宏函数
         if icall_loc in func_body_visitor.current_macro_funcs.keys():
+            # ToDo: mark all address-taken functions as uncertain
             self.macro_callsites.add(callsite_key)
             return
+
+        if icall_loc in func_body_visitor.icall_2_decl_text.keys():
+            self.icall_2_decl_text[callsite_key] = func_body_visitor.icall_2_decl_text[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_decl_var_text.keys():
+            self.icall_2_decl_var_text[callsite_key] = func_body_visitor.icall_2_decl_var_text[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_arg_declarators.keys():
+            self.icall_2_arg_declarators[callsite_key] = func_body_visitor.icall_2_arg_declarators[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_arg_texts.keys():
+            self.icall_2_arg_texts[callsite_key] = func_body_visitor.icall_2_arg_texts[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_arg_text.keys():
+            self.icall_2_arg_text[callsite_key] = func_body_visitor.icall_2_arg_text[icall_loc]
+
         arg_num = 0
         var_arg = False
         arg_type: List[Tuple[str, int]] = \
@@ -245,6 +263,8 @@ class TypeAnalyzer:
         arg_texts: List[str] = func_body_visitor.icall_2_arg_texts.get(icall_loc, None)
         callsite_text: str = func_body_visitor.icall_2_text.get(icall_loc, None)
         arg_list_text: str = func_body_visitor.icall_2_arg_text.get(icall_loc, None)
+
+
 
         # 如果加载了之前的分析结果
         if callsite_key in self.llm_declarator_analysis.keys():
@@ -823,3 +843,4 @@ class TypeAnalyzer:
             # 可能被调用
             if param_num <= arg_num:
                 process_func_set(func_keys)
+
