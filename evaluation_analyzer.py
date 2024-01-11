@@ -30,7 +30,7 @@ def add_subparser(parser: argparse.ArgumentParser):
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
-    parser.add_argument("--pipeline", type=str, choices=['only_type', 'full', 'single'], default='full',)
+    parser.add_argument("--pipeline", type=str, choices=['only_type', 'full', 'single', 'single_complex'], default='full',)
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
     parser.add_argument("--log_llm_output", action="store_true", default=False,

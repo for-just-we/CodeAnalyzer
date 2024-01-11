@@ -18,6 +18,8 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.semantic_match.matcher import SemanticMatcher
 from icall_analyzer.single_step_match.matcher import SingleStepMatcher
+from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
+
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
 from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
@@ -265,6 +267,11 @@ class ProjectAnalyzer:
         elif self.args.pipeline == "single":
             analyzer = SingleStepMatcher(collector, self.args,
                             type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
+                                         self.project)
+            analyzer.process_all()
+        elif self.args.pipeline == "single_complex":
+            analyzer = SingleStepComplexMatcher(collector, self.args,
+                                         type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
                                          self.project)
             analyzer.process_all()
 

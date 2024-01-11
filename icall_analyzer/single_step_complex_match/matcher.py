@@ -139,6 +139,9 @@ class SingleStepComplexMatcher:
                     future.add_done_callback(update_progress)
                     futures.append(future)
 
+                for future in as_completed(futures):
+                    future.result()
+
 
             # 严格类型匹配
             analyze_callsite_type_matching("strict")
@@ -169,7 +172,7 @@ class SingleStepComplexMatcher:
             additional_info_icall += ("\n" + func_pointer_var_text)
 
         if additional_info_icall != "":
-            additional_info_icall = FuncPointerDeclaratorPrompt.format(additional_info_icall)
+            additional_info_icall = FuncPointerDeclaratorPrompt.format(context=additional_info_icall)
 
         type_message = TypeMessagePrompt3
         # 需要类型匹配

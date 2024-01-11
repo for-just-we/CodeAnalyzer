@@ -125,10 +125,7 @@ class SingleStepMatcher:
                     futures.append(future)
 
                 for future in as_completed(futures):
-                    try:
-                        future.result(timeout=60)
-                    except TimeoutError:
-                        logging.info("thread time out")
+                    future.result()
 
             # 严格类型匹配
             analyze_callsite_type_matching(callsite_key, callsite_text, src_func_name, src_func_text,
