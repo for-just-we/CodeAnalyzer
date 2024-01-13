@@ -33,7 +33,8 @@ class TypeAnalyzer:
                  args,
                  scope_strategy: BaseStrategy = None,
                  llm_analyzer: BaseLLMAnalyzer = None,
-                 project: str = ""):
+                 project: str = "",
+                 callsite_idxs: Dict[str, int] = None):
         self.collector: BaseInfoCollector = collector
         # 保存每个indirect-callsite的代码文本
         self.icall_nodes: Dict[str, ASTNode] = dict()
@@ -59,6 +60,8 @@ class TypeAnalyzer:
         # 保存每个indirect-callsite的代码文本
         self.icall_nodes: Dict[str, ASTNode] = dict()
 
+        self.callsite_idxs: Dict[str, int] = callsite_idxs
+
 
         self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
         # 如果LLM已经分析了两个结构体类型，跳过
@@ -81,6 +84,7 @@ class TypeAnalyzer:
 
         self.running_epoch: int = args.running_epoch
         self.macro_callsites: Set[str] = set()
+        self.macro_used_in_callsite: Dict[str, str] = dict()
 
         self.vote_time: int = args.vote_time
 
@@ -154,7 +158,6 @@ class TypeAnalyzer:
                 # 加载了预分析的结果就不需要llm了
                 self.llm_analyzer = None
 
-        self.processed_icall_num: int = 1
 
     def process_all(self):
         logging.info("type analysis start...")
@@ -195,14 +198,13 @@ class TypeAnalyzer:
         for icall_loc in icall_locs:
             callsite_key: str = f"{func_info.file}:{icall_loc[0] + 1}:{icall_loc[1] + 1}"
             # 如果该indirect-call对应的call expression没有被正确解析，跳过。
-            logging.info("visiting {}-th icall {}".format(self.processed_icall_num, callsite_key))
+            logging.info("visiting {}-th icall {}".format(self.callsite_idxs[callsite_key], callsite_key))
             if icall_loc not in func_body_visitor.icall_nodes.keys():
                 self.callees[callsite_key] = set()
                 continue
             self.icall_nodes[callsite_key] = func_body_visitor.icall_nodes[icall_loc]
             self.icall_2_func[callsite_key] = func_key
             self.process_indirect_call(callsite_key, icall_loc, func_body_visitor)
-            self.processed_icall_num += 1
 
 
     # 处理一个indirect-call
@@ -212,6 +214,7 @@ class TypeAnalyzer:
         if icall_loc in func_body_visitor.current_macro_funcs.keys():
             # ToDo: mark all address-taken functions as uncertain
             self.macro_callsites.add(callsite_key)
+            self.macro_used_in_callsite[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
             self.uncertain_callees[callsite_key].update(self.collector.considered_funcs)
             return
 
@@ -242,7 +245,7 @@ class TypeAnalyzer:
                 self.match_with_types(arg_type, callsite_key, False, matching_epoch)
             else:
                 logging.debug("error parsing arguments for {}-th indirect-callsite: {}".
-                            format(self.processed_icall_num, callsite_key))
+                            format(self.callsite_idxs[callsite_key], callsite_key))
 
             if func_pointer_arg_type is not None:
                 func_pointer_arg_types: List[Tuple[str, int]] = [
@@ -253,7 +256,7 @@ class TypeAnalyzer:
                 self.match_with_types(func_pointer_arg_types, callsite_key, var_arg, matching_epoch)
             else:
                 logging.debug("fail to find function pointer declaration for {}-th indirect-callsite: {}".
-                            format(self.processed_icall_num, callsite_key))
+                            format(self.callsite_idxs[callsite_key], callsite_key))
                 # arg_num = 0
                 var_arg = False
 
@@ -557,7 +560,7 @@ class TypeAnalyzer:
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing type for {}-th icall {}"
-                        .format(self.processed_icall_num, callsite_key))
+                        .format(self.callsite_idxs[callsite_key], callsite_key))
             futures = []
 
             def update_progress(future):
@@ -673,7 +676,7 @@ class TypeAnalyzer:
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for {}-th icall {}"
-                        .format(self.processed_icall_num, callsite_key))
+                        .format(self.callsite_idxs[callsite_key], callsite_key))
             futures = []
 
             def update_progress(future):
@@ -803,7 +806,7 @@ class TypeAnalyzer:
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing context for {}-th icall {}"
-                        .format(self.processed_icall_num, callsite_key))
+                        .format(self.callsite_idxs[callsite_key], callsite_key))
             futures = []
 
             def update_progress(future):

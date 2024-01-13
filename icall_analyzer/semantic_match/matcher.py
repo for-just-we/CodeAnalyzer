@@ -20,7 +20,8 @@ class SemanticMatcher:
                  args,
                  type_analyzer: TypeAnalyzer,
                  llm_analyzer: BaseLLMAnalyzer = None,
-                 project=""):
+                 project="",
+                 callsite_idxs: Dict[str, int] = None):
         self.collector: BaseInfoCollector = collector
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
@@ -37,6 +38,7 @@ class SemanticMatcher:
         self.icall_nodes: Dict[str, ASTNode] = type_analyzer.icall_nodes
 
         self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
+        self.callsite_idxs: Dict[str, int] = callsite_idxs
 
         # log的位置
         self.log_flag: bool = args.log_llm_output
@@ -64,9 +66,10 @@ class SemanticMatcher:
             return
 
         # 遍历callsite
-        for i, (callsite_key, func_keys) in enumerate(self.type_matched_callsites.items()):
+        for (callsite_key, func_keys) in self.type_matched_callsites.items():
             if callsite_key not in self.icall_2_func.keys():
                 continue
+            i = self.callsite_idxs[callsite_key]
             # 首先找出该callsite所在function
             parent_func_key: str = self.icall_2_func[callsite_key]
             parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]

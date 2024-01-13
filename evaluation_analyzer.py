@@ -58,6 +58,9 @@ def build_arg_parser():
     parser.add_argument("--double_prompt", action="store_true", default=False)
     parser.add_argument("--only_count_scope", action="store_true", default=False, help="only count ground_truth in scope")
     parser.add_argument("--enable_cast", action="store_true", default=False, help="enable cast between param types")
+
+    parser.add_argument("--disable_analysis_for_macro", action="store_true", default=False,
+                        help="disable analysis for macro callsite")
     parser.add_argument("--llm_help_cast", action="store_true", default=False, help="enable llm helped type analysis")
     parser.add_argument("--disable_llm_for_uncertain", action="store_true", default=False)
     parser.add_argument("--count_uncertain", action="store_true", default=False,

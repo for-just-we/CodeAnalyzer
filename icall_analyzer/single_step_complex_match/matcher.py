@@ -5,7 +5,7 @@ from code_analyzer.schemas.function_info import FuncInfo
 from icall_analyzer.llm.common_prompt import summarizing_prompt
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
-from icall_analyzer.single_step_complex_match.prompt import System_Match, User_Match, \
+from icall_analyzer.single_step_complex_match.prompt import System_Match, User_Match, User_Match_Macro, \
     FuncPointerDeclaratorPrompt, TypeMessagePrompt1, TypeMessagePrompt2, TypeMessagePrompt3, \
     supplement_prompts
 
@@ -26,12 +26,14 @@ class SingleStepComplexMatcher:
                  type_analyzer: TypeAnalyzer,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  callsite_keys: Set[str] = None,
-                 project=""):
+                 project="",
+                 callsite_idxs: Dict[str, int] = None):
         self.collector: BaseInfoCollector = collector
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
         self.args = args
         self.callsite_keys: Set[str] = callsite_keys
+        self.callsite_idxs: Dict[str, int] = callsite_idxs
 
         self.icall_2_decl_text: Dict[str, str] = type_analyzer.icall_2_decl_text
         self.icall_2_decl_var_text: Dict[str, str] = type_analyzer.icall_2_decl_var_text
@@ -44,6 +46,7 @@ class SingleStepComplexMatcher:
         self.icall_2_func: Dict[str, str] = type_analyzer.icall_2_func
         self.icall_nodes: Dict[str, ASTNode] = type_analyzer.icall_nodes
         self.macro_callsites: Set[str] = type_analyzer.macro_callsites
+        self.macro_used_in_callsite: Dict[str, str] = type_analyzer.macro_used_in_callsite
 
         # 严格类型匹配成功的callsite
         self.strict_type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees
@@ -93,62 +96,17 @@ class SingleStepComplexMatcher:
                     self.matched_callsites[callsite_key] = func_keys
             return
 
-        for i, callsite_key in enumerate(self.callsite_keys):
+        for callsite_key in self.callsite_keys:
             if callsite_key not in self.icall_2_func.keys():
                 continue
+            i = self.callsite_idxs[callsite_key]
 
-            # 首先找出该callsite所在function
-            parent_func_key: str = self.icall_2_func[callsite_key]
-            parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]
-            src_func_name: str = parent_func_info.func_name
-            src_func_text: str = parent_func_info.func_def_text
-            callsite_text: str = self.icall_nodes[callsite_key].node_text
-            func_pointer_text: str = self.icall_2_decl_text.get(callsite_key, "")
-            func_pointer_var_text: str = self.icall_2_decl_var_text.get(callsite_key, "")
-
-            cur_log_dir = f"{self.log_dir}/callsite-{i}"
-            target_analyze_log_dir = f"{cur_log_dir}/single"
-            # 如果需要log
-            if self.log_flag:
-                if not os.path.exists(target_analyze_log_dir):
-                    os.makedirs(target_analyze_log_dir)
-
-            def analyze_callsite_type_matching(match_type):
-                matched_func_keys: Set[str] = getattr(self, f"{match_type}_type_matched_callsites", {}).get(
-                    callsite_key, set())
-
-                lock = threading.Lock()
-                executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
-                pbar = tqdm(total=len(matched_func_keys),
-                            desc=f"single step complex matching for {match_type} type matched callsite-{i}: {callsite_key}")
-                futures = []
-
-                def update_progress(future):
-                    pbar.update(1)
-
-                def worker(func_key: str, idx: int):
-                    flag = self.process_callsite_target(callsite_text, callsite_key, src_func_name, src_func_text,
-                                                        target_analyze_log_dir, func_key, idx, match_type,
-                                                        func_pointer_text, func_pointer_var_text)
-                    if flag:
-                        with lock:
-                            self.matched_callsites[callsite_key].add(func_key)
-
-                for idx, func_key in enumerate(matched_func_keys):
-                    future = executor.submit(worker, func_key, idx)
-                    future.add_done_callback(update_progress)
-                    futures.append(future)
-
-                for future in as_completed(futures):
-                    future.result()
-
-
-            # 严格类型匹配
-            analyze_callsite_type_matching("strict")
-            # Cast类型匹配
-            analyze_callsite_type_matching("cast")
-            # uncertain类型匹配
-            analyze_callsite_type_matching("uncertain")
+            if callsite_key in self.macro_callsites:
+                if self.args.disable_analysis_for_macro:
+                    continue
+                self.process_macro_callsite(callsite_key, i)
+            else:
+                self.process_normal_callsite(callsite_key, i)
 
             # 如果log，记录下分析结果
             if self.log_flag:
@@ -156,6 +114,60 @@ class SingleStepComplexMatcher:
                 content: str = callsite_key + "|" + ",".join(func_keys) + "\n"
                 with open(self.res_log_file, "a", encoding='utf-8') as f:
                     f.write(content)
+
+    def process_normal_callsite(self, callsite_key: str, i: int):
+        # 首先找出该callsite所在function
+        parent_func_key: str = self.icall_2_func[callsite_key]
+        parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]
+        src_func_name: str = parent_func_info.func_name
+        src_func_text: str = parent_func_info.func_def_text
+        callsite_text: str = self.icall_nodes[callsite_key].node_text
+        func_pointer_text: str = self.icall_2_decl_text.get(callsite_key, "")
+        func_pointer_var_text: str = self.icall_2_decl_var_text.get(callsite_key, "")
+
+        cur_log_dir = f"{self.log_dir}/callsite-{i}"
+        target_analyze_log_dir = f"{cur_log_dir}/single"
+        # 如果需要log
+        if self.log_flag:
+            if not os.path.exists(target_analyze_log_dir):
+                os.makedirs(target_analyze_log_dir)
+
+        def analyze_callsite_type_matching(match_type):
+            matched_func_keys: Set[str] = getattr(self, f"{match_type}_type_matched_callsites", {}).get(
+                callsite_key, set())
+
+            lock = threading.Lock()
+            executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
+            pbar = tqdm(total=len(matched_func_keys),
+                        desc=f"single step complex matching for {match_type} type matched callsite-{i}: {callsite_key}")
+            futures = []
+
+            def update_progress(future):
+                pbar.update(1)
+
+            def worker(func_key: str, idx: int):
+                flag = self.process_callsite_target(callsite_text, callsite_key, src_func_name, src_func_text,
+                                                    target_analyze_log_dir, func_key, idx, match_type,
+                                                    func_pointer_text, func_pointer_var_text)
+                if flag:
+                    with lock:
+                        self.matched_callsites[callsite_key].add(func_key)
+
+            for idx, func_key in enumerate(matched_func_keys):
+                future = executor.submit(worker, func_key, idx)
+                future.add_done_callback(update_progress)
+                futures.append(future)
+
+            for future in as_completed(futures):
+                future.result()
+
+        # 严格类型匹配
+        analyze_callsite_type_matching("strict")
+        # Cast类型匹配
+        analyze_callsite_type_matching("cast")
+        # uncertain类型匹配
+        analyze_callsite_type_matching("uncertain")
+
 
     def process_callsite_target(self, callsite_text: str, callsite_key: str,
                                 src_func_name: str, src_func_text: str,
@@ -226,9 +238,83 @@ class SingleStepComplexMatcher:
             total_user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
 
         contents: List[str] = [System_Match, total_user_prompt]
+
+        flag = self.query_llm(contents, target_analyze_log_dir, typ, idx)
+        return flag
+
+    def process_macro_callsite(self, callsite_key: str, i: int):
+        macro_in_use: str = self.macro_used_in_callsite[callsite_key]
+
+        macro_text: str = self.collector.macro_defs[macro_in_use]
+        parent_func_key: str = self.icall_2_func[callsite_key]
+        parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]
+        src_func_name: str = parent_func_info.func_name
+        src_func_text: str = parent_func_info.func_def_text
+        callsite_text: str = self.icall_nodes[callsite_key].node_text
+
+        cur_log_dir = f"{self.log_dir}/callsite-{i}"
+        target_analyze_log_dir = f"{cur_log_dir}/single"
+        # 如果需要log
+        if self.log_flag:
+            if not os.path.exists(target_analyze_log_dir):
+                os.makedirs(target_analyze_log_dir)
+
+        matched_func_keys: Set[str] = self.uncertain_type_matched_callsites.get(callsite_key, set())
+
+        lock = threading.Lock()
+        executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
+        pbar = tqdm(total=len(matched_func_keys),
+                    desc=f"single step complex matching for uncertain macro type matched callsite-{i}: {callsite_key}")
+        futures = []
+
+        def update_progress(future):
+            pbar.update(1)
+
+        def worker(func_key: str, idx: int):
+            flag = self.process_macro_callsite_target(callsite_text, src_func_name, src_func_text,
+                                                target_analyze_log_dir, func_key, idx, macro_text)
+            if flag:
+                with lock:
+                    self.matched_callsites[callsite_key].add(func_key)
+
+        for idx, func_key in enumerate(matched_func_keys):
+            future = executor.submit(worker, func_key, idx)
+            future.add_done_callback(update_progress)
+            futures.append(future)
+
+        for future in as_completed(futures):
+            future.result()
+
+    def process_macro_callsite_target(self, callsite_text: str,
+                                src_func_name: str, src_func_text: str,
+                                target_analyze_log_dir: str, func_key: str,
+                                idx: int, macro_text: str) -> bool:
+        func_info: FuncInfo = self.collector.func_info_dict[func_key]
+        target_func_name: str = func_info.func_name
+        target_func_text: str = func_info.func_def_text
+
+        total_user_prompt = User_Match_Macro.format(icall_expr=callsite_text,
+                                                    macro_text=macro_text,
+                                                    src_func_name=src_func_name,
+                                                    source_function_text=src_func_text,
+                                                    target_func_name=target_func_name,
+                                                    target_function_text=target_func_text)
+
+        if not self.double_prompt:
+            total_user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
+
+        contents: List[str] = [System_Match, total_user_prompt]
+
+        flag = self.query_llm(contents, target_analyze_log_dir, "uncertain", idx)
+        return flag
+
+
+    def query_llm(self, contents: List[str], target_analyze_log_dir: str, typ: str, idx: int) -> bool:
+        assert len(contents) == 2
+
         prompt_log: str = ""
-        prompt_log += "query:\n{}\n\n{}\n=========================\n".format(System_Match,
-                                                                             total_user_prompt)
+        prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0],
+                                                                             contents[1])
         yes_time = 0
 
         # 投票若干次

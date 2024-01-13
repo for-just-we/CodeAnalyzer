@@ -28,12 +28,8 @@ Using this information, ascertain whether the indirect-call {icall_expr} can inv
 
 - 3.Determine whether the indirect-call can invoke the target function based on their functionality. 
 
-Additionally: {type_messge}.
+Additionally: {type_messge}
 Also, you don't need to consider data-flow, control-flow."""
-
-supplement_prompts = {
-"user_prompt_match": "If the indirect-call can invoke the target function, answer 'yes'; otherwise, answer 'no'.",
-}
 
 FuncPointerDeclaratorPrompt = """The relevant declarator of the indirect-call is {context}.
 It may also help you determine the purpose of the indirect-call."""
@@ -43,7 +39,6 @@ TypeMessagePrompt1 = """You should first determine whether the types of the indi
 The function pointer declarator is: {func_pointer}.
 
 The declarator of the target function is: {func_declarator}."""
-
 
 TypeMessagePrompt2 = """You should first determine whether their {idx} arguments and parameters types are compatible. 
 
@@ -69,3 +64,33 @@ Note that:
 """
 
 TypeMessagePrompt3 = """You don't need to consider type match."""
+
+# 宏函数调用
+User_Match_Macro = """The indirect-call expression is: {icall_expr}.
+
+It is a macro function call, where the macro function is defined as follows:
+
+{macro_text}
+
+It is located within function {src_func_name}, whose definition is as follows:
+
+{source_function_text}
+
+The target function is named: {target_func_name}, with the following definition:
+
+{target_function_text}
+
+Using this information, ascertain whether the indirect-call {icall_expr} can invoke the target function {target_func_name} in following steps:
+
+- 1.Analyze the purpose of indirect-call: Examine the code surrounding the indirect call {icall_expr} and the macro {macro_text} to determine its specific use within function {src_func_name}. Note that the indirect-call is wrapped by the macro hence {icall_expr} may not be the true callee expression, but it shares the same functionality with the true callee expression.
+
+- 2.Analyze the functionality of the target function {target_func_name} to understand its purpose.
+
+- 3.Determine whether the indirect-call can invoke the target function based on their functionality.
+
+Additionally, you don't need to consider data-flow, control-flow. Also, since the indirect-call is wrapped by macro, you should not consider type match to avoid false negative.
+"""
+
+supplement_prompts = {
+"user_prompt_match": "If the indirect-call can invoke the target function, answer 'yes'; otherwise, answer 'no'.",
+}

@@ -35,13 +35,17 @@ def extract_all_c_files(root: str, c_h_files: List):
     return c_h_files
 
 def load_icall_infos(path: str) -> Tuple[DefaultDict[str, List[Tuple[int, int]]],
-                                    DefaultDict[str, Set[str]]]:
+                                    DefaultDict[str, Set[str]],
+                                    Dict[str, int]]:
     raw_infos = [line.strip() for line in open(path, 'r', encoding='utf-8').readlines()]
     # 将filename映射到该file下的每一个indirect-call，用line，col标识
     icall_dict: DefaultDict[str, List[Tuple[int, int]]] = defaultdict(list)
     # 将icall-key映射为groundtruth中的函数名，icall-key为filename:line:col
     ground_truths: DefaultDict[str, Set[str]] = defaultdict(set)
-    for line in raw_infos:
+    # 将每个callsite映射到对应的索引号
+    callsite_idxs: Dict[str, int] = dict()
+
+    for idx, line in enumerate(raw_infos):
         icall_key, funcs = line.split('|')
         # process icall_key
         res = icall_key.split(':')
@@ -54,7 +58,8 @@ def load_icall_infos(path: str) -> Tuple[DefaultDict[str, List[Tuple[int, int]]]
         func_keys = {"<".join(func_key.split('<')[:2]) for func_key in func_keys}
         # process ground truths
         ground_truths[icall_key].update(func_keys)
-    return icall_dict, ground_truths
+        callsite_idxs[icall_key] = idx
+    return icall_dict, ground_truths, callsite_idxs
 
 
 def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
@@ -168,9 +173,10 @@ class ProjectAnalyzer:
             return
         self.included_funcs: Set[str] = set([line.strip() for line in
                                         open(project_included_func_file, 'r', encoding='utf-8').readlines()])
-        infos: Tuple[defaultdict, defaultdict] = load_icall_infos(icall_infos_file)
+        infos: Tuple[defaultdict, defaultdict, dict] = load_icall_infos(icall_infos_file)
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = infos[0]
         self.ground_truths: DefaultDict[str, Set[str]] = infos[1]
+        self.callsite_idxs: Dict[str, int] = infos[2]
         self.project_root: str = project_root
         self.args = args
         self.project: str = project
@@ -254,7 +260,7 @@ class ProjectAnalyzer:
         elif self.args.llm == "hf":
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature, self.args.max_new_tokens)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
-                                                   llm_analyzer, self.project)
+                                                   llm_analyzer, self.project, self.callsite_idxs)
         type_analyzer.process_all()
         logging.debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
         logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
@@ -262,17 +268,17 @@ class ProjectAnalyzer:
         analyzer = None
         if self.args.pipeline == "full":
             analyzer = SemanticMatcher(collector, self.args,
-                            type_analyzer, llm_analyzer, self.project)
+                            type_analyzer, llm_analyzer, self.project, self.callsite_idxs)
             analyzer.process_all()
         elif self.args.pipeline == "single":
             analyzer = SingleStepMatcher(collector, self.args,
                             type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
-                                         self.project)
+                                         self.project, self.callsite_idxs)
             analyzer.process_all()
         elif self.args.pipeline == "single_complex":
             analyzer = SingleStepComplexMatcher(collector, self.args,
                                          type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
-                                         self.project)
+                                         self.project, self.callsite_idxs)
             analyzer.process_all()
 
         return type_analyzer, analyzer
