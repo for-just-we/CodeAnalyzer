@@ -255,7 +255,7 @@ class ProjectAnalyzer:
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
             llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
-        elif self.args.llm == "gemini":
+        elif self.args.llm == "google":
             llm_analyzer = GeminiAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "hf":
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature, self.args.max_new_tokens)

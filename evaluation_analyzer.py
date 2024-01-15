@@ -15,8 +15,8 @@ def add_subparser(parser: argparse.ArgumentParser):
                                                                'gpt-4-1106-preview'])
     gpt_parser.add_argument('--key', type=str, help='api key of openai')
 
-    gemini_parser = subparsers.add_parser('gemini', help='using Google Gemini model')
-    gemini_parser.add_argument('--model_type', type=str, choices=['gemini-pro'],
+    gemini_parser = subparsers.add_parser('google', help='using Google model')
+    gemini_parser.add_argument('--model_type', type=str, choices=['gemini-pro', 'text-bison-001', 'chat-bison-001'],
                             help='model type of gemini, currently only need gemini-pro not gemini-pro-vision,'
                                  'for more details, see: https://github.com/google/generative-ai-docs/blob/main/site/en/tutorials/python_quickstart.ipynb')
     gemini_parser.add_argument('--key', type=str, help='api key of google gemini')
@@ -94,7 +94,7 @@ def main():
 
     if args.llm == "hf":
         model_name = args.model_name
-    elif args.llm in {"gpt", "gemini"}:
+    elif args.llm in {"gpt", "google"}:
         model_name = args.model_type
     else:
         model_name = ""

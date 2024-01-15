@@ -6,6 +6,8 @@ import tiktoken
 import google.generativeai as genai
 from google.generativeai import GenerativeModel
 from google.generativeai.types.generation_types import GenerateContentResponse, GenerationConfig
+from google.generativeai.text import Completion
+from google.generativeai.discuss import ChatResponse
 from google.api_core.exceptions import ResourceExhausted, GoogleAPIError
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
@@ -24,11 +26,30 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
         genai.configure(api_key=api_key)
         self.temperature = temperature
         config = GenerationConfig(temperature=temperature)
-        self.model: GenerativeModel = GenerativeModel(model_type, generation_config=config)
+        if model_type == "gemini-pro":
+            self.model: GenerativeModel = GenerativeModel(model_type, generation_config=config)
 
         # 只是用来记录输入和输出的token数
         self.input_token_num: int = 0
         self.output_token_num: int = 0
+
+    def send_text_to_llm(self, prompt: str) -> str:
+        if self.model_type == "gemini-pro":
+            response: GenerateContentResponse = self.model.generate_content(prompt)
+            resp_text: str = response.text
+        elif self.model_type == "text-bison-001":
+            response: Completion = genai.generate_text(
+                model='models/text-bison-001', prompt=prompt,
+                temperature=self.temperature, max_output_tokens=1024)
+            resp_text: str = response.result
+        elif self.model_type == "chat-bison-001":
+            chat: ChatResponse = genai.chat(model="models/chat-bison-001",
+                                            messages=[prompt], temperature=0.8)
+            resp_text: str = chat.last
+        else:
+            msg = "unsupported model type {}".format(self.model_type)
+            raise RuntimeError(msg)
+        return resp_text
 
     # 向google发送一次请求，返回一个response，可能会触发异常
     def get_gemini_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:
@@ -43,10 +64,12 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
 
         try:
             self.input_token_num += num_tokens_from_string(prompt)
-            response: GenerateContentResponse = self.model.generate_content(prompt)
-            resp_text: str = response.text
+            resp_text: str = self.send_text_to_llm(prompt)
             self.output_token_num += num_tokens_from_string(resp_text)
-            return resp_text, True, times
+            if resp_text is not None and resp_text != "":
+                return resp_text, True, times
+            else:
+                return "empty response", False, times + 1
         # 达到rate limit
         except ResourceExhausted as e:
             return handle_error(e, 60)
