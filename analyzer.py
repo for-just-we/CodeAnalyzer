@@ -159,7 +159,9 @@ prices = {
     "gpt-4-1106-preview": [0.01, 0.03],
     "gpt-4": [0.03, 0.06],
 
-    "gemini-pro": [0.001, 0.002]
+    "gemini-pro": [0.001, 0.002],
+    "text-bison-001": [0.001, 0.002],
+    "chat-bison-001": [0.001, 0.002]
 }
 
 class ProjectAnalyzer:
