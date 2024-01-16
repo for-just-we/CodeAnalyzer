@@ -65,11 +65,10 @@ class GeminiAnalyzer(BaseLLMAnalyzer):
         try:
             self.input_token_num += num_tokens_from_string(prompt)
             resp_text: str = self.send_text_to_llm(prompt)
-            self.output_token_num += num_tokens_from_string(resp_text)
-            if resp_text is not None and resp_text != "":
-                return resp_text, True, times
-            else:
+            if resp_text is None or resp_text == "":
                 return "empty response", False, times + 1
+            self.output_token_num += num_tokens_from_string(resp_text)
+            return resp_text, True, times
         # 达到rate limit
         except ResourceExhausted as e:
             return handle_error(e, 60)
