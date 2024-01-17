@@ -378,6 +378,7 @@ class ProjectAnalyzer:
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project}-{analyzer.llm_analyzer.model_name} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+        line1 = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
         llm_analyzer: BaseLLMAnalyzer = analyzer.llm_analyzer
 
@@ -387,8 +388,6 @@ class ProjectAnalyzer:
         logging.info(f"| {self.project}-{llm_analyzer.model_name} "
                      f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                      f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
-
-        line1 = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
         line2 = f"{(acc * 100):.1f},{(prec * 100):.1f},{(recall * 100):.1f}," \
                         f"{(F1 * 100):.1f},{(fpr * 100):.1f},{(fnr * 100):.1f}"
         line = line1 + "\n" + line2

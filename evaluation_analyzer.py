@@ -7,7 +7,7 @@ import logging
 
 def add_subparser(parser: argparse.ArgumentParser):
     parser.add_argument("--temperature", type=float, default=0.4,
-                            help="temperature for chatgpt")
+                            help="temperature for llm")
     subparsers = parser.add_subparsers(dest='llm')
 
     gpt_parser = subparsers.add_parser('gpt', help='using OpenAI GPT model')

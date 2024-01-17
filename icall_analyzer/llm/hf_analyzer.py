@@ -52,12 +52,12 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def get_response(self, contents: List[str], add_suffix=False) -> str:
         assert len(contents) in {1, 2}
         prompt = "\n\n".join(contents)
-        resp: Tuple[str, bool, int] = self.get_hf_response(prompt, 0)
+        resp: Tuple[str, bool, int] = self.get_hf_response(prompt, 0, add_suffix)
         # 没有成功解析出来，就最多重试3次
         while not resp[1]:
             if resp[2] >= 3:
                 return ""
-            resp: Tuple[str, bool, int] = self.get_hf_response(prompt, resp[2])
+            resp: Tuple[str, bool, int] = self.get_hf_response(prompt, resp[2], add_suffix)
         content: str = resp[0]
         return content
 
