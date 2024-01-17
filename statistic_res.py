@@ -64,3 +64,6 @@ def main():
     projects = args.projects
 
     analyze_all_project(running_epoch, analysis_type, model_type, temperature, projects)
+
+if __name__ == '__main__':
+    main()
