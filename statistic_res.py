@@ -14,7 +14,7 @@ def build_parser():
                                                            'gemini-pro'])
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
-    parser.add_argument("--projects", nargs='+', help="One or more projects to analyze")
+    parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")
 
     return parser
 
