@@ -1,6 +1,5 @@
 import argparse
 import os
-import logging
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
@@ -26,9 +25,12 @@ def analyze(running_epoch, analysis_type, model_type, temperature, project):
     lines = open(file_path).readlines()
     line = lines[0].strip()
     prec_str, recall_str, f1_str = line.split(',')
-    prec = float(prec_str)
-    recall = float(recall_str)
-    f1 = 2 * prec * recall / (prec + recall)
+    prec = float(prec_str) / 100
+    recall = float(recall_str) / 100
+    if prec + recall != 0:
+        f1 = 2 * prec * recall / (prec + recall)
+    else:
+        f1 = 0
     return prec, recall, f1
 
 
@@ -41,20 +43,19 @@ def analyze_all_project(running_epoch, analysis_type, model_type, temperature, p
         prec_list.append(prec)
         recall_list.append(recall)
         f1_list.append(f1)
-        logging.info(f"| {project}-{model_type}-{temperature} "
+        print(f"| {project}-{model_type}-{temperature} "
                      f"| {(prec * 100):.1f} | {(recall * 100):.1f} | {(f1 * 100):.1f} |")
 
     avg_prec = sum(prec_list) / len(prec_list)
     avg_recall = sum(recall_list) / len(recall_list)
     avg_f1 = sum(f1_list) / len(f1_list)
-    logging.info(f"| avg-{model_type}-{temperature} "
+    print(f"| avg-{model_type}-{temperature} "
                  f"| {(avg_prec * 100):.1f} | {(avg_recall * 100):.1f} | {(avg_f1 * 100):.1f} |")
     return avg_prec, avg_recall, avg_f1
 
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
     parser = build_parser()
     args = parser.parse_args()
     running_epoch = args.running_epoch
