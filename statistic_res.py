@@ -54,6 +54,7 @@ def analyze_all_project(running_epoch, analysis_type, model_type, temperature, p
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     parser = build_parser()
     args = parser.parse_args()
     running_epoch = args.running_epoch
