@@ -23,6 +23,7 @@ from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMa
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
 from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
+from icall_analyzer.llm.zhipu_analyzer import ZhipuAnalyzer
 from icall_analyzer.llm.hf_analyzer import HuggingFaceAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
@@ -161,7 +162,10 @@ prices = {
 
     "gemini-pro": [0.001, 0.002],
     "text-bison-001": [0.001, 0.002],
-    "chat-bison-001": [0.001, 0.002]
+    "chat-bison-001": [0.001, 0.002],
+
+    "glm-4": [0.1, 0.1],
+    "glm-3-turbo ": [0.005, 0.005]
 }
 
 class ProjectAnalyzer:
@@ -259,6 +263,8 @@ class ProjectAnalyzer:
             llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "google":
             llm_analyzer = GeminiAnalyzer(self.model_name, self.args.key, self.args.temperature)
+        elif self.args.llm == "zhipu":
+            llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "hf":
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature, self.args.max_new_tokens)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,

@@ -21,6 +21,11 @@ def add_subparser(parser: argparse.ArgumentParser):
                                  'for more details, see: https://github.com/google/generative-ai-docs/blob/main/site/en/tutorials/python_quickstart.ipynb')
     gemini_parser.add_argument('--key', type=str, help='api key of google gemini')
 
+    zhipu_parser = subparsers.add_parser('zhipu', help='using zhipu model')
+    zhipu_parser.add_argument('--model_type', type=str, choices=['glm-4', 'glm-3.5-turbo'],
+                              help='model type of zhipu, refer to: https://open.bigmodel.cn/dev/api')
+    zhipu_parser.add_argument('--key', type=str, help='api key of zhipu')
+
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
     hf_parser.add_argument('--address', help='huggingface server ip:port, default to 127.0.0.1:8080',
                            default='127.0.0.1:8080')
@@ -94,7 +99,7 @@ def main():
 
     if args.llm == "hf":
         model_name = args.model_name
-    elif args.llm in {"gpt", "google"}:
+    elif args.llm in {"gpt", "google", "zhipu"}:
         model_name = args.model_type
     else:
         model_name = ""

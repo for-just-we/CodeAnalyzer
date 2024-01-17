@@ -28,9 +28,11 @@ symbol类型包括：
 
 传统静态分析部分参考[code-analyzer](code_analyzer/ReadMe.md)
 
-如果要使用openai的API，请先运行`pip install openai`，如果要使用google gemini，请运行 `pip install google-generativeai`。
+- 如果要使用openai的API，请先运行`pip install openai`
 
+- 如果要使用google gemini，请运行 `pip install google-generativeai`。
 
+- 如果调用ChatGLM的API，请先运行 `pip install zhipuai`。
 
 
 
