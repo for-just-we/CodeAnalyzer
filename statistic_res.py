@@ -27,10 +27,7 @@ def analyze(running_epoch, analysis_type, model_type, temperature, project):
     prec_str, recall_str, f1_str = line.split(',')
     prec = float(prec_str) / 100
     recall = float(recall_str) / 100
-    if prec + recall != 0:
-        f1 = 2 * prec * recall / (prec + recall)
-    else:
-        f1 = 0
+    f1 = float(f1_str) / 100
     return prec, recall, f1
 
 
