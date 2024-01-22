@@ -194,8 +194,6 @@ class SingleStepComplexMatcher:
                 type_message = TypeMessagePrompt1.format(func_pointer=func_pointer_text,
                                                          func_declarator=target_func_text)
             else:
-                if func_key not in self.uncertain_idxs[callsite_key].keys():
-                    logging.info("undetected uncertain_idx for callsite_key: {}, func_key: {}".format(callsite_key, func_key))
                 uncertain_idxs: Set[int] = self.uncertain_idxs[callsite_key][func_key]
                 sorted_list: List[int] = sorted(uncertain_idxs)
                 idx_text: str = ','.join(idx_2_text(idx) for idx in sorted_list)
@@ -227,7 +225,7 @@ class SingleStepComplexMatcher:
                 type_message = TypeMessagePrompt2.format(idx=idx_text, arg_text=arg_list_text,
                                                          func_decl_text=self.collector.func_key_2_declarator[func_key],
                                                          contexts=decl_context_text)
-
+        logging.info("prepare prompt for uncertain callsite: {}, {} start".format(callsite_key, func_key))
         total_user_prompt = User_Match.format(icall_expr=callsite_text,
                                               src_func_name=src_func_name,
                                               source_function_text=src_func_text,
@@ -235,7 +233,7 @@ class SingleStepComplexMatcher:
                                               target_function_text=target_func_text,
                                               additional_info=additional_info_icall,
                                               type_messge=type_message)
-
+        logging.info("prepare prompt for uncertain callsite: {}, {} end".format(callsite_key, func_key))
         if not self.double_prompt:
             total_user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
 
