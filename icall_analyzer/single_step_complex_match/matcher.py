@@ -221,11 +221,13 @@ class SingleStepComplexMatcher:
                                                                                                      idx]))
                         items.append(temp_text)
 
+                logging.info("prepare prompt for uncertain callsite: {}, {} start".format(callsite_key, func_key))
                 decl_context_text: str = "\n\n".join(items)
                 type_message = TypeMessagePrompt2.format(idx=idx_text, arg_text=arg_list_text,
                                                          func_decl_text=self.collector.func_key_2_declarator[func_key],
                                                          contexts=decl_context_text)
-        logging.info("prepare prompt for uncertain callsite: {}, {} start".format(callsite_key, func_key))
+                logging.info("prepare prompt for uncertain callsite: {}, {} end".format(callsite_key, func_key))
+
         total_user_prompt = User_Match.format(icall_expr=callsite_text,
                                               src_func_name=src_func_name,
                                               source_function_text=src_func_text,
@@ -233,7 +235,7 @@ class SingleStepComplexMatcher:
                                               target_function_text=target_func_text,
                                               additional_info=additional_info_icall,
                                               type_messge=type_message)
-        logging.info("prepare prompt for uncertain callsite: {}, {} end".format(callsite_key, func_key))
+
         if not self.double_prompt:
             total_user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
 
