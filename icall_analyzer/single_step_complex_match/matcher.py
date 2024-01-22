@@ -142,7 +142,6 @@ class SingleStepComplexMatcher:
                         desc=f"single step complex matching for {match_type} type matched callsite-{i}: {callsite_key}")
             futures = []
 
-
             # 用于捕获异常的列表
             def update_progress(future):
                 pbar.update(1)
@@ -155,17 +154,13 @@ class SingleStepComplexMatcher:
                     with lock:
                         self.matched_callsites[callsite_key].add(func_key)
 
-            for idx, func_key in tqdm(enumerate(matched_func_keys),
-                                      desc=f"single step complex matching for {match_type} type matched callsite-{i}: {callsite_key}"):
-                worker(func_key, idx)
+            for idx, func_key in enumerate(matched_func_keys):
+                future = executor.submit(worker, func_key, idx)
+                future.add_done_callback(update_progress)
+                futures.append(future)
 
-            # for idx, func_key in enumerate(matched_func_keys):
-            #     future = executor.submit(worker, func_key, idx)
-            #     future.add_done_callback(update_progress)
-            #     futures.append(future)
-            #
-            # for future in as_completed(futures):
-            #     future.result()
+            for future in as_completed(futures):
+                future.result()
 
         # 严格类型匹配
         analyze_callsite_type_matching("strict")

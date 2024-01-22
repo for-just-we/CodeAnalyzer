@@ -297,7 +297,7 @@ class ProjectAnalyzer:
         if self.args.pipeline == "only_type":
             self.evaluate_type_analysis(type_analyzer)
         # 随后进行语义匹配
-        elif self.args.pipeline in {"full", "single"}:
+        elif self.args.pipeline in {"full", "single", "single_complex"}:
             self.evaluate_semantic_analysis(semantic_analyzer)
 
     def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
