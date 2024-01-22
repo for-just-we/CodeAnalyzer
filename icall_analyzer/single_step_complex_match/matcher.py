@@ -142,16 +142,29 @@ class SingleStepComplexMatcher:
                         desc=f"single step complex matching for {match_type} type matched callsite-{i}: {callsite_key}")
             futures = []
 
+            # 用于捕获异常的列表
+            exceptions = []
+
             def update_progress(future):
+                nonlocal exceptions
                 pbar.update(1)
+                try:
+                    future.result()
+                except Exception as e:
+                    with lock:
+                        exceptions.append(e)
+
 
             def worker(func_key: str, idx: int):
-                flag = self.process_callsite_target(callsite_text, callsite_key, src_func_name, src_func_text,
+                try:
+                    flag = self.process_callsite_target(callsite_text, callsite_key, src_func_name, src_func_text,
                                                     target_analyze_log_dir, func_key, idx, match_type,
                                                     func_pointer_text, func_pointer_var_text)
-                if flag:
-                    with lock:
-                        self.matched_callsites[callsite_key].add(func_key)
+                    if flag:
+                        with lock:
+                            self.matched_callsites[callsite_key].add(func_key)
+                except Exception as e:
+                    exceptions.append(e)
 
             for idx, func_key in enumerate(matched_func_keys):
                 future = executor.submit(worker, func_key, idx)
@@ -160,6 +173,9 @@ class SingleStepComplexMatcher:
 
             for future in as_completed(futures):
                 future.result()
+
+            for exc in exceptions:
+                print(f"Exception in worker thread: {exc}")
 
         # 严格类型匹配
         analyze_callsite_type_matching("strict")
