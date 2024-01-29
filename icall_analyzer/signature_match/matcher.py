@@ -87,6 +87,7 @@ class TypeAnalyzer:
         self.macro_used_in_callsite: Dict[str, str] = dict()
 
         self.vote_time: int = args.vote_time
+        self.disable_analysis_for_macro: bool = args.disable_analysis_for_macro
 
         # llm帮助分析过的icall以及func_key
         self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
@@ -215,6 +216,8 @@ class TypeAnalyzer:
             # ToDo: mark all address-taken functions as uncertain
             self.macro_callsites.add(callsite_key)
             self.macro_used_in_callsite[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
+            if self.disable_analysis_for_macro:
+                return
 
         if icall_loc in func_body_visitor.icall_2_decl_text.keys():
             self.icall_2_decl_text[callsite_key] = func_body_visitor.icall_2_decl_text[icall_loc]
@@ -265,8 +268,6 @@ class TypeAnalyzer:
         arg_texts: List[str] = func_body_visitor.icall_2_arg_texts.get(icall_loc, None)
         callsite_text: str = func_body_visitor.icall_2_text.get(icall_loc, None)
         arg_list_text: str = func_body_visitor.icall_2_arg_text.get(icall_loc, None)
-
-
 
         # 如果加载了之前的分析结果
         if callsite_key in self.llm_declarator_analysis.keys():
@@ -586,6 +587,7 @@ class TypeAnalyzer:
                             if func_key in self.uncertain_callees[callsite_key]:
                                 self.uncertain_callees[callsite_key].remove(func_key)
                         else:
+                            func_set.add(func_key)
                             self.cast_callees[callsite_key].add(func_key)
                             # 如果在之前的匹配结果中匹配出了uncertain
                             if func_key in self.uncertain_callees[callsite_key]:
@@ -620,10 +622,7 @@ class TypeAnalyzer:
                 futures.append(future)
 
             for future in as_completed(futures):
-                try:
-                    future.result(timeout=60)
-                except TimeoutError:
-                    logging.info("thread time out")
+                future.result()
 
         # 遍历固定参数数量的函数列表
         fixed_num_func_keys: Set[str] = self.collector.param_nums_2_func_keys.get(arg_num, {})
@@ -699,10 +698,7 @@ class TypeAnalyzer:
                 futures.append(future)
 
             for future in as_completed(futures):
-                try:
-                    future.result(timeout=60)
-                except TimeoutError:
-                    logging.info("thread time out")
+                future.result()
 
         # 遍历固定参数数量的函数列表
         fixed_num_func_keys: Set[str] = self.collector.param_nums_2_func_keys.get(arg_num, {})
@@ -831,10 +827,8 @@ class TypeAnalyzer:
                 futures.append(future)
 
             for future in as_completed(futures):
-                try:
-                    future.result(timeout=60)
-                except TimeoutError:
-                    logging.info("thread time out")
+                future.result()
+
 
         # 遍历固定参数数量的函数列表
         fixed_num_func_keys: Set[str] = self.collector.param_nums_2_func_keys.get(arg_num, {})
