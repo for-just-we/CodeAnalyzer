@@ -161,7 +161,10 @@ prices = {
     "chat-bison-001": [0.001, 0.002],
 
     "glm-4": [0.1, 0.1],
-    "glm-3-turbo ": [0.005, 0.005]
+    "glm-3-turbo ": [0.005, 0.005],
+
+    "qwen-turbo": [0.008, 0.008],
+    "qwen-plus": [0.02, 0.02]
 }
 
 class ProjectAnalyzer:
@@ -369,7 +372,7 @@ class ProjectAnalyzer:
         if type_analyzer.llm_analyzer is not None and \
                 hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
                 hasattr(type_analyzer.llm_analyzer, "output_token_num"):
-            price = prices[type_analyzer.llm_analyzer.model_type]
+            price = prices.get(type_analyzer.llm_analyzer.model_type, [0, 0])
             cost = count_cost(type_analyzer.llm_analyzer.input_token_num,
                               type_analyzer.llm_analyzer.output_token_num,
                               price[0], price[1])
