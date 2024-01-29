@@ -28,13 +28,17 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
         third int is the times of retry
         error code refer to: https://help.aliyun.com/zh/dashscope/developer-reference/return-status-code-description
         """
-        response: GenerationResponse = dashscope.Generation.call(
-            self.model_type,
-            messages=dialog,
-            api_key=self.api_key,
-            result_format='message',  # set the result to be "message" format.
-            temperature=self.temperature
-        )
+        try:
+            response: GenerationResponse = dashscope.Generation.call(
+                self.model_type,
+                messages=dialog,
+                api_key=self.api_key,
+                result_format='message',  # set the result to be "message" format.
+                temperature=self.temperature
+            )
+        except Exception as e:
+            logging.debug("encounter error: {}".format(e))
+            return (str(e), False, times + 1)
         if response.status_code == HTTPStatus.OK:
             resp_text: str = response["output"]["choices"][0]["message"]["content"]
             input_token_num: int = response["usage"]["input_tokens"]
