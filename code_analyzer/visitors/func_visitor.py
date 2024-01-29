@@ -1,8 +1,13 @@
+from tree_sitter import Tree
 from code_analyzer.schemas.ast_node import ASTNode
+from code_analyzer.config import parser
+from code_analyzer.preprocessor.node_processor import processor
 from typing import Dict, List, Tuple, Set
 
 from code_analyzer.visitors.base_visitor import ASTVisitor
 from code_analyzer.visitors.util_visitor import CastTypeDescriptorVisitor
+from code_analyzer.visitors.macro_visitor import ICallVisitor
+
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.schemas.enums import TypeEnum
 from code_analyzer.visit_utils.decl_util import DeclareTypeException, process_declarator, \
@@ -11,6 +16,7 @@ from code_analyzer.visit_utils.type_util import parsing_type, get_original_type,
     get_original_type_with_name
 from code_analyzer.visit_utils.func_type import get_func_pointer_name
 from code_analyzer.definition_collector import BaseInfoCollector
+from code_analyzer.macro_expand import MacroCallExpandUtil
 
 import logging
 
@@ -212,8 +218,6 @@ class FunctionBodyVisitor(ASTVisitor):
         self.arg_declarators: Dict[str, str] = arg_declarators
         self.arg_info_4_callsite: Dict[Tuple[int, int], List[Tuple[str, int]]] = dict()
 
-
-
         # 每一个indirect-call的文本s
         self.icall_nodes: Dict[Tuple[int, int], ASTNode] = dict()
         # 每一个indirect-call对应的函数指针声明的参数类型
@@ -267,17 +271,52 @@ class FunctionBodyVisitor(ASTVisitor):
     def visit_call_expression(self, node: ASTNode):
         if not node.start_point in self.icall_infos:
             return True
+        call_expr_node: ASTNode = node
+
         # 为宏函数
         if node.children[0].node_type == "identifier":
             call_expr_str = node.children[0].node_text
+            # 如果是宏函数调用
             if call_expr_str in self.collector.macro_funcs:
                 self.current_macro_funcs[node.start_point] = call_expr_str
+                # 展开宏调用
+                expand_util = MacroCallExpandUtil(self.collector.macro_func_bodies,
+                                                  self.collector.macro_func_args,
+                                                  self.collector.global_visitor.var_arg_macro_funcs)
+                try:
+                    code_text: str = expand_util.expand_macro_call(node)
+                except IndexError as e:
+                    return False
+
+                # 获取宏展开后新定义的变量
+                macro_local_var_visitor = LocalVarVisitor(self.collector.global_visitor)
+                expand_call_tree: Tree = parser.parse(code_text.encode("utf-8"))
+                expand_root_node: ASTNode = processor.visit(expand_call_tree.root_node)
+                macro_local_var_visitor.traverse_node(expand_root_node)
+                self.local_var_infos.update(macro_local_var_visitor.local_var_infos)
+                self.local_var2declarator.update(macro_local_var_visitor.local_var_2_declarator_text)
+
+                # 找到宏调用
+                args: Set[str] = set(self.arg_declarators.keys())
+                global_vars: Set[str] = set(self.collector.global_var_2_declarator_text.keys())
+                local_vars: Set[str] = set(self.local_var2declarator.keys())
+                icall_visitor = ICallVisitor(global_vars, local_vars, args)
+                icall_visitor.traverse_node(expand_root_node)
+
+                # 没有提取到indirect-call
+                if icall_visitor.call_expr is None:
+                    return False
+
+                call_expr_node = icall_visitor.call_expr
+                call_expr_node.start_point = node.start_point
+                call_expr_node.end_point = node.end_point
+
         # 解析函数指针变量的类型
-        assert hasattr(node, "argument_list")
-        self.icall_2_text[node.start_point] = node.node_text
-        self.icall_2_arg_text[node.start_point] = node.argument_list.node_text
+        assert hasattr(call_expr_node, "argument_list")
+        self.icall_2_text[call_expr_node.start_point] = call_expr_node.node_text
+        self.icall_2_arg_text[call_expr_node.start_point] = call_expr_node.argument_list.node_text
         # 解析callee expression
-        type_name, pointer_level, declarator = self.process_argument(node.children[0], 0, node.start_point)
+        type_name, pointer_level, declarator = self.process_argument(call_expr_node.children[0], 0, call_expr_node.start_point)
         type_name, pointer_level = parsing_type((type_name, pointer_level))
 
         potential_func_type_name, flag = self.get_original_func_type(type_name)
@@ -285,18 +324,18 @@ class FunctionBodyVisitor(ASTVisitor):
         # 但是如果type_name不是function_type说明函数类型被typedef
         if type_name != TypeEnum.FunctionType.value \
                 and flag:
-            self.icall_2_decl_param_types[node.start_point] = \
+            self.icall_2_decl_param_types[call_expr_node.start_point] = \
                     self.collector.func_type2param_types[potential_func_type_name]
-            self.icall_2_decl_text[node.start_point] = self.collector. \
+            self.icall_2_decl_text[call_expr_node.start_point] = self.collector. \
                                 func_type2raw_declarator[potential_func_type_name]
-            self.icall_2_decl_var_text[node.start_point] = declarator
+            self.icall_2_decl_var_text[call_expr_node.start_point] = declarator
 
         # 解析argument_list
-        arg_type_infos, all_arg_decls, all_arg_texts = self.process_argument_list(node.argument_list)
-        self.icall_2_arg_texts[node.start_point] = all_arg_texts
-        self.arg_info_4_callsite[node.start_point] = arg_type_infos
-        self.icall_2_arg_declarators[node.start_point] = all_arg_decls
-        self.icall_nodes[node.start_point] = node
+        arg_type_infos, all_arg_decls, all_arg_texts = self.process_argument_list(call_expr_node.argument_list)
+        self.icall_2_arg_texts[call_expr_node.start_point] = all_arg_texts
+        self.arg_info_4_callsite[call_expr_node.start_point] = arg_type_infos
+        self.icall_2_arg_declarators[call_expr_node.start_point] = all_arg_decls
+        self.icall_nodes[call_expr_node.start_point] = call_expr_node
 
         return True
 
@@ -451,7 +490,7 @@ class FunctionBodyVisitor(ASTVisitor):
 
         # 类型转换
         elif node.node_type == "cast_expression":
-            assert node.child_count == 2
+            # assert node.child_count == 2
             assert hasattr(node, "type_descriptor")
             descriptor_visitor = CastTypeDescriptorVisitor()
             descriptor_visitor.traverse_node(node.type_descriptor)

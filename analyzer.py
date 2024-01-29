@@ -21,10 +21,6 @@ from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
-from icall_analyzer.llm.gemini_analyzer import GeminiAnalyzer
-from icall_analyzer.llm.zhipu_analyzer import ZhipuAnalyzer
-from icall_analyzer.llm.hf_analyzer import HuggingFaceAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -258,14 +254,23 @@ class ProjectAnalyzer:
                                                          func_info_dict, global_visitor,
                                                          func_key_2_declarator)
         collector.build_all()
+
+
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
+            from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
             llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "google":
-            llm_analyzer = GeminiAnalyzer(self.model_name, self.args.key, self.args.temperature)
+            from icall_analyzer.llm.google_analyzer import GoogleAnalyzer
+            llm_analyzer = GoogleAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "zhipu":
+            from icall_analyzer.llm.zhipu_analyzer import ZhipuAnalyzer
             llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, self.args.temperature)
+        elif self.args.llm == "tongyi":
+            from icall_analyzer.llm.tongyi_analyzer import TongyiAnalyzer
+            llm_analyzer = TongyiAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "hf":
+            from icall_analyzer.llm.hf_analyzer import HuggingFaceAnalyzer
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature, self.args.max_new_tokens)
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project, self.callsite_idxs)

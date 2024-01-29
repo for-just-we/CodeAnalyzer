@@ -26,6 +26,11 @@ def add_subparser(parser: argparse.ArgumentParser):
                               help='model type of zhipu, refer to: https://open.bigmodel.cn/dev/api')
     zhipu_parser.add_argument('--key', type=str, help='api key of zhipu')
 
+    tongyi_parser = subparsers.add_parser('tongyi', help='using alibaba tongyi qwen')
+    tongyi_parser.add_argument('--model_type', type=str, choices=['qwen-max', 'qwen-max-1201', 'qwen-max-longcontext',
+                                                                  'qwen-turbo', 'qwen-plus'])
+    tongyi_parser.add_argument('--key', type=str, help='api key of tongyi qwen')
+
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
     hf_parser.add_argument('--address', help='huggingface server ip:port, default to 127.0.0.1:8080',
                            default='127.0.0.1:8080')
@@ -99,7 +104,7 @@ def main():
 
     if args.llm == "hf":
         model_name = args.model_name
-    elif args.llm in {"gpt", "google", "zhipu"}:
+    elif args.llm in {"gpt", "google", "zhipu", "tongyi"}:
         model_name = args.model_type
     else:
         model_name = ""

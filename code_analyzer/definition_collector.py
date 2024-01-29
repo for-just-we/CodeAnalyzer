@@ -82,6 +82,7 @@ class BaseInfoCollector:
 
         # func key映射到declarator
         self.func_key_2_declarator: Dict[str, str] = func_key_2_declarator
+        self.global_visitor: GlobalVisitor = global_visitor
 
 
     # 构建查询结构

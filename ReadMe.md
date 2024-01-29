@@ -34,5 +34,7 @@ symbol类型包括：
 
 - 如果调用ChatGLM的API，请先运行 `pip install zhipuai`。
 
+- 如果调用通义千问的API，请运行 `pip install dashscope`。
+
 
 

@@ -20,7 +20,7 @@ def num_tokens_from_string(string: str) -> int:
     num_tokens = len(encoding.encode(string))
     return num_tokens
 
-class GeminiAnalyzer(BaseLLMAnalyzer):
+class GoogleAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, temperature: float=0):
         super().__init__(model_type)
         genai.configure(api_key=api_key)

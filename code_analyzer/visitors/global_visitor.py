@@ -18,6 +18,7 @@ class GlobalVisitor(ASTVisitor):
         self.macro_func_args: DefaultDict[str, List[str]] = defaultdict(list)
         self.macro_func_bodies: Dict[str, str] = dict()
         self.macro_texts: Dict[str, str] = dict()
+        self.var_arg_macro_funcs: Set[str] = set()
 
         self.anonymous_struct_num: int = 0
         self.anoymous_enum_num: int = 0
@@ -92,9 +93,17 @@ class GlobalVisitor(ASTVisitor):
         self.macro_func_bodies[macro] = preproc_arg
         self.macro_defs[macro] = node.node_text
 
+        macro_args: List[str] = list()
         for child in node.preproc_params.children:
             code: str = child.node_text
-            self.macro_func_args[macro].append(code)
+            if code != "...":
+                macro_args.append(code)
+            else:
+                self.var_arg_macro_funcs.add(macro)
+                # 如果是args...这样的可变参数名
+                if child.node_type == "ERROR":
+                    macro_args.pop()
+        self.macro_func_args[macro] = macro_args
         return False
 
     # 处理类型定义

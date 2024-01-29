@@ -215,8 +215,6 @@ class TypeAnalyzer:
             # ToDo: mark all address-taken functions as uncertain
             self.macro_callsites.add(callsite_key)
             self.macro_used_in_callsite[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
-            self.uncertain_callees[callsite_key].update(self.collector.considered_funcs)
-            return
 
         if icall_loc in func_body_visitor.icall_2_decl_text.keys():
             self.icall_2_decl_text[callsite_key] = func_body_visitor.icall_2_decl_text[icall_loc]
