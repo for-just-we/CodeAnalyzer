@@ -408,7 +408,7 @@ class ProjectAnalyzer:
 
         if llm_analyzer is not None and hasattr(llm_analyzer, "input_token_num") and \
                 hasattr(llm_analyzer, "output_token_num"):
-            price = prices[llm_analyzer.model_type]
+            price = prices.get(llm_analyzer.model_type, [0, 0])
             cost = count_cost(llm_analyzer.input_token_num, llm_analyzer.output_token_num,
                               price[0], price[1])
             logging.info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
