@@ -2,6 +2,7 @@ import os
 import yaml
 import argparse
 
+from typing import List
 from analyzer import ProjectAnalyzer
 import logging
 
@@ -46,7 +47,7 @@ def build_arg_parser():
     parser.add_argument("--log_llm_output", action="store_true", default=False,
                         help="If true, log llm output to log file")
     # 添加--project参数，并设置nargs='+'，以接受一个或多个值
-    parser.add_argument("--projects", nargs='+', help="One or more projects to analyze")
+    parser.add_argument("--projects", type=str, help="One or more projects to analyze")
     parser.add_argument("--scope_strategy", type=str, choices=['no', 'base'], default='base',
                         help='scope strategy to use')
     parser.add_argument("--max_try_time", type=int, default=3, help="max trying time for one llm query")
@@ -96,7 +97,7 @@ def main():
     # 检查是否提供了项目参数
     if not args.projects:
         parser.error("You must specify one or more project to analyze")
-
+    projects: List[str] = args.projects.split(',')
     if args.debug:
         logging.basicConfig(level=logging.DEBUG)
     else:
@@ -110,7 +111,7 @@ def main():
         model_name = ""
 
     # 打印项目参数的值
-    for project in args.projects:
+    for project in projects:
         logging.info(f"analyzing project: {project}")
         project_included_func_file = os.path.join(root_path, "infos", "funcs", f"{project}.txt")
         icall_infos_file = os.path.join(root_path, "infos", "icall_infos", f"{project}.txt")
