@@ -314,6 +314,7 @@ class ProjectAnalyzer:
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+        line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
@@ -322,6 +323,7 @@ class ProjectAnalyzer:
             P, R, F1 = evaluate(icall_2_targets1, self.ground_truths)
             logging.info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
+            line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
         def analyze_binary(all_potential_targets: Dict[str, Set[str]],
                            all_ground_truths: Dict[str, Set[str]],
@@ -385,6 +387,13 @@ class ProjectAnalyzer:
                 "| {} | {} | {} | {} | {:.2f} |".format(self.project, type_analyzer.llm_analyzer.input_token_num,
                                                         type_analyzer.llm_analyzer.output_token_num,
                                                         type_analyzer.llm_analyzer.model_type, cost))
+
+        if self.args.log_res_to_file:
+            logging.info("writing result to evaluation_result.txt")
+            assert hasattr(type_analyzer, "log_dir")
+            with open(f"{type_analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
+                f.write(line)
+                logging.info("writing success")
 
 
     def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher]):

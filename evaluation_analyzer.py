@@ -102,6 +102,10 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
+    # 移除控制台输出的 ERROR 级别的处理器
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.StreamHandler) and handler.level == logging.ERROR:
+            logging.getLogger().removeHandler(handler)
 
     if args.llm == "hf":
         model_name = args.model_name
