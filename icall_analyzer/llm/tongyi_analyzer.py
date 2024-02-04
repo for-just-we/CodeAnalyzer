@@ -27,6 +27,7 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
         second bool is whether the response is valid, True means valid, False means error occur
         third int is the times of retry
         error code refer to: https://help.aliyun.com/zh/dashscope/developer-reference/return-status-code-description
+        temperature refer to: https://help.aliyun.com/zh/dashscope/developer-reference/api-details
         """
         try:
             response: GenerationResponse = dashscope.Generation.call(

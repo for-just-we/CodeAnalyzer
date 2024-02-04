@@ -10,7 +10,8 @@ def build_parser():
     parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder',
                                                            'text-bison-001',
                                                            'chat-bison-001',
-                                                           'gemini-pro'])
+                                                           'gemini-pro',
+                                                           'qwen-max'])
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
     parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")
@@ -21,7 +22,10 @@ def build_parser():
 def analyze(running_epoch, analysis_type, model_type, temperature, project):
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
                 f'{model_type}-{temperature}/{project}/evaluation_result.txt'
-    assert os.path.exists(file_path)
+    # assert os.path.exists(file_path)
+    if not os.path.exists(file_path):
+        print("missing project: {}".format(project))
+        return 0, 0, 0
     lines = open(file_path).readlines()
     line = lines[0].strip()
     prec_str, recall_str, f1_str = line.split(',')

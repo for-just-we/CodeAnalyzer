@@ -421,6 +421,8 @@ class ProjectAnalyzer:
             line = line + "\n" + line3
 
         if self.args.log_res_to_file:
+            logging.info("writing result to evaluation_result.txt")
             assert hasattr(analyzer, "log_dir")
             with open(f"{analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
                 f.write(line)
+                logging.info("writing success")
