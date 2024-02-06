@@ -391,17 +391,17 @@ class TypeAnalyzer:
         if self.match_pointer_type(arg_type, param_type):
             return MatchingResult.YES, False
 
-        if self.is_type_contain(arg_type, param_type):
-            return MatchingResult.YES, False
-        elif self.is_type_contain(param_type, arg_type):
-            return MatchingResult.YES, False
-
-        # 如果不需要LLM来辅助
-        if self.llm_analyzer is None or not self.llm_help_cast or self.disable_llm_for_uncertain:
-            return MatchingResult.NO, False
-        elif self.is_parent_child_relation(arg_type, param_type,
-                                           ori_arg_type_name, ori_param_type_name):
-            return MatchingResult.YES, True
+        # if self.is_type_contain(arg_type, param_type):
+        #     return MatchingResult.YES, False
+        # elif self.is_type_contain(param_type, arg_type):
+        #     return MatchingResult.YES, False
+        #
+        # # 如果不需要LLM来辅助
+        # if self.llm_analyzer is None or not self.llm_help_cast or self.disable_llm_for_uncertain:
+        #     return MatchingResult.NO, False
+        # elif self.is_parent_child_relation(arg_type, param_type,
+        #                                    ori_arg_type_name, ori_param_type_name):
+        #     return MatchingResult.YES, True
 
         return MatchingResult.NO, False
 
