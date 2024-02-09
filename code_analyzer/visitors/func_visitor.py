@@ -240,6 +240,10 @@ class FunctionBodyVisitor(ASTVisitor):
 
         # 保存宏函数
         self.current_macro_funcs: Dict[Tuple[int, int], str] = dict()
+        # 宏展开后的代码
+        self.expanded_macros: Dict[Tuple[int, int], str] = dict()
+        # 宏调用代码
+        self.macro_call_exprs: Dict[Tuple[int, int], str] = dict()
         self.collector: BaseInfoCollector = collector
 
     def set_func_var2param_types(self, func_var2param_types: Dict[str, List[str]]):
@@ -288,6 +292,8 @@ class FunctionBodyVisitor(ASTVisitor):
                 except IndexError as e:
                     return False
 
+                self.expanded_macros[node.start_point] = code_text
+                self.macro_call_exprs[node.start_point] = node.node_text
                 # 获取宏展开后新定义的变量
                 macro_local_var_visitor = LocalVarVisitor(self.collector.global_visitor)
                 expand_call_tree: Tree = parser.parse(code_text.encode("utf-8"))

@@ -23,6 +23,25 @@ To analyze the functionality of the indirect call {icall_expr}, follow these two
 
 You should only response with a concise summary of the indirect call functionality."""
 
+
+User_ICall_Summary_Macro = """The expression of the indirect-call is: {icall_expr}
+
+It is located within function {func_name}, whose definition is as follows:
+
+{func_body}
+
+Also, the indirect-call may not be seen util expand macro call {macro_call_expr}, the expanded macro text is: {expanded_macro}
+
+To analyze the functionality of the indirect call {icall_expr}, follow these two steps:
+
+- 1.Summarize the functionality of the {func_name} function to understand its purpose.
+
+- 2.Examine the code surrounding the indirect call {icall_expr} in the expanded macro text and macro call {macro_call_expr} in function {func_name} to determine the specific use of the indirect-call within the context.
+
+You should only response with a concise summary of the indirect call functionality."""
+
+
+
 # prompt大模型分析一个target function和indirect-call的summary并判定它们是否匹配
 System_Match = """You're a code analyzer tasked with assessing whether an indirect call can invoke a target function, given their respective summaries."""
 

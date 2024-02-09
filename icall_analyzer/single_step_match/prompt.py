@@ -28,6 +28,28 @@ Using this information, ascertain whether the indirect-call {icall_expr} can inv
 
 - 3.Determine whether the indirect-call can invoke the target function based on their functionality. You don't need to consider type match, data-flow, control-flow."""
 
+
+User_Match_macro = """The indirect-call expression is: {icall_expr}.
+
+It is located within function {src_func_name}, whose definition is as follows:
+
+{source_function_text}
+
+Where the indirect-call expression can be seen after expand macro call: {macro_call_expr}, the expanded macro text is: {macro_text}.
+
+The target function is named: {target_func_name}, with the following definition:
+
+{target_function_text}
+
+Using this information, ascertain whether the indirect-call {icall_expr} can invoke the target function {target_func_name} in following steps:
+
+- 1.Analyze the purpose of indirect-call: Examine the code surrounding the indirect call {icall_expr} and determine its specific use within function {src_func_name}.
+
+- 2.Analyze the functionality of the target function {target_func_name} to understand its purpose.
+
+- 3.Determine whether the indirect-call can invoke the target function based on their functionality. You don't need to consider type match, data-flow, control-flow.
+"""
+
 supplement_prompts = {
 "user_prompt_match": "If the indirect-call can invoke the target function, answer 'yes'; otherwise, answer 'no'.",
 }

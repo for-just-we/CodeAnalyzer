@@ -5,14 +5,14 @@ from code_analyzer.schemas.function_info import FuncInfo
 from icall_analyzer.llm.common_prompt import summarizing_prompt
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
-from icall_analyzer.single_step_match.prompt import System_Match, User_Match, supplement_prompts
+from icall_analyzer.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
 
 from tqdm import tqdm
 import os
 import logging
 from typing import Dict, Set, DefaultDict, List
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 class SingleStepMatcher:
@@ -33,6 +33,9 @@ class SingleStepMatcher:
         self.icall_2_func: Dict[str, str] = type_analyzer.icall_2_func
         self.icall_nodes: Dict[str, ASTNode] = type_analyzer.icall_nodes
         self.macro_callsites: Set[str] = type_analyzer.macro_callsites
+
+        self.expanded_macros: Dict[str, str] = type_analyzer.expanded_macros
+        self.macro_call_exprs: Dict[str, str] = type_analyzer.macro_call_exprs
 
         # 严格类型匹配成功的callsite
         self.strict_type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees
@@ -89,8 +92,13 @@ class SingleStepMatcher:
             i: int = self.callsite_idxs[callsite_key]
             if callsite_key in self.macro_callsites and self.args.disable_analysis_for_macro:
                 continue
+            elif callsite_key not in self.macro_callsites and self.args.disable_analysis_for_normal:
+                continue
             # 首先找出该callsite所在function
-            self.process_normal_callsite(callsite_key, i)
+            if callsite_key in self.macro_callsites:
+                self.process_macro_callsite(callsite_key, i)
+            else:
+                self.process_normal_callsite(callsite_key, i)
 
             # 如果log，记录下分析结果
             if self.log_flag:
@@ -156,6 +164,61 @@ class SingleStepMatcher:
                                        target_analyze_log_dir, "uncertain")
 
 
+    def process_macro_callsite(self, callsite_key: str, i: int):
+        # 首先找出该callsite所在function
+        parent_func_key: str = self.icall_2_func[callsite_key]
+        parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]
+        src_func_name: str = parent_func_info.func_name
+        src_func_text: str = parent_func_info.func_def_text
+        callsite_text: str = self.icall_nodes[callsite_key].node_text
+        expanded_macro: str = self.expanded_macros[callsite_key]
+        macro_call_expr: str = self.macro_call_exprs[callsite_key]
+
+        cur_log_dir = f"{self.log_dir}/callsite-{i}"
+        target_analyze_log_dir = f"{cur_log_dir}/single"
+        # 如果需要log
+        if self.log_flag:
+            if not os.path.exists(target_analyze_log_dir):
+                os.makedirs(target_analyze_log_dir)
+
+        def analyze_callsite_type_matching(match_type):
+            matched_func_keys: Set[str] = getattr(self, f"{match_type}_type_matched_callsites", {}).get(
+                callsite_key, set())
+
+            lock = threading.Lock()
+            executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
+            pbar = tqdm(total=len(matched_func_keys),
+                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}")
+            futures = []
+
+            def update_progress(future):
+                pbar.update(1)
+
+            def worker(func_key: str, idx: int):
+                flag = self.process_macro_callsite_target(callsite_text, expanded_macro, macro_call_expr, src_func_name, src_func_text,
+                                                    target_analyze_log_dir, func_key, idx, match_type)
+                if flag:
+                    with lock:
+                        self.matched_callsites[callsite_key].add(func_key)
+
+            for idx, func_key in enumerate(matched_func_keys):
+                future = executor.submit(worker, func_key, idx)
+                future.add_done_callback(update_progress)
+                futures.append(future)
+
+            for future in as_completed(futures):
+                future.result()
+
+        # 严格类型匹配
+        analyze_callsite_type_matching("strict")
+
+        # Cast类型匹配
+        analyze_callsite_type_matching("cast")
+
+        # Uncertain类型匹配
+        analyze_callsite_type_matching("uncertain")
+
+
     def process_callsite_target(self, callsite_text: str,
                                 src_func_name: str, src_func_text: str,
                                 target_analyze_log_dir: str, func_key: str, idx: int, typ: str) -> bool:
@@ -171,10 +234,33 @@ class SingleStepMatcher:
             user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
 
         contents: List[str] = [System_Match, user_prompt]
+        return self.query_llm(contents, target_analyze_log_dir, f"{typ}-{idx}.txt")
 
+
+    def process_macro_callsite_target(self, callsite_text: str, expanded_macro: str, macro_call_expr: str,
+                                      src_func_name: str, src_func_text: str,
+                                      target_analyze_log_dir: str, func_key: str, idx: int, typ: str) -> bool:
+        func_info: FuncInfo = self.collector.func_info_dict[func_key]
+        target_func_name: str = func_info.func_name
+        target_func_text: str = func_info.func_def_text
+        user_prompt = User_Match_macro.format(icall_expr=callsite_text,
+                                        src_func_name=src_func_name,
+                                        source_function_text=src_func_text,
+                                        macro_call_expr=macro_call_expr,
+                                        macro_text=expanded_macro,
+                                        target_func_name=target_func_name,
+                                        target_function_text=target_func_text)
+        if not self.double_prompt:
+            user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
+
+        contents: List[str] = [System_Match, user_prompt]
+        return self.query_llm(contents, target_analyze_log_dir, f"{typ}-{idx}.txt")
+
+
+    def query_llm(self, contents: List[str], target_analyze_log_dir, file_name) -> bool:
         prompt_log: str = ""
 
-        prompt_log += "query:\n{}\n\n{}\n=========================\n".format(System_Match, user_prompt)
+        prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
 
         yes_time = 0
         # 投票若干次
@@ -199,10 +285,8 @@ class SingleStepMatcher:
         prompt_log += "Final Answer: {}\n\n".format(flag)
         # 如果需要log
         if self.log_flag:
-            prompt_file = f"{typ}-{idx}.txt"
+            prompt_file = file_name
             open(os.path.join(target_analyze_log_dir, prompt_file), 'w', encoding='utf-8') \
                 .write(prompt_log)
 
         return flag
-
-

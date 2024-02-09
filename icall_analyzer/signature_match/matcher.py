@@ -21,7 +21,7 @@ from tqdm import tqdm
 from collections import defaultdict
 from typing import Dict, List, Tuple, Set, DefaultDict
 import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 base_pointer_type = {"void", "char"}
@@ -85,9 +85,12 @@ class TypeAnalyzer:
         self.running_epoch: int = args.running_epoch
         self.macro_callsites: Set[str] = set()
         self.macro_used_in_callsite: Dict[str, str] = dict()
+        self.expanded_macros: Dict[str, str] = dict()
+        self.macro_call_exprs: Dict[str, str] = dict()
 
         self.vote_time: int = args.vote_time
         self.disable_analysis_for_macro: bool = args.disable_analysis_for_macro
+        self.disable_analysis_for_normal: bool = args.disable_analysis_for_normal
 
         # llm帮助分析过的icall以及func_key
         self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
@@ -211,13 +214,17 @@ class TypeAnalyzer:
     # 处理一个indirect-call
     def process_indirect_call(self, callsite_key: str, icall_loc: Tuple[int, int],
                               func_body_visitor: FunctionBodyVisitor):
+        if icall_loc in func_body_visitor.current_macro_funcs.keys() and self.disable_analysis_for_macro:
+            return
+        elif icall_loc not in func_body_visitor.current_macro_funcs.keys() and self.disable_analysis_for_normal:
+            return
         # 如果是宏函数
         if icall_loc in func_body_visitor.current_macro_funcs.keys():
             # ToDo: mark all address-taken functions as uncertain
             self.macro_callsites.add(callsite_key)
             self.macro_used_in_callsite[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
-            if self.disable_analysis_for_macro:
-                return
+            self.expanded_macros[callsite_key] = func_body_visitor.expanded_macros[icall_loc]
+            self.macro_call_exprs[callsite_key] = func_body_visitor.macro_call_exprs[icall_loc]
 
         if icall_loc in func_body_visitor.icall_2_decl_text.keys():
             self.icall_2_decl_text[callsite_key] = func_body_visitor.icall_2_decl_text[icall_loc]
