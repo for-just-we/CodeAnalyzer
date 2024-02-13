@@ -1,17 +1,13 @@
 import requests
 import json
+from icall_analyzer.llm.preprocess_prompt import preprocess_prompt
 
-def test_icall_decl(address: str, double: bool=False):
-    from test_data import context, summ
-    input = context
-    if not double:
-        input = input + "\n" + summ
-
+def query(address: str, prompt: str):
     headers = {
         "Content-Type": "application/json"
     }
     data = {
-        "inputs": input,
+        "inputs": prompt,
         "parameters": {"max_new_tokens": 1024,
                        "temperature": 0.5}
     }
@@ -27,12 +23,23 @@ def test_icall_decl(address: str, double: bool=False):
         # 解析服务器的字符串响应
         response_data_json: dict = json.loads(response.text)
         print("Response from server:\n", response_data_json['generated_text'])
+        resp = response_data_json['generated_text']
     else:
         print("Error: Server returned a non-200 status code or encounter invalid result")
+        resp = "ERROR"
 
-import sys
+    return resp
 
-if __name__ == '__main__':
-    address = sys.argv[1]
-    flag = sys.argv[2] == "True"
-    test_icall_decl(address, flag)
+
+def test_icall_decl(model_type: str, address: str):
+    from ..test_data1 import system_prompt, user_prompt
+    from icall_analyzer.llm.common_prompt import summarizing_prompt
+
+    prompt = preprocess_prompt(model_type, [system_prompt, user_prompt])
+    resp = query(address, prompt)
+
+    tokens = resp.split(" ")
+    if len(tokens) >= 8:
+        input_prompt = summarizing_prompt.format(resp)
+        prompt = preprocess_prompt(model_type, [input_prompt])
+        resp = query(address, prompt)

@@ -7,7 +7,7 @@ def build_parser():
                                                               'single_step_complex_analysis',
                                                               'semantic_analysis'])
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
-    parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder',
+    parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder', 'qwen', 'chatglm',
                                                            'text-bison-001',
                                                            'chat-bison-001',
                                                            'gemini-pro',

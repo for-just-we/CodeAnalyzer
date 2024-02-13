@@ -35,7 +35,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
     hf_parser.add_argument('--address', help='huggingface server ip:port, default to 127.0.0.1:8080',
                            default='127.0.0.1:8080')
-    hf_parser.add_argument('--model_name', choices=['codellama', 'wizardcoder'],
+    hf_parser.add_argument('--model_name', choices=['codellama', 'wizardcoder', 'chatglm', 'qwen'],
                            help='specify model name used. Could be codellama or WizardCoder')
     hf_parser.add_argument('--max_new_tokens', type=int, default=20)
 

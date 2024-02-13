@@ -1,5 +1,6 @@
 import sys
 from huggingface_hub import InferenceClient
+from icall_analyzer.llm.preprocess_prompt import preprocess_prompt
 
 summarizing_prompt = """If the following text provides a positive response, answer with only 'yes'; else if it provides a negative response, answer with only 'no'.
 
@@ -8,7 +9,7 @@ summarizing_prompt = """If the following text provides a positive response, answ
 """
 
 def test_icall_decl(client: InferenceClient, double: bool=False):
-    from test_data import context, summ
+    from ..test_data import context, summ
     input = context
     if not double:
         input = input + "\n" + summ
