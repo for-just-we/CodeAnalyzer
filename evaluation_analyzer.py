@@ -23,9 +23,10 @@ def add_subparser(parser: argparse.ArgumentParser):
     gemini_parser.add_argument('--key', type=str, help='api key of google gemini')
 
     zhipu_parser = subparsers.add_parser('zhipu', help='using zhipu model')
-    zhipu_parser.add_argument('--model_type', type=str, choices=['glm-4', 'glm-3.5-turbo'],
+    zhipu_parser.add_argument('--model_type', type=str, choices=['glm-4', 'glm-3.5-turbo', 'chatglm3_6b'],
                               help='model type of zhipu, refer to: https://open.bigmodel.cn/dev/api')
-    zhipu_parser.add_argument('--key', type=str, help='api key of zhipu')
+    zhipu_parser.add_argument('--key', type=str, help='api key of zhipu', default="")
+    zhipu_parser.add_argument('--zhipu_base_url', type=str, help='base url of zhipu', default="127.0.0.1:8989")
 
     tongyi_parser = subparsers.add_parser('tongyi', help='using alibaba tongyi qwen')
     tongyi_parser.add_argument('--model_type', type=str, choices=['qwen-max', 'qwen-max-1201', 'qwen-max-longcontext',

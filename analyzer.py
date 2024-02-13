@@ -268,7 +268,9 @@ class ProjectAnalyzer:
             llm_analyzer = GoogleAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "zhipu":
             from icall_analyzer.llm.zhipu_analyzer import ZhipuAnalyzer
-            llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, self.args.temperature)
+            # refer to: https://github.com/THUDM/ChatGLM3/blob/main/openai_api_demo/zhipu_api_request.py#L17C34-L17C38
+            base_url = "http://" + self.args.zhipu_base_url + "/v1/"
+            llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, base_url, self.args.temperature)
         elif self.args.llm == "tongyi":
             from icall_analyzer.llm.tongyi_analyzer import TongyiAnalyzer
             llm_analyzer = TongyiAnalyzer(self.model_name, self.args.key, self.args.temperature)

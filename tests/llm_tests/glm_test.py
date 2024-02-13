@@ -48,7 +48,10 @@ def test_icall_decl(client: ZhipuAI, model_type: str):
 def main():
     api_key = sys.argv[1]
     model_type = sys.argv[2]
-    client = ZhipuAI(api_key=api_key)
+    if not api_key.startswith("http://"):
+        client = ZhipuAI(api_key=api_key)
+    else:
+        client = ZhipuAI(api_key="EMP.TY", base_url=api_key)
     test_icall_decl(client, model_type)
 
 if __name__ == '__main__':
