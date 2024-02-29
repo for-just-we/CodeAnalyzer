@@ -34,7 +34,11 @@ class ZhipuAnalyzer(BaseLLMAnalyzer):
                 messages=dialog,
                 temperature=self.temperature
             )
-            resp = (response.choices[0].message.content, True, times)
+            resp_text: str = response.choices[0].message.content
+            if resp_text.strip() != "":
+                resp = (resp_text, True, times)
+            else:
+                resp = ("empty response", False, times)
             self.input_token_num += response.usage.prompt_tokens
             self.output_token_num += response.usage.completion_tokens
 
@@ -63,7 +67,7 @@ class ZhipuAnalyzer(BaseLLMAnalyzer):
         # 没有成功解析出来，就最多重试3次
         while not resp[1]:
             if resp[2] >= 3:
-                return ""
+                return "empty response"
             resp: Tuple[str, bool, int] = self.get_glm_response(diaglog, resp[2])
         content: str = resp[0]
         return content

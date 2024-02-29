@@ -19,7 +19,15 @@ func_case2 = """
 """
 
 func_case3 = """
-    static void * ngx_libc_cdecl ngx_regex_malloc(size_t size) { }
+   int
+dlz_version(unsigned int *flags);
+
+    static void * ngx_libc_cdecl ngx_regex_malloc(size_t size) { 
+     int a = flag? 1: 0;
+     init = uscfp[i]->peer.init_upstream
+                                         ? uscfp[i]->peer.init_upstream
+                                         : ngx_stream_upstream_init_round_robin;
+                                         }
 """
 
 func_case4 = """
@@ -138,7 +146,31 @@ simple_upscale(j_decompress_ptr cinfo,
 func_case13 = """void
 
 f1
-(int x) { x = 1; }
+(int x) { 
+    if(cond) 
+        x = 1; 
+    else 
+    x = 2; 
+    
+    do {
+    } while(x--);
+    
+    for (int i = 0; i < x; i++) {
+    }
+    
+    while(x++) {
+    
+    }
+    
+    switch(x) {
+        case 0:
+        break;
+        case 1:
+        break;
+        default:
+        break;
+    }
+}
 """
 
 func_case14 = """

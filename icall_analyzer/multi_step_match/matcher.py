@@ -1,14 +1,13 @@
+from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
+    User_ICall_Summary_Macro, User_ICall_Summary
+from icall_analyzer.llm.common_prompt import summarizing_prompt
+from icall_analyzer.multi_step_match.prompt import User_Match, System_Match, supplement_prompts
+
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
-
-from icall_analyzer.llm.common_prompt import summarizing_prompt
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.signature_match.matcher import TypeAnalyzer
-from icall_analyzer.semantic_match.base_prompt import System_ICall_Summary, User_ICall_Summary, \
-                                System_Func_Summary, User_Func_Summary, \
-                                System_Match, User_Match, supplement_prompts, \
-                                User_ICall_Summary_Macro
 
 from tqdm import tqdm
 import os
@@ -19,23 +18,26 @@ from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
-class SemanticMatcher:
+
+class MultiStepMatcher:
     def __init__(self, collector: BaseInfoCollector,
                  args,
                  type_analyzer: TypeAnalyzer,
+                 func_key2summary: Dict[str, str],
                  llm_analyzer: BaseLLMAnalyzer = None,
                  project="",
                  callsite_idxs: Dict[str, int] = None):
         self.collector: BaseInfoCollector = collector
-        # 是否采用二段式prompt
-        self.double_prompt: bool = args.double_prompt
         self.args = args
+        # func key映射为summary
+        self.func_key2summary: Dict[str, str] = func_key2summary
+
         # 保存类型匹配的callsite
         self.type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees.copy()
         for key, values in type_analyzer.llm_declarator_analysis.items():
             self.type_matched_callsites[key] = self.type_matched_callsites.get(key, set()) | values
 
-        # 保存语义匹配的callsite
+        # 保存最终匹配的callsite
         self.matched_callsites: DefaultDict[str, Set[str]] = defaultdict(set)
 
         self.macro_callsites: Set[str] = type_analyzer.macro_callsites
@@ -52,14 +54,15 @@ class SemanticMatcher:
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-            self.log_dir = f"{root_path}/experimental_logs/semantic_analysis/{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
-                      f"{project}"
+            self.log_dir = f"{root_path}/experimental_logs/multi_step_analysis/" \
+                           f"{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
+                           f"{project}"
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
 
-    def process_all(self):
-        logging.info("Start semantic matching...")
 
+    def process_all(self):
+        logging.info("Start address-taken site matching...")
         if self.args.load_pre_semantic_analysis_res:
             assert os.path.exists(f"{self.log_dir}/semantic_result.txt")
             logging.info("loading existed semantic matching results.")
@@ -81,6 +84,7 @@ class SemanticMatcher:
                 continue
             elif callsite_key not in self.macro_callsites and self.args.disable_analysis_for_normal:
                 continue
+
             i = self.callsite_idxs[callsite_key]
 
             parent_func_key: str = self.icall_2_func[callsite_key]
@@ -94,14 +98,15 @@ class SemanticMatcher:
                 expanded_macro: str = self.expanded_macros[callsite_key]
                 macro_call_expr: str = self.macro_call_exprs[callsite_key]
                 user_prompt: str = User_ICall_Summary_Macro.format(icall_expr=callsite_text,
-                                                             macro_call_expr=macro_call_expr,
-                                                             expanded_macro=expanded_macro,
-                                                             func_name=parent_func_name,
-                                                             func_body=parent_func_text)
+                                                                   macro_call_expr=macro_call_expr,
+                                                                   expanded_macro=expanded_macro,
+                                                                   func_name=parent_func_name,
+                                                                   func_body=parent_func_text)
             else:
                 user_prompt: str = User_ICall_Summary.format(icall_expr=callsite_text,
                                                              func_name=parent_func_name,
                                                              func_body=parent_func_text)
+
             self.process_callsite(callsite_key, i, func_keys, user_prompt, callsite_text)
 
             # 如果log，记录下分析结果
@@ -111,12 +116,14 @@ class SemanticMatcher:
                 with open(f"{self.log_dir}/semantic_result.txt", "a", encoding='utf-8') as f:
                     f.write(content)
 
+
     def process_callsite(self, callsite_key: str, i: int, func_keys: Set[str],
                          user_prompt: str, callsite_text: str):
         icall_summary: str = self.llm_analyzer.get_response([System_ICall_Summary, user_prompt])
 
         cur_log_dir = f"{self.log_dir}/callsite-{i}"
         target_analyze_log_dir = f"{cur_log_dir}/semantic"
+
         # 如果需要log
         if self.log_flag:
             if not os.path.exists(target_analyze_log_dir):
@@ -131,8 +138,8 @@ class SemanticMatcher:
         lock = threading.Lock()
         executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
         pbar = tqdm(total=len(func_keys),
-                    desc="semantic matching for callsite-{}: {}"
-                    .format(i, callsite_key))
+                        desc="semantic matching for callsite-{}: {}"
+                        .format(i, callsite_key))
         futures = []
 
         def update_progress(future):
@@ -156,38 +163,21 @@ class SemanticMatcher:
 
     def process_callsite_target(self, callsite_text: str,
                                 icall_summary: str, target_analyze_log_dir: str, func_key: str, idx: int) -> bool:
-        func_info: FuncInfo = self.collector.func_info_dict[func_key]
-        func_name: str = func_info.func_name
-        func_def_text: str = func_info.func_def_text
-        prompt_log: str = ""
-
-        system_prompt_func: str = System_Func_Summary.format(func_name=func_name)
-        user_prompt_func: str = User_Func_Summary.format(func_name=func_name,
-                                                    func_body=func_def_text)
-        prompt_log += "{}\n\n{}\n\n======================\n".format(system_prompt_func, user_prompt_func)
-
-        # 生成target function summary
-        func_summary: str = self.llm_analyzer.get_response([system_prompt_func,
-                                                            user_prompt_func])
-        prompt_log += "{}:\n{}\n=========================\n".format(self.llm_analyzer.model_name, func_summary)
-
-        # 进行匹配
+        func_summary: str = self.func_key2summary[func_key]
+        func_info = self.collector.func_info_dict[func_key]
         add_suffix = False
+        func_name: str = func_info.func_name
         user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
-            icall_summary=icall_summary, func_summary=func_summary, func_name=func_name)
-        # 如果不需要二段式，也就是不需要COT
-        if not self.double_prompt:
-            user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
-        else:
-            add_suffix = True
+                                                   icall_summary=icall_summary, func_summary=func_summary,
+                                                   func_name=func_name)
+        user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
 
-        return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir, f"{idx}.txt", add_suffix)
+        return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir,
+                              f"{idx}.txt", add_suffix)
 
 
     def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix) -> bool:
-        prompt_log: str = ""
-
-        prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
+        prompt_log: str = "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
 
         yes_time = 0
         # 投票若干次

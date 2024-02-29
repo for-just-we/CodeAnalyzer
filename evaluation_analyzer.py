@@ -23,7 +23,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     gemini_parser.add_argument('--key', type=str, help='api key of google gemini')
 
     zhipu_parser = subparsers.add_parser('zhipu', help='using zhipu model')
-    zhipu_parser.add_argument('--model_type', type=str, choices=['glm-4', 'glm-3.5-turbo', 'chatglm3_6b'],
+    zhipu_parser.add_argument('--model_type', type=str, choices=['glm-4', 'glm-3.5-turbo', 'chatglm3-6b'],
                               help='model type of zhipu, refer to: https://open.bigmodel.cn/dev/api')
     zhipu_parser.add_argument('--key', type=str, help='api key of zhipu', default="")
     zhipu_parser.add_argument('--zhipu_base_url', type=str, help='base url of zhipu', default="127.0.0.1:8989")
@@ -42,7 +42,9 @@ def add_subparser(parser: argparse.ArgumentParser):
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
-    parser.add_argument("--pipeline", type=str, choices=['only_type', 'full', 'single', 'single_complex'], default='full',)
+    parser.add_argument("--pipeline", type=str, choices=['only_type', 'full', 'single', 'single_complex',
+                                                         'multi_step', 'addr_site_v1'],
+                        default='only_type')
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
     parser.add_argument("--log_llm_output", action="store_true", default=False,
@@ -106,7 +108,7 @@ def main():
         logging.basicConfig(level=logging.DEBUG)
     else:
         logging.basicConfig(level=logging.INFO)
-    # 移除控制台输出的 ERROR 级别的处理器
+    # 移除控制台输出的ERROR级别的处理器
     for handler in logging.getLogger().handlers:
         if isinstance(handler, logging.StreamHandler) and handler.level == logging.ERROR:
             logging.getLogger().removeHandler(handler)

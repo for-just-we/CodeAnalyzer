@@ -15,10 +15,16 @@ from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisi
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
 from code_analyzer.definition_collector import BaseInfoCollector
 
+from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, get_top_level_expr, \
+    get_local_top_level_expr
+from code_analyzer.utils.func_key_collector import get_all_func_keys
+
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.semantic_match.matcher import SemanticMatcher
 from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
+from icall_analyzer.multi_step_match.matcher import MultiStepMatcher
+from icall_analyzer.base_utils.func_summarizer import FunctionSummarizer
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 
@@ -220,6 +226,9 @@ class ProjectAnalyzer:
         func_key_2_declarator: Dict[str, str] = dict()
         func_info_dict: Dict[str, FuncInfo] = funcdef_visitor.func_info_dict
 
+        local_refer_sites_per_func_key: DefaultDict[str, DefaultDict[str, List[ASTNode]]] = \
+            defaultdict(lambda: defaultdict(list))
+
         # 第一次逐函数扫描，统计每个函数的局部变量定义和被引用的函数
         for func_key, func_info in tqdm(func_info_dict.items(), desc="parsing function infos"):
             local_var_visitor = LocalVarVisitor(global_visitor)
@@ -239,6 +248,33 @@ class ProjectAnalyzer:
             func_info.set_local_var2declarator(local_var_visitor.local_var_2_declarator_text)
             func_key_2_name[func_key] = func_info.func_name
             func_key_2_declarator[func_key] = func_info.raw_declarator_text
+
+            for func_name, refer_sites in local_func_ref_visitor.local_refer_sites.items():
+                local_refer_sites_per_func_key[func_name][func_key].extend(refer_sites)
+
+        raw_global_addr_sites: Dict[str, List[ASTNode]] = \
+            extract_addr_site(global_ref_func_visitor.global_refer_sites)
+        raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]] = dict()
+        for func_name, local_refer_sites in local_refer_sites_per_func_key.items():
+            raw_local_addr_sites[func_name] = extract_addr_site(local_refer_sites)
+
+        # global scope的address-taken site只需要考虑init_declarator
+        global_addr_sites: Dict[str, List[ASTNode]] = dict()
+        for func_name, nodes in raw_global_addr_sites.items():
+            decl_nodes: List[ASTNode] = list(filter(lambda node: get_top_level_expr(node).node_type == "declaration",
+                                     nodes))
+            if len(decl_nodes) > 0:
+                global_addr_sites[func_name] = decl_nodes
+
+        del raw_global_addr_sites
+
+        # local scope的address-taken site考虑init_declarator, assignment_expression, argument_list, conditional_expression
+        for func_name, node_in_func in raw_local_addr_sites.items():
+            for func_key, nodes in node_in_func.items():
+                for node in nodes:
+                    top_level_node, initializer_level = get_local_top_level_expr(node)
+                    if top_level_node is None:
+                        continue
 
         # 开始签名匹配
         if self.args.scope_strategy == "base":
@@ -288,16 +324,46 @@ class ProjectAnalyzer:
             analyzer = SemanticMatcher(collector, self.args,
                             type_analyzer, llm_analyzer, self.project, self.callsite_idxs)
             analyzer.process_all()
+
         elif self.args.pipeline == "single":
             analyzer = SingleStepMatcher(collector, self.args,
                             type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
                                          self.project, self.callsite_idxs)
             analyzer.process_all()
+
         elif self.args.pipeline == "single_complex":
             analyzer = SingleStepComplexMatcher(collector, self.args,
                                          type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
                                          self.project, self.callsite_idxs)
             analyzer.process_all()
+
+        elif self.args.pipeline == "multi_step":
+            func_keys: Set[str] = get_all_func_keys(type_analyzer.callees,
+                                                    type_analyzer.llm_declarator_analysis)
+            func_summarizer: FunctionSummarizer = FunctionSummarizer(func_keys,
+                                                                     collector.func_info_dict,
+                                                                     self.args,
+                                                                     llm_analyzer)
+            func_summarizer.analyze()
+            analyzer = MultiStepMatcher(collector, self.args, type_analyzer,
+                                        func_summarizer.func_key2summary, llm_analyzer,
+                                        self.project, self.callsite_idxs)
+            analyzer.process_all()
+
+
+        elif self.args.pipeline == "addr_site_v1":
+            func_keys: Set[str] = get_all_func_keys(type_analyzer.callees,
+                                                    type_analyzer.llm_declarator_analysis)
+            func_summarizer: FunctionSummarizer = FunctionSummarizer(func_keys,
+                                                                     collector.func_info_dict,
+                                                                     self.args,
+                                                                     llm_analyzer)
+            func_summarizer.analyze()
+
+            addr_taken_func_names: Set[str] = set(func_key_2_name[func_key]
+                                                  for func_key in func_keys)
+
+
 
         return type_analyzer, analyzer
 
@@ -307,7 +373,7 @@ class ProjectAnalyzer:
         if self.args.pipeline == "only_type":
             self.evaluate_type_analysis(type_analyzer)
         # 随后进行语义匹配
-        elif self.args.pipeline in {"full", "single", "single_complex"}:
+        elif self.args.pipeline in {"full", "single", "single_complex", "multi_step", "addr_site_v1"}:
             self.evaluate_semantic_analysis(semantic_analyzer)
 
     def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
@@ -398,7 +464,7 @@ class ProjectAnalyzer:
                 logging.info("writing success")
 
 
-    def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher]):
+    def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher, MultiStepMatcher]):
         icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
         logging.info(f"| {self.project}-{analyzer.llm_analyzer.model_name} "

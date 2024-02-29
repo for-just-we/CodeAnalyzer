@@ -58,8 +58,12 @@ class GPTAnalyzer(BaseLLMAnalyzer):
                 temperature=self.temperature
             )
             self.input_token_num += get_num_tokens_for_dialog(dialog)
-            resp = (response.choices[0]["message"]["content"], True, times)
-            self.output_token_num += num_tokens_from_string(resp[0])
+            resp_text = response.choices[0]["message"]["content"]
+            resp = (resp_text, True, times)
+            self.output_token_num += num_tokens_from_string(resp_text)
+            if resp_text.strip() == "":
+                resp = ("empty response", False, times)
+
         except tuple(openai_error_messages.keys()) as e:
             error_type = type(e)
             error_message: str = openai_error_messages.get(error_type,
@@ -80,7 +84,7 @@ class GPTAnalyzer(BaseLLMAnalyzer):
         # 没有成功解析出来，就最多重试3次
         while not resp[1]:
             if resp[2] >= 3:
-                return ""
+                return "empty response"
             resp: Tuple[str, bool, int] = self.get_openai_response(diaglog, resp[2])
         content: str = resp[0]
         return content

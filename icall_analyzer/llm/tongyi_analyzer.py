@@ -46,7 +46,10 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
             output_token_num: int = response["usage"]["output_tokens"]
             self.input_token_num += input_token_num
             self.output_token_num += output_token_num
-            resp = (resp_text, True, times)
+            if resp_text.strip() == "":
+                resp = ("empty response", False, times)
+            else:
+                resp = (resp_text, True, times)
         # 403表示api key不能访问
         elif response.status_code in {401, 403}:
             logging.info(response["message"])
@@ -73,7 +76,7 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
         # 没有成功解析出来，就最多重试3次
         while not resp[1]:
             if resp[2] >= 3:
-                return ""
+                return "empty response"
             resp: Tuple[str, bool, int] = self.get_tongyi_response(diaglog, resp[2])
         content: str = resp[0]
         return content

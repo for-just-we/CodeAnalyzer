@@ -1,6 +1,6 @@
 import abc
 
-from typing import List, Dict, Tuple
+from typing import List, Dict
 
 class BaseLLMAnalyzer:
     def __init__(self, model_type: str):

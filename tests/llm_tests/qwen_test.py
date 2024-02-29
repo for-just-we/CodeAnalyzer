@@ -30,16 +30,27 @@ sftp_channel_default_subsystem_request(UNUSED_PARAM(ssh_session session),
                                        UNUSED_PARAM(void *userdata))
 """
 
+from dashscope.common.error import RequestFailure
+
 def call_with_messages(api_key):
     messages = [{'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt}]
-    response = dashscope.Generation.call(
-        dashscope.Generation.Models.qwen_max,
-        messages=messages,
-        api_key = api_key,
-        result_format='message',  # set the result to be "message" format.
-        temperature=0.5
-    )
+    try:
+        response = dashscope.Generation.call(
+            dashscope.Generation.Models.qwen_max,
+            messages=messages,
+            api_key = api_key,
+            result_format='message',  # set the result to be "message" format.
+            temperature=0.5
+        )
+    except RequestFailure as e:
+        if int(e.http_code) == 429:
+            print("catch rate limit")
+        else:
+            print("catch other error")
+    except Exception as e:
+        print("catch error")
+
     if response.status_code == HTTPStatus.OK:
         print(response)
         resp: str = response["output"]["choices"][0]["message"]["content"]
@@ -57,5 +68,24 @@ def call_with_messages(api_key):
         ))
 
 
+def multi_thread_test(api_key):
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from tqdm import tqdm
+
+    pbar = tqdm(total=120, desc="test")
+
+    def update_progress(future):
+        pbar.update(1)
+
+    def worker():
+        call_with_messages(api_key)
+
+    executor = ThreadPoolExecutor(max_workers=120)
+    futures = []
+    for i in range(120):
+        future = executor.submit(worker)
+        future.add_done_callback(update_progress)
+        futures.append(future)
+
 if __name__ == '__main__':
-    call_with_messages(sys.argv[1])
+    multi_thread_test(sys.argv[1])

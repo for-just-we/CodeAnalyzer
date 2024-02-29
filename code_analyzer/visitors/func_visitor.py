@@ -2,7 +2,8 @@ from tree_sitter import Tree
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.config import parser
 from code_analyzer.preprocessor.node_processor import processor
-from typing import Dict, List, Tuple, Set
+from typing import Dict, List, Tuple, Set, DefaultDict
+from collections import defaultdict
 
 from code_analyzer.visitors.base_visitor import ASTVisitor
 from code_analyzer.visitors.util_visitor import CastTypeDescriptorVisitor
@@ -589,6 +590,7 @@ class LocalVarVisitor(ASTVisitor):
                 self.func_var2param_types[var_info[1]] = func_var2param_types[var_info[1]]
         return False
 
+
 # 遍历函数体，收集函数体中被引用的函数
 class LocalFunctionRefVisitor(ASTVisitor):
     def __init__(self, func_set: Set[str], local_vars: Set[str], arg_names: Set[str],
@@ -598,8 +600,24 @@ class LocalFunctionRefVisitor(ASTVisitor):
         self.arg_names: Set[str] = arg_names
         self.refered_func: Set[str] = refered_funcs
         self.macro_dict: Dict[str, str] = macro_dict
+        self.local_refer_sites: DefaultDict[str, List[ASTNode]] = defaultdict(list)
 
     def visit_identifier(self, node: ASTNode):
+        if node.parent.node_type in {"init_declarator", "assignment_expression",
+                                     "initializer_pair"}:
+            if hasattr(node.parent, "="):
+                assign_node: ASTNode = getattr(node.parent, "=")
+                assign_idx: int = node.parent.children.index(assign_node)
+                if node.parent.children.index(node) <= assign_idx:
+                    return False
+
+        if node.parent.node_type == "preproc_ifdef":
+            return False
+
+        if node.parent.node_type == "binary_expression" and \
+            node.parent.children.index(node) <= 1:
+            return False
+
         identifier: str = node.node_text
 
         # 引用了函数名或者通过宏定义引用函数名
@@ -612,9 +630,11 @@ class LocalFunctionRefVisitor(ASTVisitor):
         # 引用的是函数名而不是局部变量名，这里我们假设局部变量和函数重名时会优先引用局部变量
         if flag and identifier not in self.local_vars and\
             identifier not in self.arg_names:
-            # 不是直接函数调用
+            # 不是直接函数调用同时不是宏函数定义
             if not (node.parent.node_type == "call_expression" and node == node.parent.children[0]):
                 self.refered_func.add(func_name)
+                self.local_refer_sites[func_name].append(node)
+
 
     def visit_function_declarator(self, node: ASTNode):
         return False
@@ -625,3 +645,53 @@ class LocalFunctionRefVisitor(ASTVisitor):
     # 不考虑宏定义
     def visit_preproc_def(self, node: ASTNode):
         return False
+
+    def visit_preproc_function_def(self, node: ASTNode):
+        return False
+
+    def visit_preproc_defined(self, node: ASTNode):
+        return False
+
+
+    def visit_struct_specifier(self, node: ASTNode):
+        return False
+
+    def visit_union_specifier(self, node: ASTNode):
+        return False
+
+    def visit_enum_specifier(self, node: ASTNode):
+        return False
+
+    def visit_type_definition(self, node: ASTNode):
+        return False
+
+    def visit_declaration(self, node: ASTNode):
+        if not hasattr(node, "init_declarator"):
+            return False
+        return super().visit(node)
+
+    def visit_field_expression(self, node: ASTNode):
+        return False
+
+    def visit(self, node: ASTNode):
+        parent_node: ASTNode = node.parent
+        if parent_node is None:
+            return super().visit(node)
+        # 处理变量名和函数名重名的情况
+        # 如果是变量定义且变量名和函数名重名
+        if parent_node.node_type == "declaration":
+            return super().visit(node) \
+                if node.node_type == "init_declarator" \
+                else False
+        elif parent_node.node_type in {"init_declarator", "assignment_expression", "initializer_pair"}:
+            if hasattr(parent_node, "="):
+                assign_node: ASTNode = getattr(parent_node, "=")
+                assign_idx: int = parent_node.children.index(assign_node)
+                if parent_node.children.index(node) > assign_idx:
+                    return super().visit(node)
+                else:
+                    return False
+            else:
+                return False
+        else:
+            return super().visit(node)

@@ -84,7 +84,7 @@ class GoogleAnalyzer(BaseLLMAnalyzer):
         # 没有成功解析出来，就最多重试3次
         while not resp[1]:
             if resp[2] >= 3:
-                return ""
+                return "empty response"
             resp: Tuple[str, bool, int] = self.get_gemini_response(prompt, resp[2])
         content: str = resp[0]
         return content
