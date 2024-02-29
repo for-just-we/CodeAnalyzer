@@ -39,11 +39,12 @@ class FunctionSummarizer:
             with lock:
                 self.func_key2summary[func_key] = func_summary
 
+        executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
+        pbar = tqdm(total=len(self.func_keys), desc="summarizing address-taken function")
+
         def update_progress(future):
             pbar.update(1)
 
-        executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
-        pbar = tqdm(total=len(self.func_keys), desc="summarizing address-taken function")
         futures = []
 
         for func_key in self.func_keys:
