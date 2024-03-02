@@ -142,6 +142,8 @@ class AddrTakenSiteRetriver:
                     elif top_level_node.node_type == "call_expression":
                         self.local_call_expr[func_name].append(top_level_node)
 
+        pass
+
     def random_select_one(self, func_name) -> str:
         # 第3个表示作用域是否是global，否则就是local
         # 首先从全局部分筛选
@@ -175,7 +177,7 @@ class AddrTakenSiteRetriver:
             return self.generate_text_for_assignment(func_name, declarator, refered_struct_name, struct_decl_text,
                 var_text, assign_node_text)
 
-        elif len(self.local_call_expr) > 0:
+        elif len(self.local_call_expr[func_name]) > 0:
             addr_taken_site: ASTNode = random.choices(self.local_call_expr[func_name])
             return "The address of target function {func_name} is used as a arguments of call expression: {call_expr}, " \
                    "which can also help you analyze the functionality of function {func_name}."\
@@ -259,7 +261,7 @@ class AddrTakenSiteRetriver:
         if refered_struct_name != "":
             struct_decl_text = self.collector.struct_name2declarator[refered_struct_name]
         return (declarator, refered_struct_name, struct_decl_text,
-                node.children[0].node_text, node.node_text)
+                var_text, node.node_text)
 
 def get_init_node(func_node: ASTNode, level) -> ASTNode:
     cur_node = func_node
