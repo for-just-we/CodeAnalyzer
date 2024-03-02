@@ -148,7 +148,7 @@ class AddrTakenSiteRetriver:
         # 第3个表示作用域是否是global，否则就是local
         # 首先从全局部分筛选
         if len(self.global_addr_sites.get(func_name, [])) > 0:
-            addr_taken_site_top, init_level, addr_taken_site = random.choices(self.global_addr_sites[func_name])
+            addr_taken_site_top, init_level, addr_taken_site = random.choice(self.global_addr_sites[func_name])
             struct_decl, ori_var_type, init_node_text = \
                 self.retrive_info_from_declarator(addr_taken_site_top,
                                                   addr_taken_site, init_level,
@@ -157,9 +157,9 @@ class AddrTakenSiteRetriver:
                                 struct_decl, ori_var_type, init_node_text)
 
         elif len(self.local_declarators[func_name]) > 0:
-            func_key: str = random.choices(list(self.local_declarators[func_name].keys()))
+            func_key: str = random.choice(list(self.local_declarators[func_name].keys()))
             addr_taken_site_top, init_level, addr_taken_site \
-                = random.choices(self.local_declarators[func_name][func_key])
+                = random.choice(self.local_declarators[func_name][func_key])
             struct_decl, ori_var_type, init_node_text = \
                 self.retrive_info_from_declarator(addr_taken_site_top,
                                                   addr_taken_site, init_level,
@@ -168,9 +168,9 @@ class AddrTakenSiteRetriver:
                                                      ori_var_type, init_node_text)
 
         elif len(self.local_assignment_exprs[func_name]) > 0:
-            func_key: str = random.choices(list(self.local_assignment_exprs[func_name].keys()))
+            func_key: str = random.choice(list(self.local_assignment_exprs[func_name].keys()))
             addr_taken_site_top, init_level, addr_taken_site \
-                = random.choices(self.local_assignment_exprs[func_name][func_key])
+                = random.choice(self.local_assignment_exprs[func_name][func_key])
             declarator, refered_struct_name, struct_decl_text, \
                 var_text, assign_node_text = self.retrive_info_from_assignment(addr_taken_site_top, func_key)
 
@@ -178,7 +178,8 @@ class AddrTakenSiteRetriver:
                 var_text, assign_node_text)
 
         elif len(self.local_call_expr[func_name]) > 0:
-            addr_taken_site: ASTNode = random.choices(self.local_call_expr[func_name])
+            call_nodes: List[ASTNode] = self.local_call_expr[func_name]
+            addr_taken_site: ASTNode = random.choice(call_nodes)
             return "The address of target function {func_name} is used as a arguments of call expression: {call_expr}, " \
                    "which can also help you analyze the functionality of function {func_name}."\
                 .format(func_name=func_name, call_expr=addr_taken_site.node_text)
