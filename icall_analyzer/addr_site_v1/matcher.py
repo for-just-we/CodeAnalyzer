@@ -1,8 +1,12 @@
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
-    User_ICall_Summary_Macro, User_ICall_Summary
+    User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary
+from icall_analyzer.llm.common_prompt import summarizing_prompt
+from icall_analyzer.base_utils.prompts import supplement_prompts
+from icall_analyzer.addr_site_v1.prompts import System_Match, User_Match
 
+from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
@@ -21,14 +25,16 @@ class AddrSiteMatcherV1:
     def __init__(self, collector: BaseInfoCollector,
                  args,
                  type_analyzer: TypeAnalyzer,
-                 func_key2summary: Dict[str, str],
+                 addr_taken_site_retriver: AddrTakenSiteRetriver,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  project="",
                  callsite_idxs: Dict[str, int] = None):
+
         self.collector: BaseInfoCollector = collector
         self.args = args
+        self.addr_taken_site_retriver: AddrTakenSiteRetriver \
+            = addr_taken_site_retriver
         # func key映射为summary
-        self.func_key2summary: Dict[str, str] = func_key2summary
 
         # 保存类型匹配的callsite
         self.type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees.copy()
@@ -41,6 +47,13 @@ class AddrSiteMatcherV1:
         self.macro_callsites: Set[str] = type_analyzer.macro_callsites
         self.icall_2_func: Dict[str, str] = type_analyzer.icall_2_func
         self.icall_nodes: Dict[str, ASTNode] = type_analyzer.icall_nodes
+
+        # 每一个indirect-call对应的函数指针声明的文本
+        self.icall_2_decl_text: Dict[str, str] = type_analyzer.icall_2_decl_text
+        # 每一个indirect-call对应的函数指针声明文本，保留原始类型
+        self.icall_2_decl_type_text: Dict[str, str] = type_analyzer.icall_2_decl_type_text
+        # 如果icall引用了结构体的field，找到对应的结构体名称
+        self.icall_2_struct_name: Dict[str, str] = type_analyzer.icall_2_struct_name
 
         self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
         self.callsite_idxs: Dict[str, int] = callsite_idxs
@@ -58,6 +71,23 @@ class AddrSiteMatcherV1:
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
 
+    def generate_icall_additional(self, callsite_key, icall_text) -> str:
+        if callsite_key in self.icall_2_decl_text.keys():
+            decl_text = self.icall_2_decl_text[callsite_key]
+            messages = ["The declarator of function pointer in {} is {}.".format(icall_text, decl_text)]
+            if callsite_key in self.icall_2_decl_type_text.keys():
+                messages.append("The alias type definition of the function type is {}."
+                                .format(self.icall_2_decl_type_text[callsite_key]))
+            if callsite_key in self.icall_2_struct_name.keys():
+                struct_name = self.icall_2_struct_name[callsite_key]
+                struct_decl = self.collector.struct_name2declarator[struct_name]
+                messages.append("The function pointer of the indirect-call is a field of struct {},"
+                                "where its definition is: \n{}.".format(struct_name, struct_decl))
+            messages.append("\nThe information below can also help you identify the functionlity of the indirect-call.")
+
+            return "\n".join(messages)
+
+        return ""
 
     def process_all(self):
         logging.info("Start address-taken site matching...")
@@ -89,7 +119,8 @@ class AddrSiteMatcherV1:
             parent_func_info: FuncInfo = self.collector.func_info_dict[parent_func_key]
             parent_func_name: str = parent_func_info.func_name
             parent_func_text: str = parent_func_info.func_def_text
-            callsite_text: str = self.icall_nodes[callsite_key].node_text
+            callsite_node: ASTNode = self.icall_nodes[callsite_key]
+            callsite_text: str = callsite_node.node_text
 
             # 首先找出该callsite所在function
             if callsite_key in self.macro_callsites:
@@ -118,6 +149,7 @@ class AddrSiteMatcherV1:
     def process_callsite(self, callsite_key: str, i: int, func_keys: Set[str],
                          user_prompt: str, callsite_text: str):
         icall_summary: str = self.llm_analyzer.get_response([System_ICall_Summary, user_prompt])
+        icall_additional = self.generate_icall_additional(callsite_key, callsite_text)
 
         cur_log_dir = f"{self.log_dir}/callsite-{i}"
         target_analyze_log_dir = f"{cur_log_dir}/semantic"
@@ -144,7 +176,7 @@ class AddrSiteMatcherV1:
             pbar.update(1)
 
         def worker(func_key: str, idx: int):
-            flag = self.process_callsite_target(callsite_text,
+            flag = self.process_callsite_target(callsite_text, icall_additional,
                                                 icall_summary, target_analyze_log_dir, func_key, idx)
             if flag:
                 with lock:
@@ -159,8 +191,73 @@ class AddrSiteMatcherV1:
             future.result()
 
 
-    def process_callsite_target(self, callsite_text: str,
+    def process_callsite_target(self, callsite_text: str, icall_additional: str,
                                 icall_summary: str, target_analyze_log_dir: str, func_key: str, idx: int) -> bool:
-        func_summary: str = self.func_key2summary[func_key]
 
-        return False
+        func_info: FuncInfo = self.collector.func_info_dict[func_key]
+        func_name: str = func_info.func_name
+        func_def_text: str = func_info.func_def_text
+        prompt_log: str = ""
+
+        system_prompt_func: str = System_Func_Summary.format(func_name=func_name)
+        user_prompt_func: str = User_Func_Summary.format(func_name=func_name,
+                                                         func_body=func_def_text)
+        prompt_log += "{}\n\n{}\n\n======================\n".format(system_prompt_func, user_prompt_func)
+
+        # 生成target function summary
+        func_summary: str = self.llm_analyzer.get_response([system_prompt_func,
+                                                            user_prompt_func])
+        prompt_log += "{}:\n{}\n=========================\n".format(self.llm_analyzer.model_name,
+                                                                    func_summary)
+
+        # 生成target function的address_taken_information
+        target_additional_information = self.addr_taken_site_retriver.\
+            random_select_one(func_name)
+
+        # 进行匹配
+        add_suffix = False
+        user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
+                                                   icall_additional=icall_additional,
+                                                   icall_summary=icall_summary,
+                                                   func_summary=func_summary,
+                                                   func_name=func_name,
+                                                   target_additional_information=target_additional_information)
+        # 如果不需要二段式，也就是不需要COT
+        user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
+
+
+        return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir, f"{idx}.txt", add_suffix)
+
+    def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix) -> bool:
+        prompt_log: str = ""
+
+        prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
+
+        yes_time = 0
+        # 投票若干次
+        for i in range(self.args.vote_time):
+            answer: str = self.llm_analyzer.get_response(contents, add_suffix)
+            prompt_log += "vote {}:\n{}\n\n".format(i + 1, answer)
+            # 如果回答的太长了，让它summarize一下
+            tokens = answer.split(' ')
+            if len(tokens) >= 8:
+                summarizing_text: str = summarizing_prompt.format(answer)
+                answer = self.llm_analyzer.get_response([summarizing_text])
+                prompt_log += "***************************\nsummary {}:\n{}\n\n".format(i + 1, answer)
+
+            if 'yes' in answer.lower():
+                yes_time += 1
+                prompt_log += "Answer: Yes\n\n"
+            else:
+                prompt_log += "Answer: No\n\n"
+            prompt_log += "------------------------------\n\n"
+
+        flag = (yes_time > (self.args.vote_time / 2))
+        prompt_log += "Final Answer: {}\n\n".format(flag)
+        # 如果需要log
+        if self.log_flag:
+            prompt_file = file_name
+            open(os.path.join(target_analyze_log_dir, prompt_file), 'w', encoding='utf-8') \
+                .write(prompt_log)
+
+        return flag

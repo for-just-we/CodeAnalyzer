@@ -44,10 +44,11 @@ class TypeAnalyzer:
         self.scope_strategy: BaseStrategy = scope_strategy
 
         self.icall_2_decl_text: Dict[str, str] = dict()
-        self.icall_2_decl_var_text: Dict[str, str] = dict()
+        self.icall_2_decl_type_text: Dict[str, str] = dict()
         self.icall_2_arg_declarators: Dict[str, List[List[str]]] = dict()
         self.icall_2_arg_texts: Dict[str, List[str]] = dict()
         self.icall_2_arg_text: Dict[str, str] = dict()
+        self.icall_2_struct_name: Dict[str, str] = dict()
 
         # LLM访问过的所有函数
         self.all_potential_targets: Dict[str, Set[str]] = dict()
@@ -228,14 +229,16 @@ class TypeAnalyzer:
 
         if icall_loc in func_body_visitor.icall_2_decl_text.keys():
             self.icall_2_decl_text[callsite_key] = func_body_visitor.icall_2_decl_text[icall_loc]
-        if icall_loc in func_body_visitor.icall_2_decl_var_text.keys():
-            self.icall_2_decl_var_text[callsite_key] = func_body_visitor.icall_2_decl_var_text[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_decl_type_text.keys():
+            self.icall_2_decl_type_text[callsite_key] = func_body_visitor.icall_2_decl_type_text[icall_loc]
         if icall_loc in func_body_visitor.icall_2_arg_declarators.keys():
             self.icall_2_arg_declarators[callsite_key] = func_body_visitor.icall_2_arg_declarators[icall_loc]
         if icall_loc in func_body_visitor.icall_2_arg_texts.keys():
             self.icall_2_arg_texts[callsite_key] = func_body_visitor.icall_2_arg_texts[icall_loc]
         if icall_loc in func_body_visitor.icall_2_arg_text.keys():
             self.icall_2_arg_text[callsite_key] = func_body_visitor.icall_2_arg_text[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_struct_name.keys():
+            self.icall_2_struct_name[callsite_key] = func_body_visitor.icall_2_struct_name[icall_loc]
 
         arg_num = 0
         var_arg = False

@@ -4,7 +4,6 @@ from tqdm import tqdm
 
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
-from code_analyzer.visitors.global_visitor import GlobalVisitor
 
 unused_keywords = {"__attribute__", "unused"}
 
@@ -19,7 +18,7 @@ class BaseInfoCollector:
     def __init__(self, icall_dict: DefaultDict[str, List[Tuple[int, int]]],
                  refered_funcs: Set[str],
                  func_info_dict: Dict[str, FuncInfo],
-                 global_visitor: GlobalVisitor,
+                 global_visitor,
                  func_key_2_declarator: Dict[str, str]):
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict
         self.func_info_dict: Dict[str, FuncInfo] = func_info_dict
@@ -82,7 +81,7 @@ class BaseInfoCollector:
 
         # func key映射到declarator
         self.func_key_2_declarator: Dict[str, str] = func_key_2_declarator
-        self.global_visitor: GlobalVisitor = global_visitor
+        self.global_visitor = global_visitor
 
 
     # 构建查询结构

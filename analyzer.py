@@ -15,8 +15,7 @@ from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisi
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
 from code_analyzer.definition_collector import BaseInfoCollector
 
-from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, get_top_level_expr, \
-    get_local_top_level_expr
+from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, AddrTakenSiteRetriver
 from code_analyzer.utils.func_key_collector import get_all_func_keys
 
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
@@ -24,6 +23,7 @@ from icall_analyzer.semantic_match.matcher import SemanticMatcher
 from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
 from icall_analyzer.multi_step_match.matcher import MultiStepMatcher
+from icall_analyzer.addr_site_v1.matcher import AddrSiteMatcherV1
 from icall_analyzer.base_utils.func_summarizer import FunctionSummarizer
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
@@ -258,23 +258,6 @@ class ProjectAnalyzer:
         for func_name, local_refer_sites in local_refer_sites_per_func_key.items():
             raw_local_addr_sites[func_name] = extract_addr_site(local_refer_sites)
 
-        # global scope的address-taken site只需要考虑init_declarator
-        global_addr_sites: Dict[str, List[ASTNode]] = dict()
-        for func_name, nodes in raw_global_addr_sites.items():
-            decl_nodes: List[ASTNode] = list(filter(lambda node: get_top_level_expr(node).node_type == "declaration",
-                                     nodes))
-            if len(decl_nodes) > 0:
-                global_addr_sites[func_name] = decl_nodes
-
-        del raw_global_addr_sites
-
-        # local scope的address-taken site考虑init_declarator, assignment_expression, argument_list, conditional_expression
-        for func_name, node_in_func in raw_local_addr_sites.items():
-            for func_key, nodes in node_in_func.items():
-                for node in nodes:
-                    top_level_node, initializer_level = get_local_top_level_expr(node)
-                    if top_level_node is None:
-                        continue
 
         # 开始签名匹配
         if self.args.scope_strategy == "base":
@@ -293,7 +276,6 @@ class ProjectAnalyzer:
                                                          func_info_dict, global_visitor,
                                                          func_key_2_declarator)
         collector.build_all()
-
 
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
@@ -352,17 +334,12 @@ class ProjectAnalyzer:
 
 
         elif self.args.pipeline == "addr_site_v1":
-            func_keys: Set[str] = get_all_func_keys(type_analyzer.callees,
-                                                    type_analyzer.llm_declarator_analysis)
-            func_summarizer: FunctionSummarizer = FunctionSummarizer(func_keys,
-                                                                     collector.func_info_dict,
-                                                                     self.args,
-                                                                     llm_analyzer)
-            func_summarizer.analyze()
-
-            addr_taken_func_names: Set[str] = set(func_key_2_name[func_key]
-                                                  for func_key in func_keys)
-
+            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
+                                                             raw_local_addr_sites, collector)
+            analyzer = AddrSiteMatcherV1(collector, self.args, type_analyzer,
+                                         addr_taken_site_retriver, llm_analyzer,
+                                         self.project, self.callsite_idxs)
+            analyzer.process_all()
 
 
         return type_analyzer, analyzer

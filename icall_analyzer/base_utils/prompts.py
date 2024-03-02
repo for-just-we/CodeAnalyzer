@@ -41,3 +41,7 @@ To analyze the functionality of the indirect call {icall_expr}, follow these two
 - 2.Examine the code surrounding the indirect call {icall_expr} in the expanded macro text and macro call {macro_call_expr} in function {func_name} to determine the specific use of the indirect-call within the context.
 
 You should only response with a concise summary of the indirect call functionality."""
+
+supplement_prompts = {
+"user_prompt_match": "If the indirect-call can invoke the target function, answer 'yes'; otherwise, answer 'no'.",
+}

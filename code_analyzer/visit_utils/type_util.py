@@ -39,8 +39,8 @@ def get_original_type_with_name(src_type_name: str, type_alias_infos: Dict[str, 
     -> Tuple[str, int]:
     if src_type_name.endswith("*"):
         res = src_type_name.split(" ")
-        cur_type_name = res[0]
-        cur_pointer_level = len(res[1])
+        cur_type_name = " ".join(res[:-1])
+        cur_pointer_level = len(res[-1])
     else:
         cur_type_name = src_type_name
         cur_pointer_level = 0

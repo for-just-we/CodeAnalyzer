@@ -36,7 +36,7 @@ class SingleStepComplexMatcher:
         self.callsite_idxs: Dict[str, int] = callsite_idxs
 
         self.icall_2_decl_text: Dict[str, str] = type_analyzer.icall_2_decl_text
-        self.icall_2_decl_var_text: Dict[str, str] = type_analyzer.icall_2_decl_var_text
+        self.icall_2_decl_type_text: Dict[str, str] = type_analyzer.icall_2_decl_type_text
         self.icall_2_arg_declarators: Dict[str, List[List[str]]] = type_analyzer.icall_2_arg_declarators
         self.icall_2_arg_texts: Dict[str, List[str]] = type_analyzer.icall_2_arg_texts
         self.icall_2_arg_text: Dict[str, str] = type_analyzer.icall_2_arg_text
@@ -123,7 +123,7 @@ class SingleStepComplexMatcher:
         src_func_text: str = parent_func_info.func_def_text
         callsite_text: str = self.icall_nodes[callsite_key].node_text
         func_pointer_text: str = self.icall_2_decl_text.get(callsite_key, "")
-        func_pointer_var_text: str = self.icall_2_decl_var_text.get(callsite_key, "")
+        func_pointer_var_text: str = self.icall_2_decl_type_text.get(callsite_key, "")
 
         cur_log_dir = f"{self.log_dir}/callsite-{i}"
         target_analyze_log_dir = f"{cur_log_dir}/single"
