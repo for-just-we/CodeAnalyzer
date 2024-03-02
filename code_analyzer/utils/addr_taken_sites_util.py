@@ -145,7 +145,7 @@ class AddrTakenSiteRetriver:
     def random_select_one(self, func_name) -> str:
         # 第3个表示作用域是否是global，否则就是local
         # 首先从全局部分筛选
-        if len(self.global_addr_sites[func_name]) > 0:
+        if len(self.global_addr_sites.get(func_name, [])) > 0:
             addr_taken_site_top, init_level, addr_taken_site = random.choices(self.global_addr_sites[func_name])
             struct_decl, ori_var_type, init_node_text = \
                 self.retrive_info_from_declarator(addr_taken_site_top,
