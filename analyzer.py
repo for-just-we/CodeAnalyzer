@@ -304,13 +304,15 @@ class ProjectAnalyzer:
         analyzer = None
         if self.args.pipeline == "full":
             analyzer = SemanticMatcher(collector, self.args,
-                            type_analyzer, llm_analyzer, self.project, self.callsite_idxs)
+                            type_analyzer, llm_analyzer, self.project, self.callsite_idxs,
+                                       func_key_2_name)
             analyzer.process_all()
 
         elif self.args.pipeline == "single":
             analyzer = SingleStepMatcher(collector, self.args,
                             type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
-                                         self.project, self.callsite_idxs)
+                                         self.project, self.callsite_idxs,
+                                         func_key_2_name)
             analyzer.process_all()
 
         elif self.args.pipeline == "single_complex":
@@ -329,7 +331,7 @@ class ProjectAnalyzer:
             func_summarizer.analyze()
             analyzer = MultiStepMatcher(collector, self.args, type_analyzer,
                                         func_summarizer.func_key2summary, llm_analyzer,
-                                        self.project, self.callsite_idxs)
+                                        self.project, self.callsite_idxs, func_key_2_name)
             analyzer.process_all()
 
 

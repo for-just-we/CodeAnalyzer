@@ -25,7 +25,8 @@ class SemanticMatcher:
                  type_analyzer: TypeAnalyzer,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  project="",
-                 callsite_idxs: Dict[str, int] = None):
+                 callsite_idxs: Dict[str, int] = None,
+                 func_key_2_name: Dict[str, str] = None):
         self.collector: BaseInfoCollector = collector
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
@@ -47,6 +48,8 @@ class SemanticMatcher:
 
         self.expanded_macros: Dict[str, str] = type_analyzer.expanded_macros
         self.macro_call_exprs: Dict[str, str] = type_analyzer.macro_call_exprs
+
+        self.func_key_2_name: Dict[str, str] = func_key_2_name
 
         # log的位置
         self.log_flag: bool = args.log_llm_output
@@ -70,6 +73,9 @@ class SemanticMatcher:
                     func_keys: Set[str] = set()
                     if len(tokens) > 1:
                         func_keys.update(tokens[1].split(','))
+                    func_keys = set(filter(lambda func_key:
+                                           self.func_key_2_name.get(func_key, '') in self.collector.refered_funcs,
+                                           func_keys))
                     self.matched_callsites[callsite_key] = func_keys
             return
 

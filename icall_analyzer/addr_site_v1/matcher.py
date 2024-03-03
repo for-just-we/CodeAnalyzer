@@ -28,7 +28,9 @@ class AddrSiteMatcherV1:
                  addr_taken_site_retriver: AddrTakenSiteRetriver,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  project="",
-                 callsite_idxs: Dict[str, int] = None):
+                 callsite_idxs: Dict[str, int] = None,
+                 func_name_2_key: Dict[str, str] = None):
+        self.func_key_2_name: Dict[str, str] = func_name_2_key
 
         self.collector: BaseInfoCollector = collector
         self.args = args
@@ -101,6 +103,9 @@ class AddrSiteMatcherV1:
                     func_keys: Set[str] = set()
                     if len(tokens) > 1:
                         func_keys.update(tokens[1].split(','))
+                    func_keys = set(filter(lambda func_key:
+                                           self.func_key_2_name[func_key] in self.collector.refered_funcs,
+                                           func_keys))
                     self.matched_callsites[callsite_key] = func_keys
             return
 

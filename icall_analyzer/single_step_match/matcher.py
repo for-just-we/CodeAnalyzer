@@ -22,7 +22,8 @@ class SingleStepMatcher:
                  llm_analyzer: BaseLLMAnalyzer = None,
                  callsite_keys: Set[str] = None,
                  project="",
-                 callsite_idxs: Dict[str, int] = None):
+                 callsite_idxs: Dict[str, int] = None,
+                 func_key_2_name: Dict[str, str] = None):
         self.collector: BaseInfoCollector = collector
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
@@ -56,6 +57,8 @@ class SingleStepMatcher:
         self.matched_callsites: DefaultDict[str, Set[str]] = defaultdict(set)
         self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
 
+        self.func_key_2_name: Dict[str, str] = func_key_2_name
+
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
@@ -83,6 +86,9 @@ class SingleStepMatcher:
                     func_keys: Set[str] = set()
                     if len(tokens) > 1:
                         func_keys.update(tokens[1].split(','))
+                    func_keys = set(filter(lambda func_key:
+                                           self.func_key_2_name[func_key] in self.collector.refered_funcs,
+                                           func_keys))
                     self.matched_callsites[callsite_key] = func_keys
             return
 
