@@ -8,7 +8,7 @@ def build_parser():
                                                               'semantic_analysis',
                                                               'addr_site_v1_analysis',
                                                               'multi_step_analysis'])
-    parser.add_argument("--binary_res", type=bool, default=False, action='store_true')
+    parser.add_argument("--binary_res", default=False, action='store_true')
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
     parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder', 'qwen', 'chatglm',
                                                            'text-bison-001',
