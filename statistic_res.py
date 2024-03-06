@@ -69,7 +69,7 @@ def analyze_all_project_binary(running_epoch, analysis_type, model_type, tempera
 
     for project in projects:
         acc, prec, recall, f1, fpr, fnr = \
-            analyze(running_epoch, analysis_type, model_type, temperature, project)
+            analyze_binary(running_epoch, analysis_type, model_type, temperature, project)
         acc_list.append(acc)
         prec_list.append(prec)
         recall_list.append(recall)
