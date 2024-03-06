@@ -6,11 +6,12 @@ from zhipuai import ZhipuAI, APIReachLimitError, APIStatusError
 from zhipuai.api_resource.chat.completions import Completion
 
 class ZhipuAnalyzer(BaseLLMAnalyzer):
-    def __init__(self, model_type: str, api_key: str, base_url: str, temperature: float=0):
+    def __init__(self, model_type: str, api_key: str, address: str, temperature: float=0):
         super().__init__(model_type)
         if api_key != "":
             self.client = ZhipuAI(api_key=api_key)
         else:
+            base_url = "http://" + address + "/v1/"
             self.client = ZhipuAI(api_key="EMP.TY", base_url=base_url)
         self.temperature = temperature
 

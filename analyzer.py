@@ -175,8 +175,7 @@ prices = {
 
 class ProjectAnalyzer:
     def __init__(self, project_included_func_file: str, icall_infos_file: str, project_root: str,
-                 args, project: str, model_name: str
-                 ):
+                 args, project: str, model_name: str):
         if not (os.path.exists(project_included_func_file)
                 and os.path.exists(icall_infos_file)
                     and os.path.exists(project_root)):
@@ -279,22 +278,31 @@ class ProjectAnalyzer:
 
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
-            from icall_analyzer.llm.gpt_analyzer import GPTAnalyzer
-            llm_analyzer = GPTAnalyzer(self.model_name, self.args.key, self.args.temperature)
+            from icall_analyzer.llm.openai_analyzer import OpenAIAnalyzer
+            llm_analyzer = OpenAIAnalyzer(self.model_name, self.args.key, "", self.args.temperature)
+
         elif self.args.llm == "google":
             from icall_analyzer.llm.google_analyzer import GoogleAnalyzer
             llm_analyzer = GoogleAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "zhipu":
             from icall_analyzer.llm.zhipu_analyzer import ZhipuAnalyzer
             # refer to: https://github.com/THUDM/ChatGLM3/blob/main/openai_api_demo/zhipu_api_request.py#L17C34-L17C38
-            base_url = "http://" + self.args.zhipu_base_url + "/v1/"
-            llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, base_url, self.args.temperature)
+            llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, self.args.address, self.args.temperature)
+
         elif self.args.llm == "tongyi":
             from icall_analyzer.llm.tongyi_analyzer import TongyiAnalyzer
             llm_analyzer = TongyiAnalyzer(self.model_name, self.args.key, self.args.temperature)
+
         elif self.args.llm == "hf":
             from icall_analyzer.llm.hf_analyzer import HuggingFaceAnalyzer
-            llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address, self.args.temperature, self.args.max_new_tokens)
+            llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address,
+                                               self.args.temperature, self.args.max_new_tokens)
+
+        elif self.args.llm == "vllm":
+            from icall_analyzer.llm.openai_analyzer import OpenAIAnalyzer
+            llm_analyzer = OpenAIAnalyzer(self.model_name, "", self.args.address,
+                                          self.args.temperature)
+
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project, self.callsite_idxs)
         type_analyzer.process_all()

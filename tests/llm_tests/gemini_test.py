@@ -39,7 +39,7 @@ def simple_multi_thread_test(model: GenerativeModel):
         future.result()
 
 def test_icall_decl(model: GenerativeModel):
-    from test_data import context
+    from ..test_data import context
     response: GenerateContentResponse = model.generate_content(
         context)
     print(response.text)

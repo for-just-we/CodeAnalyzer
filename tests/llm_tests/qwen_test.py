@@ -1,4 +1,3 @@
-import random
 import sys
 from http import HTTPStatus
 import dashscope

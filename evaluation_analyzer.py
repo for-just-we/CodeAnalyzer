@@ -7,7 +7,7 @@ from analyzer import ProjectAnalyzer
 import logging
 
 def add_subparser(parser: argparse.ArgumentParser):
-    parser.add_argument("--temperature", type=float, default=0.4,
+    parser.add_argument("--temperature", type=float, default=1,
                             help="temperature for llm")
     subparsers = parser.add_subparsers(dest='llm')
 
@@ -26,7 +26,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     zhipu_parser.add_argument('--model_type', type=str, choices=['glm-4', 'glm-3.5-turbo', 'chatglm3-6b'],
                               help='model type of zhipu, refer to: https://open.bigmodel.cn/dev/api')
     zhipu_parser.add_argument('--key', type=str, help='api key of zhipu', default="")
-    zhipu_parser.add_argument('--zhipu_base_url', type=str, help='base url of zhipu', default="127.0.0.1:8989")
+    zhipu_parser.add_argument('--address', type=str, help='base url of zhipu', default="127.0.0.1:8989")
 
     tongyi_parser = subparsers.add_parser('tongyi', help='using alibaba tongyi qwen')
     tongyi_parser.add_argument('--model_type', type=str, choices=['qwen-max', 'qwen-max-1201', 'qwen-max-longcontext',
@@ -39,6 +39,12 @@ def add_subparser(parser: argparse.ArgumentParser):
     hf_parser.add_argument('--model_name', choices=['codellama', 'wizardcoder', 'chatglm', 'qwen'],
                            help='specify model name used. Could be codellama or WizardCoder')
     hf_parser.add_argument('--max_new_tokens', type=int, default=20)
+
+    vllm_parser = subparsers.add_parser('vllm', help='using model deployed by vllm')
+    vllm_parser.add_argument('--address', help='vllm server ip:port, default to 127.0.0.1:8080',
+                             default='127.0.0.1:8080')
+    vllm_parser.add_argument('--model_name', choices=['qwen-1.5-14', 'qwen-1.5-72'],
+                             help='specify model name used.')
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
@@ -113,7 +119,7 @@ def main():
         if isinstance(handler, logging.StreamHandler) and handler.level == logging.ERROR:
             logging.getLogger().removeHandler(handler)
 
-    if args.llm == "hf":
+    if args.llm in {"hf", "vllm"}:
         model_name = args.model_name
     elif args.llm in {"gpt", "google", "zhipu", "tongyi"}:
         model_name = args.model_type

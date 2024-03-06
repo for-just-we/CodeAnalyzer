@@ -12,14 +12,14 @@ def list_models():
 
 
 def test_icall_text_decl():
-    from test_data import context
+    from ..test_data import context
     response: Completion = genai.generate_text(
         model='models/text-bison-001', prompt=context, temperature=0.8, max_output_tokens=1024)
     print(response.result)
 
 
 def test_icall_chat_decl():
-    from test_data import context
+    from ..test_data import context
     chat: ChatResponse = genai.chat(model="models/chat-bison-001", messages=[context], temperature=0.8)
     print(chat.last)
 
