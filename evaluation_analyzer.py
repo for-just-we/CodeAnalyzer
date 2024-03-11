@@ -49,7 +49,7 @@ def add_subparser(parser: argparse.ArgumentParser):
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
     parser.add_argument("--pipeline", type=str, choices=['only_type', 'full', 'single', 'single_complex',
-                                                         'multi_step', 'addr_site_v1'],
+                                                         'multi_step', 'addr_site_v1', 'addr_site_v2'],
                         default='only_type')
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")

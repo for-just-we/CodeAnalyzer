@@ -24,6 +24,7 @@ from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
 from icall_analyzer.multi_step_match.matcher import MultiStepMatcher
 from icall_analyzer.addr_site_v1.matcher import AddrSiteMatcherV1
+from icall_analyzer.addr_site_v2.matcher import AddrSiteMatcherV2
 from icall_analyzer.base_utils.func_summarizer import FunctionSummarizer
 
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
@@ -351,6 +352,14 @@ class ProjectAnalyzer:
                                          self.project, self.callsite_idxs, func_key_2_name)
             analyzer.process_all()
 
+        elif self.args.pipeline == "addr_site_v2":
+            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
+                                                             raw_local_addr_sites, collector)
+            addr_taken_site_retriver.group()
+            analyzer = AddrSiteMatcherV2(collector, self.args, type_analyzer,
+                                         addr_taken_site_retriver, llm_analyzer,
+                                         self.project, self.callsite_idxs, func_key_2_name)
+            analyzer.process_all()
 
         return type_analyzer, analyzer
 
@@ -360,7 +369,8 @@ class ProjectAnalyzer:
         if self.args.pipeline == "only_type":
             self.evaluate_type_analysis(type_analyzer)
         # 随后进行语义匹配
-        elif self.args.pipeline in {"full", "single", "single_complex", "multi_step", "addr_site_v1"}:
+        elif self.args.pipeline in {"full", "single", "single_complex", "multi_step",
+                                    "addr_site_v1", "addr_site_v2"}:
             self.evaluate_semantic_analysis(semantic_analyzer)
 
     def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):

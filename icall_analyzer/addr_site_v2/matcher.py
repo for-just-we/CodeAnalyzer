@@ -2,8 +2,10 @@ from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary
-from icall_analyzer.addr_site_v2.prompts import System_func_pointer_Summary
+from icall_analyzer.addr_site_v2.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
+    System_multi_summary, end_multi_summary
 from icall_analyzer.llm.common_prompt import summarizing_prompt
+from icall_analyzer.addr_site_v1.prompts import System_Match, User_Match
 from icall_analyzer.base_utils.prompts import supplement_prompts
 
 from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver
@@ -157,7 +159,10 @@ class AddrSiteMatcherV2:
                          user_prompt: str, callsite_text: str):
         icall_summary: str = self.llm_analyzer.get_response([System_ICall_Summary, user_prompt])
         func_pointer_info = self.generate_icall_additional(callsite_key, callsite_text)
-        func_pointer_summary: str = self.llm_analyzer.get_response([System_func_pointer_Summary, func_pointer_info])
+        if func_pointer_info != "":
+            func_pointer_summary: str = self.llm_analyzer.get_response([System_func_pointer_Summary, func_pointer_info])
+        else:
+            func_pointer_summary = ""
 
         cur_log_dir = f"{self.log_dir}/callsite-{i}"
         target_analyze_log_dir = f"{cur_log_dir}/semantic"
@@ -190,7 +195,7 @@ class AddrSiteMatcherV2:
             pbar.update(1)
 
         def worker(func_key: str, idx: int):
-            flag = self.process_callsite_target(callsite_text, func_pointer_info,
+            flag = self.process_callsite_target(callsite_text, func_pointer_summary,
                                                 icall_summary, target_analyze_log_dir, func_key, idx)
             if flag:
                 with lock:
@@ -204,10 +209,73 @@ class AddrSiteMatcherV2:
         for future in as_completed(futures):
             future.result()
 
-
-    def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix) -> bool:
+    def process_callsite_target(self, callsite_text: str, func_pointer_summary: str,
+                                icall_summary: str, target_analyze_log_dir: str, func_key: str, idx: int) -> bool:
+        func_info: FuncInfo = self.collector.func_info_dict[func_key]
+        func_name: str = func_info.func_name
+        func_def_text: str = func_info.func_def_text
         prompt_log: str = ""
 
+        system_prompt_func: str = System_Func_Summary.format(func_name=func_name)
+        user_prompt_func: str = User_Func_Summary.format(func_name=func_name,
+                                                         func_body=func_def_text)
+        prompt_log += "{}\n\n{}\n\n======================\n".format(system_prompt_func, user_prompt_func)
+
+        # 生成target function summary
+        func_summary: str = self.llm_analyzer.get_response([system_prompt_func,
+                                                            user_prompt_func])
+        prompt_log += "{}:\n{}\n=========================\n".format(self.llm_analyzer.model_name,
+                                                                    func_summary)
+
+        # target function address-taken site summary：
+        queries: List[str] = self.addr_taken_site_retriver.generate_queries_for_func(func_name)
+        addr_summaries: List[str] = list()
+        for i, query in enumerate(queries):
+            addr_site_summary: str = self.llm_analyzer.get_response([System_addr_taken_site_Summary,
+                                                                     query])
+            addr_summaries.append(addr_site_summary)
+            prompt_log += "******************addr site prompt{idx}*******************\n" \
+                          "{query}\n\n" \
+                          "**************addr site summary{idx}********************" \
+                          "{response}\n\n"\
+                .format(idx=i+1, query=query, response=addr_site_summary)
+
+        # 如果有多个address-taken site
+        if len(addr_summaries) > 1:
+            multi_messages = []
+            for i, addr_summary in enumerate(addr_summaries):
+                multi_messages.append("Summary {}:\n{}".format(i+1, addr_summary))
+            multi_messages.append(end_multi_summary)
+            total_addr_query = "\n\n".join(addr_summaries)
+            total_addr_summary = self.llm_analyzer.get_response([System_multi_summary,
+                                                            total_addr_query])
+            prompt_log += "*****************total addr summary*******************\n" \
+                          "{}".format(total_addr_summary)
+
+
+        elif len(addr_summaries) == 1:
+            total_addr_summary = addr_summaries[0]
+
+        else:
+            total_addr_summary = ""
+
+        prompt_log += "****************end of addr site summary*****************\n"
+
+        # 进行匹配
+        add_suffix = False
+        user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
+                                                   icall_additional=func_pointer_summary,
+                                                   icall_summary=icall_summary,
+                                                   func_summary=func_summary,
+                                                   func_name=func_name,
+                                                   target_additional_information=total_addr_summary)
+        # 如果不需要二段式，也就是不需要COT
+        user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
+
+        return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir, f"{idx}.txt", add_suffix, prompt_log)
+
+
+    def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix, prompt_log: str) -> bool:
         prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
 
         yes_time = 0

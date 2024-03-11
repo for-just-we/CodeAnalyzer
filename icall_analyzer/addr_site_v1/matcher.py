@@ -251,11 +251,9 @@ class AddrSiteMatcherV1:
         user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
 
 
-        return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir, f"{idx}.txt", add_suffix)
+        return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir, f"{idx}.txt", add_suffix, prompt_log)
 
-    def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix) -> bool:
-        prompt_log: str = ""
-
+    def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix, prompt_log: str) -> bool:
         prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
 
         yes_time = 0
