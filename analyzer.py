@@ -339,7 +339,7 @@ class ProjectAnalyzer:
             func_summarizer.analyze()
             analyzer = MultiStepMatcher(collector, self.args, type_analyzer,
                                         func_summarizer.func_key2summary, llm_analyzer,
-                                        self.project, self.callsite_idxs, func_key_2_name)
+                                        self.project, self.callsite_idxs)
             analyzer.process_all()
 
 
@@ -348,7 +348,7 @@ class ProjectAnalyzer:
                                                              raw_local_addr_sites, collector)
             analyzer = AddrSiteMatcherV1(collector, self.args, type_analyzer,
                                          addr_taken_site_retriver, llm_analyzer,
-                                         self.project, self.callsite_idxs)
+                                         self.project, self.callsite_idxs, func_key_2_name)
             analyzer.process_all()
 
 

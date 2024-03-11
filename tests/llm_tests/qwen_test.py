@@ -45,6 +45,7 @@ def call_with_messages(api_key):
     except RequestFailure as e:
         if int(e.http_code) == 429:
             print("catch rate limit")
+            print(e)
         else:
             print("catch other error")
     except Exception as e:
@@ -60,6 +61,8 @@ def call_with_messages(api_key):
         print("input token num: {} , output token num: {}".format(input_token_num, output_token_num))
     elif response.status_code == 429:
         print("rate limit")
+        print(response.message)
+        print(response)
     else:
         print('Request id: %s, Status code: %s, error code: %s, error message: %s' % (
             response.request_id, response.status_code,
@@ -87,4 +90,4 @@ def multi_thread_test(api_key):
         futures.append(future)
 
 if __name__ == '__main__':
-    multi_thread_test(sys.argv[1])
+    call_with_messages(sys.argv[1])

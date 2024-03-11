@@ -142,7 +142,60 @@ class AddrTakenSiteRetriver:
                     elif top_level_node.node_type == "call_expression":
                         self.local_call_expr[func_name].append(top_level_node)
 
-        pass
+
+    def group(self):
+        self.init_addr_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
+                                           Set[str]]] = \
+                                defaultdict(lambda: defaultdict(set))
+
+        # global init declarator
+        for func_name, declarator_infos in self.global_addr_sites.items():
+            for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
+                struct_decl, ori_var_type, init_node_text = \
+                    self.retrive_info_from_declarator(addr_taken_site_top,
+                                                          addr_taken_site, init_level,
+                                                          self.collector.global_var_info)
+                self.init_addr_infos[func_name][(struct_decl,
+                                    ori_var_type)].add(init_node_text)
+
+
+        # local init declarator
+        for func_name, local_declarator_infos in self.local_declarators.items():
+            for func_key, declarator_infos in local_declarator_infos:
+                for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
+                    struct_decl, ori_var_type, init_node_text = \
+                        self.retrive_info_from_declarator(addr_taken_site_top,
+                                                          addr_taken_site, init_level,
+                                                          self.collector.global_var_info)
+                    self.init_addr_infos[func_name][(struct_decl,
+                                                     ori_var_type)].add(init_node_text)
+
+        # assignment expression
+        self.local_assignment_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
+                                                                  Set[Tuple[str, str, str]]]] = \
+            defaultdict(lambda :defaultdict(set))
+        for func_name, assignment_infos in self.local_assignment_exprs.items():
+            for func_key, assignment_info in assignment_infos.items():
+                for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
+                    declarator, refered_struct_name, struct_decl_text, \
+                    var_text, assign_node_text = self.retrive_info_from_assignment(addr_taken_site_top, func_key)
+                    self.local_assignment_infos[func_name][(refered_struct_name, struct_decl_text)]\
+                        .add((declarator, var_text, assign_node_text))
+
+        # call expression
+        self.call_expr_info: DefaultDict[str, Set[Tuple[str, str]]] = defaultdict(set)
+        for func_name, call_nodes in self.local_call_expr.items():
+            for call_node in call_nodes:
+                callee_func_name = call_node.children[0].node_text
+                target_funcs: List[FuncInfo] = list(filter(lambda func_info: func_info.name == callee_func_name,
+                       self.collector.func_info_dict.values()))
+                if len(target_funcs) <= 0:
+                    self.call_expr_info[func_name].add((call_node.node_text, ""))
+                else:
+                    target_func: FuncInfo = random.choice(target_funcs)
+                    self.call_expr_info[func_name].add((call_node.node_text,
+                                                        target_func.raw_declarator_text))
+
 
     def random_select_one(self, func_name) -> str:
         # 第3个表示作用域是否是global，否则就是local
