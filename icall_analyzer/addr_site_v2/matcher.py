@@ -236,7 +236,7 @@ class AddrSiteMatcherV2:
             addr_summaries.append(addr_site_summary)
             prompt_log += "******************addr site prompt{idx}*******************\n" \
                           "{query}\n\n" \
-                          "**************addr site summary{idx}********************" \
+                          "**************addr site summary{idx}********************\n" \
                           "{response}\n\n"\
                 .format(idx=i+1, query=query, response=addr_site_summary)
 
@@ -249,7 +249,7 @@ class AddrSiteMatcherV2:
             total_addr_query = "\n\n".join(addr_summaries)
             total_addr_summary = self.llm_analyzer.get_response([System_multi_summary,
                                                             total_addr_query])
-            prompt_log += "*****************total addr summary*******************\n" \
+            prompt_log += "\n*****************total addr summary*******************\n" \
                           "{}".format(total_addr_summary)
 
 
