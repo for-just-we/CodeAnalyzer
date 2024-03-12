@@ -43,7 +43,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     vllm_parser = subparsers.add_parser('vllm', help='using model deployed by vllm')
     vllm_parser.add_argument('--address', help='vllm server ip:port, default to 127.0.0.1:8080',
                              default='127.0.0.1:8080')
-    vllm_parser.add_argument('--model_name', choices=['qwen-1.5-14', 'qwen-1.5-72'],
+    vllm_parser.add_argument('--model_name', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-72B-Chat'],
                              help='specify model name used.')
 
 def build_arg_parser():

@@ -28,16 +28,10 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
         # 远程访问openai模型
         if api_key != "":
             self.client = OpenAI(api_key=api_key)
-            self.model_id = model_type
         # 本地vllm部署的模型
         else:
             url = "http://" + address + "/v1"
             self.client = OpenAI(api_key="EMPTY", base_url=url)
-            model_type_2_id = {
-                "qwen-1.5-14": "Qwen/Qwen1.5-14B-Chat",
-                "qwen-1.5-72": "Qwen/Qwen1.5-72B-Chat"
-            }
-            self.model_id = model_type_2_id[model_type]
 
     # 向openai发送一次请求，返回一个response，可能会触发异常
     def get_openai_response(self, dialog: List[Dict[str, str]], times: int) -> Tuple[str, bool, int]:
@@ -51,7 +45,7 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
         """
         try:
             response = self.client.chat.completions.create(
-                model=self.model_id,
+                model=self.model_type,
                 messages=dialog,
                 temperature=self.temperature
             )
