@@ -95,18 +95,6 @@ class AddrSiteMatcherV1:
     def process_all(self):
         logging.info("Start address-taken site matching...")
 
-        if os.path.exists(f"{self.log_dir}/semantic_result.txt"):
-            logging.info("loading existed semantic matching results automatically")
-            with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
-                for line in f:
-                    tokens: List[str] = line.strip().split('|')
-                    callsite_key: str = tokens[0]
-                    func_keys: Set[str] = set()
-                    if len(tokens) > 1:
-                        func_keys.update(tokens[1].split(','))
-                    self.matched_callsites[callsite_key] = func_keys
-                    self.type_matched_callsites.pop(callsite_key)
-
         if self.args.load_pre_semantic_analysis_res:
             assert os.path.exists(f"{self.log_dir}/semantic_result.txt")
             logging.info("loading existed semantic matching results.")
@@ -125,6 +113,17 @@ class AddrSiteMatcherV1:
 
             return
 
+        if os.path.exists(f"{self.log_dir}/semantic_result.txt"):
+            logging.info("loading existed semantic matching results automatically")
+            with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
+                for line in f:
+                    tokens: List[str] = line.strip().split('|')
+                    callsite_key: str = tokens[0]
+                    func_keys: Set[str] = set()
+                    if len(tokens) > 1:
+                        func_keys.update(tokens[1].split(','))
+                    self.matched_callsites[callsite_key] = func_keys
+                    self.type_matched_callsites.pop(callsite_key)
 
         logging.info("{} callsite to be analyzed".format(len(self.type_matched_callsites)))
         time.sleep(2)

@@ -8,7 +8,7 @@ def build_parser():
                                                               'semantic_analysis',
                                                               'addr_site_v1_analysis',
                                                               'multi_step_analysis'])
-    parser.add_argument("--binary_res", default=False, action='store_true')
+    parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
     parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder', 'qwen', 'chatglm',
                                                            'text-bison-001',
@@ -36,6 +36,17 @@ def analyze(running_epoch, analysis_type, model_type, temperature, project):
     recall = float(recall_str) / 100
     f1 = float(f1_str) / 100
     return prec, recall, f1
+
+def analyze_token(running_epoch, analysis_type, model_type, temperature, project):
+    file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
+                f'{model_type}-{temperature}/{project}/evaluation_result.txt'
+    if not os.path.exists(file_path):
+        print("missing project: {}".format(project))
+        return 0, 0, 0
+    lines = open(file_path).readlines()
+    line = lines[2].strip()
+    input_token_num_str, output_token_num_str = line.split(',')[:2]
+    return float(input_token_num_str), float(output_token_num_str)
 
 
 def analyze_binary(running_epoch, analysis_type, model_type, temperature, project):
@@ -112,20 +123,40 @@ def analyze_all_project(running_epoch, analysis_type, model_type, temperature, p
     return avg_prec, avg_recall, avg_f1
 
 
+def analyze_all_project_token(running_epoch, analysis_type, model_type, temperature, projects):
+    input_token_total_num = 0
+    output_token_total_num = 0
+    for project in projects:
+        input_token_num, output_token_num = analyze_token(running_epoch, analysis_type,
+                                                              model_type, temperature, project)
+        input_token_total_num += input_token_num
+        output_token_total_num += output_token_num
+
+        print(f"| {project}-{model_type}-{temperature} "
+              f"| {input_token_num} | {output_token_num} |")
+
+    print(f"| total-{model_type}-{temperature} "
+          f"| {input_token_total_num} | {output_token_total_num} |")
+
 
 def main():
     parser = build_parser()
     args = parser.parse_args()
+    res_type = args.res_type
     running_epoch = args.running_epoch
     analysis_type = args.analysis_type
     model_type = args.model_type
     temperature = args.temperature
     projects = args.projects
 
-    if args.binary_res:
+    if args.res_type == 'binary':
         analyze_all_project_binary(running_epoch, analysis_type, model_type, temperature, projects)
-    else:
+    elif args.res_type == 'normal':
         analyze_all_project(running_epoch, analysis_type, model_type, temperature, projects)
+    elif args.res_type == 'token':
+        analyze_all_project_token(running_epoch, analysis_type, model_type, temperature, projects)
+
+
 
 if __name__ == '__main__':
     main()

@@ -13,6 +13,7 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
+import time
 from tqdm import tqdm
 import os
 import logging
@@ -96,6 +97,7 @@ class AddrSiteMatcherV2:
 
     def process_all(self):
         logging.info("Start address-taken site matching...")
+
         if self.args.load_pre_semantic_analysis_res:
             assert os.path.exists(f"{self.log_dir}/semantic_result.txt")
             logging.info("loading existed semantic matching results.")
@@ -111,6 +113,21 @@ class AddrSiteMatcherV2:
                                            func_keys))
                     self.matched_callsites[callsite_key] = func_keys
             return
+
+        if os.path.exists(f"{self.log_dir}/semantic_result.txt"):
+            logging.info("loading existed semantic matching results automatically")
+            with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
+                for line in f:
+                    tokens: List[str] = line.strip().split('|')
+                    callsite_key: str = tokens[0]
+                    func_keys: Set[str] = set()
+                    if len(tokens) > 1:
+                        func_keys.update(tokens[1].split(','))
+                    self.matched_callsites[callsite_key] = func_keys
+                    self.type_matched_callsites.pop(callsite_key)
+
+        logging.info("{} callsite to be analyzed".format(len(self.type_matched_callsites)))
+        time.sleep(2)
 
         # 遍历callsite
         for (callsite_key, func_keys) in self.type_matched_callsites.items():
