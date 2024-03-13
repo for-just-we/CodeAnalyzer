@@ -7,6 +7,7 @@ def build_parser():
                                                               'single_step_complex_analysis',
                                                               'semantic_analysis',
                                                               'addr_site_v1_analysis',
+                                                              'addr_site_v2_analysis',
                                                               'multi_step_analysis'])
     parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
@@ -142,7 +143,6 @@ def analyze_all_project_token(running_epoch, analysis_type, model_type, temperat
 def main():
     parser = build_parser()
     args = parser.parse_args()
-    res_type = args.res_type
     running_epoch = args.running_epoch
     analysis_type = args.analysis_type
     model_type = args.model_type
