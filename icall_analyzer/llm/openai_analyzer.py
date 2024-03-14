@@ -1,17 +1,18 @@
 import openai
 from openai import OpenAI
+from openai import APIError, APIConnectionError, RateLimitError, Timeout, BadRequestError, AuthenticationError, OpenAIError
 import logging
 import time
 from typing import List, Dict, Tuple
 from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
 
 openai_error_messages = {
-    openai.APIError: "OpenAI API returned an API Error: {}",
-    openai.APIConnectionError: "Failed to connect to OpenAI API: {}",
-    openai.RateLimitError: "OpenAI TimeLimt: {}",
-    openai.Timeout: "OpenAI API request timed out: {}",
-    openai.BadRequestError: "Invalid request to OpenAI API: {}",
-    openai.AuthenticationError: "Authentication error with OpenAI API: {}",
+    APIError: "OpenAI API returned an API Error: {}",
+    APIConnectionError: "Failed to connect to OpenAI API: {}",
+    RateLimitError: "OpenAI TimeLimt: {}",
+    Timeout: "OpenAI API request timed out: {}",
+    BadRequestError: "Invalid request to OpenAI API: {}",
+    AuthenticationError: "Authentication error with OpenAI API: {}",
 }
 
 class OpenAIAnalyzer(BaseLLMAnalyzer):
@@ -56,12 +57,12 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
             if resp_text.strip() == "":
                 resp = ("empty response", False, times)
 
-        except tuple(openai_error_messages.keys()) as e:
+        except OpenAIError as e:
             error_type = type(e)
             error_message: str = openai_error_messages.get(error_type,
                                                       "An unknown error occurred: {}")
             # 如果达到了rate limit
-            if error_type is not openai.RateLimitError:
+            if error_type is not RateLimitError:
                 times += 1
                 time.sleep(10)
                 logging.debug("{}, sleeping 10s".format(error_message.format(e)))

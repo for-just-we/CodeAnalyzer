@@ -49,3 +49,6 @@ def main():
     url = "http://{}/v1".format(address)
     client = OpenAI(api_key="EMPTY", base_url=url)
     test_icall_decl(client, model_id)
+
+if __name__ == '__main__':
+    main()
