@@ -115,7 +115,7 @@ class ICallSigMatcher:
             arg_type: List[Tuple[str, int]] = \
                 func_body_visitor.arg_info_4_callsite.get(icall_loc)
             if arg_type is None:
-                logging.debug("error parsing indirect-callsite: {}".format(callsite_key))
+                logging.getLogger("CodeAnalyzer").debug("error parsing indirect-callsite: {}".format(callsite_key))
                 continue
             self.match_4_indirect_call(arg_type, callsite_key)
 

@@ -37,10 +37,10 @@ class FunctionDeclaratorVisitor(ASTVisitor):
             func_name_extractor.traverse_node(node.qualified_identifier)
             func_name: str = func_name_extractor.identifier
             if func_name is None:
-                logging.debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
+                logging.getLogger("CodeAnalyzer").debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
                 return False
         else:
-            logging.debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
+            logging.getLogger("CodeAnalyzer").debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
             return False
         # assert node.children[1].type == "parameter_list"
         parameter_visitor = ParameterListVisitor()
@@ -177,7 +177,7 @@ class ParameterListVisitor(ASTVisitor):
             param_type: str = base_type if suffix == "" else base_type + " " + suffix
             self.parameter_types.append((param_type, param_name))
         except DeclareTypeException as e:
-            logging.debug("traversing node: ", node.node_text,
+            logging.getLogger("CodeAnalyzer").debug("traversing node: ", node.node_text,
                   " location: ", node.start_point, " error")
             return False
         return False

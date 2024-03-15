@@ -55,6 +55,6 @@ class FunctionSummarizer:
         for future in as_completed(futures):
             future.result()
 
-        logging.info("summarizied {} functions, should summarize {} functions"
+        logging.getLogger("CodeAnalyzer").info("summarizied {} functions, should summarize {} functions"
                      .format(len(self.func_key2summary), len(self.func_keys)))
         assert len(self.func_key2summary) == len(self.func_keys)

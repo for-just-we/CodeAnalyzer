@@ -81,11 +81,11 @@ class SingleStepComplexMatcher:
                 os.makedirs(self.log_dir)
 
     def process_all(self):
-        logging.info("Start single step complex matching...")
+        logging.getLogger("CodeAnalyzer").info("Start single step complex matching...")
 
         if self.args.load_pre_single_step_analysis_res:
             assert os.path.exists(self.res_log_file)
-            logging.info("loading existed single step complex matching results.")
+            logging.getLogger("CodeAnalyzer").info("loading existed single step complex matching results.")
             with open(self.res_log_file, "r", encoding='utf-8') as f:
                 for line in f:
                     tokens: List[str] = line.strip().split('|')

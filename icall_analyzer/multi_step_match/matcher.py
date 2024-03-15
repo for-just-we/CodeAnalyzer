@@ -62,10 +62,10 @@ class MultiStepMatcher:
 
 
     def process_all(self):
-        logging.info("Start mutil-step matching...")
+        logging.getLogger("CodeAnalyzer").info("Start mutil-step matching...")
         if self.args.load_pre_semantic_analysis_res:
             assert os.path.exists(f"{self.log_dir}/semantic_result.txt")
-            logging.info("loading existed semantic matching results.")
+            logging.getLogger("CodeAnalyzer").info("loading existed semantic matching results.")
             with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
                 for line in f:
                     tokens: List[str] = line.strip().split('|')

@@ -69,7 +69,7 @@ class TypeAnalyzer:
         self.llm_analyzed_types: Dict[Tuple[str, str], bool] = dict()
         # 线程数
         self.num_worker: int = args.num_worker
-        logging.info("thread num: {}".format(self.num_worker))
+        logging.getLogger("CodeAnalyzer").info("thread num: {}".format(self.num_worker))
 
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
@@ -143,7 +143,7 @@ class TypeAnalyzer:
                         struct_name_set = struct_names.split(',')
                         struct_name1, struct_name2 = struct_name_set[0], struct_name_set[1]
                         self.llm_analyzed_types[(struct_name1, struct_name2)] = bool(flag)
-                    logging.info("loading analyzed type infos, size is: {}".format(len(self.llm_analyzed_types)))
+                    logging.getLogger("CodeAnalyzer").info("loading analyzed type infos, size is: {}".format(len(self.llm_analyzed_types)))
 
             # 如果llm已经分析过declarator，导入过已有的declarator分析信息
             if os.path.exists(self.log_declarator_res):
@@ -155,7 +155,7 @@ class TypeAnalyzer:
                         callsite_key, func_keys_str = line.strip().split('|')
                         func_keys: Set[str] = func_keys_str.split(',')
                         self.llm_declarator_analysis[callsite_key].update(func_keys)
-                    logging.info("loading analyzed declarators, size is: {}"
+                    logging.getLogger("CodeAnalyzer").info("loading analyzed declarators, size is: {}"
                             .format(len(self.llm_declarator_analysis)))
 
             # 需要加载之前log分析结果
@@ -165,7 +165,7 @@ class TypeAnalyzer:
 
 
     def process_all(self):
-        logging.info("type analysis start...")
+        logging.getLogger("CodeAnalyzer").info("type analysis start...")
         # 遍历每个函数
         for func_key, func_info in self.collector.func_info_dict.items():
             icall_locs: List[Tuple[int, int]] = self.collector.icall_dict.get(
@@ -203,7 +203,7 @@ class TypeAnalyzer:
         for icall_loc in icall_locs:
             callsite_key: str = f"{func_info.file}:{icall_loc[0] + 1}:{icall_loc[1] + 1}"
             # 如果该indirect-call对应的call expression没有被正确解析，跳过。
-            logging.info("visiting {}-th icall {}".format(self.callsite_idxs[callsite_key], callsite_key))
+            logging.getLogger("CodeAnalyzer").info("visiting {}-th icall {}".format(self.callsite_idxs[callsite_key], callsite_key))
             if icall_loc not in func_body_visitor.icall_nodes.keys():
                 self.callees[callsite_key] = set()
                 continue
@@ -255,7 +255,7 @@ class TypeAnalyzer:
             if arg_type is not None:
                 self.match_with_types(arg_type, callsite_key, False, matching_epoch)
             else:
-                logging.debug("error parsing arguments for {}-th indirect-callsite: {}".
+                logging.getLogger("CodeAnalyzer").debug("error parsing arguments for {}-th indirect-callsite: {}".
                             format(self.callsite_idxs[callsite_key], callsite_key))
 
             if func_pointer_arg_type is not None:
@@ -266,7 +266,7 @@ class TypeAnalyzer:
                 arg_num = len(func_pointer_arg_type)
                 self.match_with_types(func_pointer_arg_types, callsite_key, var_arg, matching_epoch)
             else:
-                logging.debug("fail to find function pointer declaration for {}-th indirect-callsite: {}".
+                logging.getLogger("CodeAnalyzer").debug("fail to find function pointer declaration for {}-th indirect-callsite: {}".
                             format(self.callsite_idxs[callsite_key], callsite_key))
                 # arg_num = 0
                 var_arg = False
@@ -286,11 +286,11 @@ class TypeAnalyzer:
         # 需要llm辅助类型分析
         if self.llm_analyzer is not None and not self.disable_llm_for_uncertain:
             if function_pointer_declarator is not None:
-                logging.info("function pointer declarator is: {}".format(function_pointer_declarator))
+                logging.getLogger("CodeAnalyzer").info("function pointer declarator is: {}".format(function_pointer_declarator))
                 self.match_with_declarator_texts(function_pointer_declarator, callsite_key,
                                                 arg_num, var_arg)
             elif (decl_context is not None and callsite_text is not None):
-                logging.info("indirect-call declarator context is: {}".format(decl_context))
+                logging.getLogger("CodeAnalyzer").info("indirect-call declarator context is: {}".format(decl_context))
                 self.match_with_decl_contexts(callsite_text, arg_list_text, arg_texts,
                                               decl_context, callsite_key, len(arg_type))
 

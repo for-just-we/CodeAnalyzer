@@ -58,7 +58,7 @@ class GoogleAnalyzer(BaseLLMAnalyzer):
         """
         def handle_error(exception, sleep_time):
             error_message = f"{exception.__class__.__name__} in request, message is: {exception}"
-            logging.debug(error_message)
+            logging.getLogger("CodeAnalyzer").debug(error_message)
             time.sleep(sleep_time)
             return str(exception), False, times
 

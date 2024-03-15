@@ -36,7 +36,7 @@ class HuggingFaceAnalyzer(BaseLLMAnalyzer):
             error_msg = "Error: Server returned a non-200 status code {} " \
                         "or return invalid response".format(response.status_code) \
                 if response.status_code != 429 else "rate limit exceeded"
-            logging.debug(error_msg)
+            logging.getLogger("CodeAnalyzer").debug(error_msg)
             time.sleep(60)
             if response.status_code == 429:
                 return error_msg, False, times

@@ -64,9 +64,9 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
             if error_type is not RateLimitError:
                 times += 1
                 time.sleep(10)
-                logging.debug("{}, sleeping 10s".format(error_message.format(e)))
+                logging.getLogger("CodeAnalyzer").debug("{}, sleeping 10s".format(error_message.format(e)))
             else:
-                logging.debug("{}, sleeping 60s".format(error_message.format(e)))
+                logging.getLogger("CodeAnalyzer").debug("{}, sleeping 60s".format(error_message.format(e)))
                 time.sleep(60)
             resp = (error_message.format(e), False, times)
         return resp

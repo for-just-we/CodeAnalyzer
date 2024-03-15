@@ -110,14 +110,20 @@ def main():
     if not args.projects:
         parser.error("You must specify one or more project to analyze")
     projects: List[str] = args.projects.split(',')
+
+    logging.basicConfig()
+    logger = logging.getLogger("CodeAnalyzer")
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.DEBUG)  # 设置handler的级别，可以与logger级别一致或更具体
+    # 创建一个Formatter来格式化输出的日志信息
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    # 将创建的handler添加到logger中
+    logger.addHandler(handler)
     if args.debug:
-        logging.basicConfig(level=logging.DEBUG)
+        logger.setLevel(level=logging.DEBUG)
     else:
-        logging.basicConfig(level=logging.INFO)
-    # 移除控制台输出的ERROR级别的处理器
-    for handler in logging.getLogger().handlers:
-        if isinstance(handler, logging.StreamHandler) and handler.level == logging.ERROR:
-            logging.getLogger().removeHandler(handler)
+        logger.setLevel(level=logging.INFO)
 
     if args.llm in {"hf", "vllm"}:
         model_name = args.model_name
@@ -128,7 +134,7 @@ def main():
 
     # 打印项目参数的值
     for project in projects:
-        logging.info(f"analyzing project: {project}")
+        logging.getLogger("CodeAnalyzer").info(f"analyzing project: {project}")
         project_included_func_file = os.path.join(root_path, "infos", "funcs", f"{project}.txt")
         icall_infos_file = os.path.join(root_path, "infos", "icall_infos", f"{project}.txt")
         project_root = os.path.join(root_path, "projects", project)

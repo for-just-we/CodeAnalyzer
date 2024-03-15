@@ -67,7 +67,7 @@ def load_icall_infos(path: str) -> Tuple[DefaultDict[str, List[Tuple[int, int]]]
 
 
 def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
-    logging.debug("start evaluating")
+    logging.getLogger("CodeAnalyzer").debug("start evaluating")
     precs = [] # 查准率
     recalls = [] # 召回率
     F1s = []
@@ -78,7 +78,7 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
         analyzed_targets: Set[str] = targets.get(icall_key, set())
         TPs: Set[str] = analyzed_targets & labeled_funcs
         if len(TPs) == 0:
-            logging.debug("file containing missed: {}".format(icall_key))
+            logging.getLogger("CodeAnalyzer").debug("file containing missed: {}".format(icall_key))
             precs.append(0)
             recalls.append(0)
             F1s.append(0)
@@ -89,8 +89,8 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
         precs.append(prec)
         recalls.append(recall)
         if recall < 1:
-            logging.debug("file have missing: {}".format(icall_key))
-            logging.debug("missed functions are: {}".format(labeled_funcs - TPs))
+            logging.getLogger("CodeAnalyzer").debug("file have missing: {}".format(icall_key))
+            logging.getLogger("CodeAnalyzer").debug("missed functions are: {}".format(labeled_funcs - TPs))
         if prec + recall == 0:
             F1s.append(0)
         else:
@@ -99,7 +99,7 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
     P = np.mean(precs)
     R = np.mean(recalls)
     F1 = np.mean(F1s)
-    logging.debug(f"{count} examples didn't produce valid analyze results")
+    logging.getLogger("CodeAnalyzer").debug(f"{count} examples didn't produce valid analyze results")
 
     return (P, R, F1)
 
@@ -113,14 +113,14 @@ def print_added_true_positive(ground_truths: Dict[str, Set[str]],
 
         TPs: Set[str] = label_t_keys & predicted_t_keys
         if len(TPs) > 0:
-            logging.debug("added true positive callsite: {}|{}".format(callsite_key, ",".join(TPs)))
+            logging.getLogger("CodeAnalyzer").debug("added true positive callsite: {}|{}".format(callsite_key, ",".join(TPs)))
 
     for callsite_key in ground_truths.keys():
         label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
         predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
         FPs: Set[str] = predicted_t_keys - label_t_keys
         if len(FPs) > 0:
-            logging.debug("added false positive callsite: {}|{}".format(callsite_key, ",".join(FPs)))
+            logging.getLogger("CodeAnalyzer").debug("added false positive callsite: {}|{}".format(callsite_key, ",".join(FPs)))
 
 
 def evaluate_binary(ground_truths: Dict[str, Set[str]],
@@ -180,7 +180,7 @@ class ProjectAnalyzer:
         if not (os.path.exists(project_included_func_file)
                 and os.path.exists(icall_infos_file)
                     and os.path.exists(project_root)):
-            logging.info("function name file or indirect-call ground truth or project root path missing")
+            logging.getLogger("CodeAnalyzer").info("function name file or indirect-call ground truth or project root path missing")
             return
         self.included_funcs: Set[str] = set([line.strip() for line in
                                         open(project_included_func_file, 'r', encoding='utf-8').readlines()])
@@ -203,7 +203,7 @@ class ProjectAnalyzer:
         parsed_trees: List[ASTNode] = list()
         for file in tqdm(c_h_files, desc="parsing source files into trees"):
             relative_path = file[len(self.project_root) + 1:]
-            logging.debug(relative_path)
+            logging.getLogger("CodeAnalyzer").debug(relative_path)
             code: bytes = open(file, 'rb').read()
             tree: Tree = parser.parse(code)
             root_node: ASTNode = processor.visit(tree.root_node)
@@ -220,7 +220,7 @@ class ProjectAnalyzer:
             global_ref_func_visitor.traverse_node(root_node)
         refered_func_names: Set[str] = global_ref_func_visitor.refered_func
         func_set: Set[str] = global_ref_func_visitor.func_name_set
-        logging.info("function name set has {} functions.".format(len(func_set)))
+        logging.getLogger("CodeAnalyzer").info("function name set has {} functions.".format(len(func_set)))
 
         func_key_2_name: Dict[str, str] = dict()
         func_key_2_declarator: Dict[str, str] = dict()
@@ -307,8 +307,8 @@ class ProjectAnalyzer:
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project, self.callsite_idxs)
         type_analyzer.process_all()
-        logging.debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
-        logging.debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
+        logging.getLogger("CodeAnalyzer").debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
+        logging.getLogger("CodeAnalyzer").debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
 
         analyzer = None
         if self.args.pipeline == "full":
@@ -374,10 +374,10 @@ class ProjectAnalyzer:
             self.evaluate_semantic_analysis(semantic_analyzer)
 
     def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
-        logging.info("result of project, Precision, Recall, F1 is:")
+        logging.getLogger("CodeAnalyzer").info("result of project, Precision, Recall, F1 is:")
         icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees.copy()
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
-        logging.info(f"| {self.project} "
+        logging.getLogger("CodeAnalyzer").info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
@@ -386,7 +386,7 @@ class ProjectAnalyzer:
             for key, values in new_icall_2_target.items():
                 icall_2_targets1[key] = icall_2_targets1.get(key, set()) | values
             P, R, F1 = evaluate(icall_2_targets1, self.ground_truths)
-            logging.info(f"| {self.project}-{info} "
+            logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
@@ -399,7 +399,7 @@ class ProjectAnalyzer:
             acc, prec, recall, F1, fpr, fnr = \
                 evaluate_binary(partial_ground_truth, analyzed_res,
                                 all_potential_targets)
-            logging.info(f"| {self.project}-{info} "
+            logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                          f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
 
@@ -443,28 +443,28 @@ class ProjectAnalyzer:
             cost = count_cost(type_analyzer.llm_analyzer.input_token_num,
                               type_analyzer.llm_analyzer.output_token_num,
                               price[0], price[1])
-            logging.info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
+            logging.getLogger("CodeAnalyzer").info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
                          .format(type_analyzer.llm_analyzer.input_token_num,
                                  type_analyzer.llm_analyzer.output_token_num,
                                  type_analyzer.llm_analyzer.model_type,
                                  cost))
-            logging.info(
+            logging.getLogger("CodeAnalyzer").info(
                 "| {} | {} | {} | {} | {:.2f} |".format(self.project, type_analyzer.llm_analyzer.input_token_num,
                                                         type_analyzer.llm_analyzer.output_token_num,
                                                         type_analyzer.llm_analyzer.model_type, cost))
 
         if self.args.log_res_to_file:
-            logging.info("writing result to evaluation_result.txt")
+            logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
             assert hasattr(type_analyzer, "log_dir")
             with open(f"{type_analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
                 f.write(line)
-                logging.info("writing success")
+                logging.getLogger("CodeAnalyzer").info("writing success")
 
 
     def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher, MultiStepMatcher]):
         icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
-        logging.info(f"| {self.project}-{analyzer.llm_analyzer.model_name} "
+        logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{analyzer.llm_analyzer.model_name} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line1 = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
@@ -473,7 +473,7 @@ class ProjectAnalyzer:
         acc, prec, recall, F1, fpr, fnr = \
             evaluate_binary(self.ground_truths, icall_2_targets,
                             analyzer.type_matched_callsites)
-        logging.info(f"| {self.project}-{llm_analyzer.model_name} "
+        logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{llm_analyzer.model_name} "
                      f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                      f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
         line2 = f"{(acc * 100):.1f},{(prec * 100):.1f},{(recall * 100):.1f}," \
@@ -485,18 +485,18 @@ class ProjectAnalyzer:
             price = prices.get(llm_analyzer.model_type, [0, 0])
             cost = count_cost(llm_analyzer.input_token_num, llm_analyzer.output_token_num,
                               price[0], price[1])
-            logging.info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
+            logging.getLogger("CodeAnalyzer").info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
                          .format(llm_analyzer.input_token_num, llm_analyzer.output_token_num,
                                  llm_analyzer.model_type, cost))
-            logging.info(
+            logging.getLogger("CodeAnalyzer").info(
                 "| {} | {} | {} | {} | {:.2f} |".format(self.project, llm_analyzer.input_token_num,
                                 llm_analyzer.output_token_num, llm_analyzer.model_type, cost))
             line3 = f"{llm_analyzer.input_token_num / 1000},{llm_analyzer.output_token_num / 1000},{llm_analyzer.model_type},{cost}"
             line = line + "\n" + line3
 
         if self.args.log_res_to_file:
-            logging.info("writing result to evaluation_result.txt")
+            logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
             assert hasattr(analyzer, "log_dir")
             with open(f"{analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
                 f.write(line)
-                logging.info("writing success")
+                logging.getLogger("CodeAnalyzer").info("writing success")

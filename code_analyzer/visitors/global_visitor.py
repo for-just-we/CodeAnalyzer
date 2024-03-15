@@ -135,7 +135,7 @@ class GlobalVisitor(ASTVisitor):
                 # 寻找类型名
                 suffix, _, declarator = process_declarator(dst_declarator, False)
             except DeclareTypeException as e:
-                logging.debug("traversing node: ", node.node_text,
+                logging.getLogger("CodeAnalyzer").debug("traversing node: ", node.node_text,
                     " location: ", node.start_point, " error")
                 return False
             # 如果是函数指针定义，只记录它是个函数类型，而不指示具体类型

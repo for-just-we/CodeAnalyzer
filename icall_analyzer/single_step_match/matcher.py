@@ -74,11 +74,11 @@ class SingleStepMatcher:
 
 
     def process_all(self):
-        logging.info("Start single step matching...")
+        logging.getLogger("CodeAnalyzer").info("Start single step matching...")
 
         if self.args.load_pre_single_step_analysis_res:
             assert os.path.exists(self.res_log_file)
-            logging.info("loading existed single step matching results.")
+            logging.getLogger("CodeAnalyzer").info("loading existed single step matching results.")
             with open(self.res_log_file, "r", encoding='utf-8') as f:
                 for line in f:
                     tokens: List[str] = line.strip().split('|')

@@ -38,7 +38,7 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
                 temperature=self.temperature
             )
         except Exception as e:
-            logging.debug("encounter error: {}".format(e))
+            logging.getLogger("CodeAnalyzer").debug("encounter error: {}".format(e))
             return (str(e), False, times + 1)
         if response.status_code == HTTPStatus.OK:
             resp_text: str = response["output"]["choices"][0]["message"]["content"]
@@ -52,22 +52,22 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
                 resp = (resp_text, True, times)
         # 403表示api key不能访问
         elif response.status_code in {401, 403}:
-            logging.info(response["message"])
-            logging.info("api key error")
+            logging.getLogger("CodeAnalyzer").info(response["message"])
+            logging.getLogger("CodeAnalyzer").info("api key error")
             exit(-1)
         # rate limit
         elif response.status_code == 429:
             error_message = response["message"]
             if error_message == "Free allocated quota exceeded.":
-                logging.info("quota running out")
+                logging.getLogger("CodeAnalyzer").info("quota running out")
                 exit(-1)
-            logging.debug("sleeping 60s due to rate limit")
+            logging.getLogger("CodeAnalyzer").debug("sleeping 60s due to rate limit")
             time.sleep(60)
             resp = (error_message, False, times)
         # 其它error
         else:
             error_message = response["message"]
-            logging.debug(error_message)
+            logging.getLogger("CodeAnalyzer").debug(error_message)
             resp = (error_message, False, times + 1)
         return resp
 

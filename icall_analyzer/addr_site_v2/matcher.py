@@ -96,11 +96,11 @@ class AddrSiteMatcherV2:
 
 
     def process_all(self):
-        logging.info("Start address-taken site matching...")
+        logging.getLogger("CodeAnalyzer").info("Start address-taken site matching...")
 
         if self.args.load_pre_semantic_analysis_res:
             assert os.path.exists(f"{self.log_dir}/semantic_result.txt")
-            logging.info("loading existed semantic matching results.")
+            logging.getLogger("CodeAnalyzer").info("loading existed semantic matching results.")
             with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
                 for line in f:
                     tokens: List[str] = line.strip().split('|')
@@ -115,7 +115,7 @@ class AddrSiteMatcherV2:
             return
 
         if os.path.exists(f"{self.log_dir}/semantic_result.txt"):
-            logging.info("loading existed semantic matching results automatically")
+            logging.getLogger("CodeAnalyzer").info("loading existed semantic matching results automatically")
             with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
                 for line in f:
                     tokens: List[str] = line.strip().split('|')
@@ -126,7 +126,7 @@ class AddrSiteMatcherV2:
                     self.matched_callsites[callsite_key] = func_keys
                     self.type_matched_callsites.pop(callsite_key)
 
-        logging.info("{} callsite to be analyzed".format(len(self.type_matched_callsites)))
+        logging.getLogger("CodeAnalyzer").info("{} callsite to be analyzed".format(len(self.type_matched_callsites)))
         time.sleep(2)
 
         # 遍历callsite

@@ -46,18 +46,18 @@ class ZhipuAnalyzer(BaseLLMAnalyzer):
         except APIReachLimitError as e:
             # 如果达到了rate limit
             time.sleep(60)
-            logging.debug("{}, sleeping 60s".format(e))
+            logging.getLogger("CodeAnalyzer").debug("{}, sleeping 60s".format(e))
             resp = (str(e), False, times)
         except APIStatusError as e:
             # 如果达到了rate limit
             time.sleep(10)
             times += 1
-            logging.debug("{}, sleeping 10s".format(e))
+            logging.getLogger("CodeAnalyzer").debug("{}, sleeping 10s".format(e))
             resp = (str(e), False, times)
         except Exception as e:
             time.sleep(20)
             times += 1
-            logging.debug("{}, sleeping 20s".format(e))
+            logging.getLogger("CodeAnalyzer").debug("{}, sleeping 20s".format(e))
             resp = (str(e), False, times)
 
         return resp
