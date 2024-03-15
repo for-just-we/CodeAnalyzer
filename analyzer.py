@@ -279,28 +279,28 @@ class ProjectAnalyzer:
 
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
-            from llm_utils import OpenAIAnalyzer
+            from llm_utils.openai_analyzer import OpenAIAnalyzer
             llm_analyzer = OpenAIAnalyzer(self.model_name, self.args.key, "", self.args.temperature)
 
         elif self.args.llm == "google":
-            from llm_utils import GoogleAnalyzer
+            from llm_utils.google_analyzer import GoogleAnalyzer
             llm_analyzer = GoogleAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "zhipu":
-            from llm_utils import ZhipuAnalyzer
+            from llm_utils.zhipu_analyzer import ZhipuAnalyzer
             # refer to: https://github.com/THUDM/ChatGLM3/blob/main/openai_api_demo/zhipu_api_request.py#L17C34-L17C38
             llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, self.args.address, self.args.temperature)
 
         elif self.args.llm == "tongyi":
-            from llm_utils import TongyiAnalyzer
+            from llm_utils.tongyi_analyzer import TongyiAnalyzer
             llm_analyzer = TongyiAnalyzer(self.model_name, self.args.key, self.args.temperature)
 
         elif self.args.llm == "hf":
-            from llm_utils import HuggingFaceAnalyzer
+            from llm_utils.hf_analyzer import HuggingFaceAnalyzer
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address,
                                                self.args.temperature, self.args.max_new_tokens)
 
         elif self.args.llm == "vllm":
-            from llm_utils import OpenAIAnalyzer
+            from llm_utils.openai_analyzer import OpenAIAnalyzer
             llm_analyzer = OpenAIAnalyzer(self.model_name, "", self.args.address,
                                           self.args.temperature)
 

@@ -1,6 +1,6 @@
 import requests
 import json
-from llm_utils import preprocess_prompt
+from llm_utils.preprocess_prompt import preprocess_prompt
 
 def query(address: str, prompt: str):
     headers = {
