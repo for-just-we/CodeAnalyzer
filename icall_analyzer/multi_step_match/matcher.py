@@ -1,8 +1,8 @@
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary
-from icall_analyzer.llm.common_prompt import summarizing_prompt
+from llm_utils.common_prompt import summarizing_prompt
 from icall_analyzer.multi_step_match.prompt import User_Match, System_Match, supplement_prompts
 
 from code_analyzer.definition_collector import BaseInfoCollector

@@ -1,10 +1,10 @@
 from typing import Set, Dict
 from code_analyzer.schemas.function_info import FuncInfo
 
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.base_utils.prompts import System_Func_Summary, User_Func_Summary
 
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from tqdm import tqdm
 import logging

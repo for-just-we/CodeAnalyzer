@@ -1,10 +1,9 @@
-import openai
 from openai import OpenAI
 from openai import APIError, APIConnectionError, RateLimitError, Timeout, BadRequestError, AuthenticationError, OpenAIError
 import logging
 import time
 from typing import List, Dict, Tuple
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 
 openai_error_messages = {
     APIError: "OpenAI API returned an API Error: {}",
@@ -51,7 +50,7 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
                 temperature=self.temperature
             )
             self.input_token_num += response.usage.prompt_tokens
-            resp_text = response.choices[0]["message"]["content"]
+            resp_text = response.choices[0].message.content
             resp = (resp_text, True, times)
             self.output_token_num += response.usage.completion_tokens
             if resp_text.strip() == "":

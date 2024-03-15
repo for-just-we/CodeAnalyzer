@@ -3,8 +3,8 @@ import time
 from typing import List, Tuple
 import json
 import requests
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.llm.preprocess_prompt import preprocess_prompt
+from llm_utils.base_analyzer import BaseLLMAnalyzer
+from llm_utils.preprocess_prompt import preprocess_prompt
 
 class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, address: str, temperature: float=0, max_new_tokens: int=20):

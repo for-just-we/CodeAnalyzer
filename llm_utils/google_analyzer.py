@@ -10,7 +10,7 @@ from google.generativeai.text import Completion
 from google.generativeai.discuss import ChatResponse
 from google.api_core.exceptions import ResourceExhausted, GoogleAPIError
 
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 
 ENCODING = "cl100k_base"
 

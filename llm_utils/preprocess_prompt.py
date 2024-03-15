@@ -1,4 +1,4 @@
-from icall_analyzer.llm.common_prompt import wizardcoder_prompt, wizardcoder_cot_extra
+from llm_utils.common_prompt import wizardcoder_prompt, wizardcoder_cot_extra
 from typing import List
 
 # preprocess prompt refer to: https://github.com/BerriAI/litellm/blob/7b76a7ed258024c152aed20257a8e18fa6a07a90/litellm/llms/prompt_templates/factory.py#L249

@@ -2,8 +2,8 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
-from icall_analyzer.llm.common_prompt import summarizing_prompt
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.common_prompt import summarizing_prompt
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.semantic_match.base_prompt import System_ICall_Summary, User_ICall_Summary, \
                                 System_Func_Summary, User_Func_Summary, \

@@ -2,8 +2,8 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
-from icall_analyzer.llm.common_prompt import summarizing_prompt
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
 
@@ -276,7 +276,9 @@ class SingleStepMatcher:
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')
             if len(tokens) >= 8:
-                summarizing_text: str = summarizing_prompt.format(answer)
+                summarizing_template = summarizing_prompt_4_model.\
+                    get(self.llm_analyzer.model_type, summarizing_prompt)
+                summarizing_text: str = summarizing_template.format(answer)
                 answer = self.llm_analyzer.get_response([summarizing_text])
                 prompt_log += "***************************\nsummary {}:\n{}\n\n".format(i + 1, answer)
 

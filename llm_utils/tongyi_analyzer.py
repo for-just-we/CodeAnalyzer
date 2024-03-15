@@ -5,7 +5,7 @@ from http import HTTPStatus
 import dashscope
 from dashscope.api_entities.dashscope_response import GenerationResponse
 
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 
 class TongyiAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, temperature: float=0):

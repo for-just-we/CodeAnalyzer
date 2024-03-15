@@ -27,7 +27,7 @@ from icall_analyzer.addr_site_v1.matcher import AddrSiteMatcherV1
 from icall_analyzer.addr_site_v2.matcher import AddrSiteMatcherV2
 from icall_analyzer.base_utils.func_summarizer import FunctionSummarizer
 
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 
 def extract_all_c_files(root: str, c_h_files: List):
     suffix_set = {"c", "h", "cc", "hh", "cpp", "hpp"}
@@ -279,28 +279,28 @@ class ProjectAnalyzer:
 
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
-            from icall_analyzer.llm.openai_analyzer import OpenAIAnalyzer
+            from llm_utils import OpenAIAnalyzer
             llm_analyzer = OpenAIAnalyzer(self.model_name, self.args.key, "", self.args.temperature)
 
         elif self.args.llm == "google":
-            from icall_analyzer.llm.google_analyzer import GoogleAnalyzer
+            from llm_utils import GoogleAnalyzer
             llm_analyzer = GoogleAnalyzer(self.model_name, self.args.key, self.args.temperature)
         elif self.args.llm == "zhipu":
-            from icall_analyzer.llm.zhipu_analyzer import ZhipuAnalyzer
+            from llm_utils import ZhipuAnalyzer
             # refer to: https://github.com/THUDM/ChatGLM3/blob/main/openai_api_demo/zhipu_api_request.py#L17C34-L17C38
             llm_analyzer = ZhipuAnalyzer(self.model_name, self.args.key, self.args.address, self.args.temperature)
 
         elif self.args.llm == "tongyi":
-            from icall_analyzer.llm.tongyi_analyzer import TongyiAnalyzer
+            from llm_utils import TongyiAnalyzer
             llm_analyzer = TongyiAnalyzer(self.model_name, self.args.key, self.args.temperature)
 
         elif self.args.llm == "hf":
-            from icall_analyzer.llm.hf_analyzer import HuggingFaceAnalyzer
+            from llm_utils import HuggingFaceAnalyzer
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address,
                                                self.args.temperature, self.args.max_new_tokens)
 
         elif self.args.llm == "vllm":
-            from icall_analyzer.llm.openai_analyzer import OpenAIAnalyzer
+            from llm_utils import OpenAIAnalyzer
             llm_analyzer = OpenAIAnalyzer(self.model_name, "", self.args.address,
                                           self.args.temperature)
 

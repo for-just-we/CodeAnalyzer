@@ -1,6 +1,6 @@
 import requests
 import json
-from icall_analyzer.llm.preprocess_prompt import preprocess_prompt
+from llm_utils import preprocess_prompt
 
 def query(address: str, prompt: str):
     headers = {
@@ -33,7 +33,7 @@ def query(address: str, prompt: str):
 
 def test_icall_decl(model_type: str, address: str):
     from ..test_data1 import system_prompt, user_prompt
-    from icall_analyzer.llm.common_prompt import summarizing_prompt
+    from llm_utils.common_prompt import summarizing_prompt
 
     prompt = preprocess_prompt(model_type, [system_prompt, user_prompt])
     resp = query(address, prompt)

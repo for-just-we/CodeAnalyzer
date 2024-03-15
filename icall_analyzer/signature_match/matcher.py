@@ -6,8 +6,8 @@ from code_analyzer.visitors.func_visitor import FunctionBodyVisitor
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.enums import TypeEnum
 
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.llm.common_prompt import summarizing_prompt
+from llm_utils.base_analyzer import BaseLLMAnalyzer
+from llm_utils.common_prompt import summarizing_prompt
 from icall_analyzer.signature_match.matching_result import MatchingResult
 from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \

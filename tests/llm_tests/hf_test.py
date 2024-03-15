@@ -1,6 +1,5 @@
 import sys
 from huggingface_hub import InferenceClient
-from icall_analyzer.llm.preprocess_prompt import preprocess_prompt
 
 summarizing_prompt = """If the following text provides a positive response, answer with only 'yes'; else if it provides a negative response, answer with only 'no'.
 

@@ -1,7 +1,7 @@
 import logging
 import time
 from typing import List, Dict, Tuple
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from zhipuai import ZhipuAI, APIReachLimitError, APIStatusError
 from zhipuai.api_resource.chat.completions import Completion
 

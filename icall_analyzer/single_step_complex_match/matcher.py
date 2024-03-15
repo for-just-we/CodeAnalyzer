@@ -2,8 +2,8 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
-from icall_analyzer.llm.common_prompt import summarizing_prompt
-from icall_analyzer.llm.base_analyzer import BaseLLMAnalyzer
+from llm_utils.common_prompt import summarizing_prompt
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.signature_match.matcher import TypeAnalyzer
 from icall_analyzer.single_step_complex_match.prompt import System_Match, User_Match, User_Match_Macro, \
     FuncPointerDeclaratorPrompt, TypeMessagePrompt1, TypeMessagePrompt2, TypeMessagePrompt3, \
@@ -14,7 +14,7 @@ import os
 import logging
 from typing import Dict, Set, DefaultDict, List
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 idx_text_gen = {1: '2nd', 2: '3rd'}
