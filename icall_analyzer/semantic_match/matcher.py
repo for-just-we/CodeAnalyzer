@@ -10,6 +10,7 @@ from icall_analyzer.semantic_match.base_prompt import System_ICall_Summary, User
                                 System_Match, User_Match, supplement_prompts, \
                                 User_ICall_Summary_Macro
 
+import time
 from tqdm import tqdm
 import os
 import logging
@@ -78,6 +79,20 @@ class SemanticMatcher:
                                            func_keys))
                     self.matched_callsites[callsite_key] = func_keys
             return
+
+        logging.getLogger("CodeAnalyzer").info("should analyzing {} icalls".format(len(self.type_matched_callsites)))
+        if os.path.exists(f"{self.log_dir}/semantic_result.txt"):
+            with open(f"{self.log_dir}/semantic_result.txt", "r", encoding='utf-8') as f:
+                for line in f:
+                    tokens: List[str] = line.strip().split('|')
+                    callsite_key: str = tokens[0]
+                    func_keys: Set[str] = set()
+                    if len(tokens) > 1:
+                        func_keys.update(tokens[1].split(','))
+                    self.matched_callsites[callsite_key] = func_keys
+
+        logging.getLogger("CodeAnalyzer").info("remaining {} icalls to be analyzed".format(len(self.type_matched_callsites)))
+        time.sleep(2)
 
         # 遍历callsite
         for (callsite_key, func_keys) in self.type_matched_callsites.items():

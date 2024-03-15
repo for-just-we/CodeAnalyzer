@@ -1,3 +1,5 @@
+import time
+
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
@@ -28,7 +30,7 @@ class SingleStepMatcher:
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
         self.args = args
-        self.callsite_keys: Set[str] = callsite_keys
+        self.callsite_keys: Set[str] = callsite_keys.copy()
         self.callsite_idxs: Dict[str, int] = callsite_idxs
 
         self.icall_2_func: Dict[str, str] = type_analyzer.icall_2_func
@@ -91,6 +93,23 @@ class SingleStepMatcher:
                                            func_keys))
                     self.matched_callsites[callsite_key] = func_keys
             return
+
+        logging.getLogger("CodeAnalyzer").info("should analyzing {} icalls".format(len(self.callsite_keys)))
+
+        if os.path.exists(self.res_log_file):
+            logging.getLogger("CodeAnalyzer").info("loading existed semantic matching results automatically")
+            with open(self.res_log_file, "r", encoding='utf-8') as f:
+                for line in f:
+                    tokens: List[str] = line.strip().split('|')
+                    callsite_key: str = tokens[0]
+                    func_keys: Set[str] = set()
+                    if len(tokens) > 1:
+                        func_keys.update(tokens[1].split(','))
+                    self.matched_callsites[callsite_key] = func_keys
+                    self.callsite_keys.remove(callsite_key)
+
+        logging.getLogger("CodeAnalyzer").info("remaining {} icalls to be analyzed".format(len(self.callsite_keys)))
+        time.sleep(2)
 
         for callsite_key in self.callsite_keys:
             if callsite_key not in self.icall_2_func.keys():
