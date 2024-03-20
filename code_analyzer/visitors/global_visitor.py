@@ -28,6 +28,7 @@ class GlobalVisitor(ASTVisitor):
         self.struct_name2declarator: Dict[str, str] = dict()
         #
         self.struct_names: Set[str] = set()
+        self.struct_2_field_list: Dict[str, List[str]] = dict()
         # 函数指针类型定义对应的raw declarator text
         self.func_type2raw_declarator: Dict[str, str] = dict()
         # 函数指针类型对应的参数类型
@@ -215,6 +216,7 @@ class GlobalVisitor(ASTVisitor):
         # 是结构体定义而不是结构体声明
         if len(struct_field_visitor.field_name_2_type) > 0:
             self.struct_infos[struct_name] = struct_field_visitor.field_name_2_type
+            self.struct_2_field_list[struct_name] = struct_field_visitor.field_list
             self.struct_name2declarator[struct_name] = node.node_text
             self.struct_field_declarators[struct_name] = \
                 struct_field_visitor.field2declarator_str
@@ -243,6 +245,7 @@ class StructFieldVisitor(ASTVisitor):
         self.field2declarator_str: Dict[str, str] = dict()
         self.func_field2param_types: Dict[str, List[str]] = dict()
         self.var_arg_func_fields: Set[str] = set()
+        self.field_list: List[str] = list()
         # 结构体第一个field的类型，cast分析时会用到
         self.first_field_type: str = None
         self.global_visitor = global_visitor
@@ -270,6 +273,7 @@ class StructFieldVisitor(ASTVisitor):
             if self.first_field_type is None:
                 self.first_field_type = var_info[0]
             self.field_name_2_type[var_info[1]] = var_info[0]
+            self.field_list.append(var_info[1])
             self.field2declarator_str[var_info[1]] = node.node_text
             # 如果该field是函数指针定义
             if var_info[1] in func_field2param_types.keys():

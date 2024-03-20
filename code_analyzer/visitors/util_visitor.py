@@ -138,7 +138,7 @@ class VarAnalyzer(ASTVisitor):
         self.collector: BaseInfoCollector = collector
 
     # return value  [struct name, var declarator], if no struct, then ""
-    def analyze_var(self, node: ASTNode, func_key) -> Tuple[str, str]:
+    def analyze_var(self, node: ASTNode, func_key) -> Tuple[str, str, str, str]:
         local_var_infos: Dict[str, str] = self.collector.func_info_dict[func_key].local_var
         local_var2declarator: Dict[str, str] = self.collector.func_info_dict[func_key].local_var2declarator
         arg_infos: Dict[str, str] = {parameter_type[1]: parameter_type[0]
@@ -146,16 +146,16 @@ class VarAnalyzer(ASTVisitor):
         arg_declarators: Dict[str, str] = self.collector.func_info_dict[func_key] \
             .name_2_declarator_text
 
-        base_type, pointer_level, declarator, refered_struct_name = self.process_variable(
+        base_type, pointer_level, declarator, refered_struct_name, field_name = self.process_variable(
             node, 0, local_var_infos, local_var2declarator, arg_infos, arg_declarators)
 
-        return (declarator, refered_struct_name)
+        return (declarator, refered_struct_name, base_type, field_name)
 
 
     def process_variable(self, node: ASTNode, pointer_level: int, local_var_infos: Dict[str, str],
                          local_var2declarator: Dict[str, str], arg_infos: Dict[str, str],
-                         arg_declarators: Dict[str, str]) -> Tuple[str, int, str, str]:
-        # 1: base_type name, 2.pointer level 3: declarator text, 4: struct name,
+                         arg_declarators: Dict[str, str]) -> Tuple[str, int, str, str, str]:
+        # 1: base_type name, 2.pointer level 3: declarator text, 4: struct name 5: field name
         if node.node_type == "identifier":
             def get_base_type(var_name: str, source_dict: Dict[str, str],
                               local_var2declarator: Dict[str, str] = None) -> Tuple[str, str]:
@@ -179,12 +179,12 @@ class VarAnalyzer(ASTVisitor):
             else:
                 base_type_name = TypeEnum.UnknownType.value
                 base_declarator = ""
-            return (base_type_name, pointer_level, base_declarator, "")
+            return (base_type_name, pointer_level, base_declarator, "", "")
 
         elif node.node_type == "char_literal":
-            return ("char", 0, "", "")
+            return ("char", 0, "", "", "")
         elif node.node_type == "string_literal":
-            return ("char", 1, "", "")
+            return ("char", 1, "", "", "")
         # 数组访问
         elif node.node_type == "subscript_expression":
             pointer_level -= 1
@@ -209,26 +209,26 @@ class VarAnalyzer(ASTVisitor):
         # 结构体访问
         elif node.node_type == "field_expression":
             if node.child_count != 3:
-                return (TypeEnum.UnknownType.value, 0, "", "")
-            base_type: Tuple[str, int, str, str] = self.process_variable(node.children[0], 0, local_var_infos,
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
+            base_type: Tuple[str, int, str, str, str] = self.process_variable(node.children[0], 0, local_var_infos,
                                          local_var2declarator, arg_infos, arg_declarators)
             # 如果解不出base的类型，那么返回未知
             if base_type[0] == TypeEnum.UnknownType.value:
-                return (TypeEnum.UnknownType.value, 0, "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
             # 假定src_type一定指向一个结构体类型
             src_type: Tuple[str, int] = parsing_type((base_type[0], base_type[1]))
             original_src_type, _ = get_original_type(src_type,
                                                      self.collector.type_alias_infos)
             # 如果其类型不在已知结构体类型中，直接返回未知
             if original_src_type not in self.collector.struct_infos.keys():
-                return (TypeEnum.UnknownType.value, 0, "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
             field_name_2_type: Dict[str, str] = self.collector.struct_infos[original_src_type]
             field_declarators: Dict[str, str] = self.collector.struct_field_declarators[original_src_type]
             # 如果找不到当前field信息，返回未知
             assert node.children[2].node_type == "field_identifier"
             field_name: str = node.children[2].node_text
             if field_name not in field_name_2_type.keys():
-                return (TypeEnum.UnknownType.value, 0, "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
             field_type_name: str = field_name_2_type.get(field_name)
             field_declarator: str = field_declarators.get(field_name, "")
 
@@ -238,8 +238,69 @@ class VarAnalyzer(ASTVisitor):
             f_type = field_type[0]
             if f_type == TypeEnum.FunctionType.value and f_type != field_type_name:
                 f_type = field_type_name
-            return (f_type, field_type[1] + pointer_level, field_declarator, original_src_type)
+            return (f_type, field_type[1] + pointer_level, field_declarator, original_src_type, field_name)
 
         # 其它复杂表达式
         else:
-            return (TypeEnum.UnknownType.value, 0, "", "")
+            return (TypeEnum.UnknownType.value, 0, "", "", "")
+
+
+class FuncPointerCollector(ASTVisitor):
+    def __init__(self, func_pointer_param_name: str):
+        self.func_pointer_param_name = func_pointer_param_name
+        # addr_taken_node, top_level_node
+        self.assignment_node_infos: List[Tuple[ASTNode, ASTNode]] = list()
+        self.call_nodes: List[Tuple[ASTNode, int]] = list()
+
+    def visit_identifier(self, node: ASTNode):
+        identfier = node.node_text
+        if identfier != self.func_pointer_param_name:
+            return False
+        top_level_node, idx = get_top_level_node(node)
+        if top_level_node is None:
+            return False
+
+        # 如果是赋值语句
+        if top_level_node.node_type == "assignment_expression" or \
+            (top_level_node.node_type == "conditional_expression"
+             and top_level_node.node_type == "assignment_expression"):
+            var_node = top_level_node.children[0]
+            self.assignment_node_infos.append((var_node, top_level_node))
+
+        # 如果是call expression
+        elif top_level_node.node_type == "call_expression":
+            if idx != -1:
+                self.call_nodes.append((top_level_node, idx))
+
+        return super().visit(node)
+
+
+def get_top_level_node(node: ASTNode) -> Tuple[ASTNode, int]:
+    # 考虑assignment_node, call_expression, init_declarator
+    cur_node = node
+    arg_idx = -1
+    while cur_node.parent is not None and  \
+            cur_node.parent.node_type != "compound_statement":
+        if cur_node.parent.node_type == "init_declarator" and cur_node == cur_node.parent.children[0]:
+            return None, -1
+        if cur_node.parent.node_type in {"binary_expression", "field_expression"}:
+            return None, -1
+        assert cur_node.node_type not in {"initializer_list"}
+        if cur_node.node_type == "assignment_expression" or \
+                (cur_node.node_type == "conditional_expression"
+                 and hasattr(cur_node, "assignment_expression")):
+            return cur_node, arg_idx
+        elif cur_node.parent.node_type == "argument_list":
+            arg_idx = index_of(cur_node.parent, cur_node)
+            assert arg_idx != -1
+        elif cur_node.node_type == "call_expression":
+            return cur_node, arg_idx
+        cur_node = cur_node.parent
+    return None, arg_idx
+
+
+def index_of(parent_node: ASTNode, child_node: ASTNode):
+    for i, child in enumerate(parent_node.children):
+        if child is child_node:
+            return i
+    return -1

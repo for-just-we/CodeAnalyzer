@@ -8,8 +8,8 @@ from code_analyzer.schemas.enums import TypeEnum
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from llm_utils.common_prompt import summarizing_prompt
-from icall_analyzer.signature_match.matching_result import MatchingResult
-from icall_analyzer.signature_match.prompt import system_prompt, user_prompt, \
+from icall_analyzer.flta.matching_result import MatchingResult
+from icall_analyzer.flta.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
     system_prompt_context, user_prompt_context, \
     supplement_prompts
@@ -49,6 +49,7 @@ class TypeAnalyzer:
         self.icall_2_arg_texts: Dict[str, List[str]] = dict()
         self.icall_2_arg_text: Dict[str, str] = dict()
         self.icall_2_struct_name: Dict[str, str] = dict()
+        self.icall_2_field_name: Dict[str, str] = dict()
 
         # LLM访问过的所有函数
         self.all_potential_targets: Dict[str, Set[str]] = dict()
@@ -239,6 +240,8 @@ class TypeAnalyzer:
             self.icall_2_arg_text[callsite_key] = func_body_visitor.icall_2_arg_text[icall_loc]
         if icall_loc in func_body_visitor.icall_2_struct_name.keys():
             self.icall_2_struct_name[callsite_key] = func_body_visitor.icall_2_struct_name[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_field_name.keys():
+            self.icall_2_field_name[callsite_key] = func_body_visitor.icall_2_field_name[icall_loc]
 
         arg_num = 0
         var_arg = False

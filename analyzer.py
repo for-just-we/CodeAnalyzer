@@ -18,7 +18,9 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, AddrTakenSiteRetriver
 from code_analyzer.utils.func_key_collector import get_all_func_keys
 
-from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.flta.matcher import TypeAnalyzer
+from icall_analyzer.mlta.init_info import InitInfo
+from icall_analyzer.mlta.matcher import StructTypeMatcher
 from icall_analyzer.semantic_match.matcher import SemanticMatcher
 from icall_analyzer.single_step_match.matcher import SingleStepMatcher
 from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
@@ -311,7 +313,7 @@ class ProjectAnalyzer:
         logging.getLogger("CodeAnalyzer").debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
 
         analyzer = None
-        if self.args.pipeline == "full":
+        if self.args.pipeline == "semantic":
             analyzer = SemanticMatcher(collector, self.args,
                             type_analyzer, llm_analyzer, self.project, self.callsite_idxs,
                                        func_key_2_name)
@@ -361,16 +363,26 @@ class ProjectAnalyzer:
                                          self.project, self.callsite_idxs, func_key_2_name)
             analyzer.process_all()
 
+        elif self.args.pipeline == "mlta":
+            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
+                                                             raw_local_addr_sites, collector)
+            addr_taken_site_retriver.group()
+            init_info = InitInfo(addr_taken_site_retriver, collector)
+            init_info.analyze()
+            analyzer = StructTypeMatcher(collector, self.args, type_analyzer,
+                                         init_info, self.callsite_idxs)
+            analyzer.process_all()
+
         return type_analyzer, analyzer
 
     def evaluate(self):
         type_analyzer, semantic_analyzer = self.analyze_c_files_sig_match()
         # 只进行类型分析
-        if self.args.pipeline == "only_type":
+        if self.args.pipeline == "flta":
             self.evaluate_type_analysis(type_analyzer)
         # 随后进行语义匹配
-        elif self.args.pipeline in {"full", "single", "single_complex", "multi_step",
-                                    "addr_site_v1", "addr_site_v2"}:
+        elif self.args.pipeline in {"semantic", "single", "single_complex", "multi_step",
+                                    "addr_site_v1", "addr_site_v2", "mlta"}:
             self.evaluate_semantic_analysis(semantic_analyzer)
 
     def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
@@ -380,6 +392,7 @@ class ProjectAnalyzer:
         logging.getLogger("CodeAnalyzer").info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
+        line1 = ""
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
@@ -388,7 +401,7 @@ class ProjectAnalyzer:
             P, R, F1 = evaluate(icall_2_targets1, self.ground_truths)
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
-            line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
+            line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
 
         def analyze_binary(all_potential_targets: Dict[str, Set[str]],
                            all_ground_truths: Dict[str, Set[str]],
@@ -402,6 +415,8 @@ class ProjectAnalyzer:
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                          f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
+            line1 = f"{self.project}-{info},{(acc * 100):.1f},{(prec * 100):.1f}," \
+                    f"{(recall * 100):.1f},{(F1 * 100):.1f},{(fpr * 100):.1f},{(fnr * 100):.1f}"
 
         if self.args.count_uncertain:
             evaluate_icall_target(type_analyzer.uncertain_callees, "UC")
@@ -428,13 +443,13 @@ class ProjectAnalyzer:
             analyze_binary(total_extra_callees, self.ground_truths,
                            dict(), "TotalExtra-no")
 
-
         if self.args.evaluate_soly_for_llm:
             evaluate_icall_target(type_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
             analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
                            type_analyzer.llm_declarator_analysis,
                            self.args.model_type + '-' + str(self.args.temperature))
+
 
         if type_analyzer.llm_analyzer is not None and \
                 hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
@@ -457,23 +472,27 @@ class ProjectAnalyzer:
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
             assert hasattr(type_analyzer, "log_dir")
             with open(f"{type_analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
-                f.write(line)
+                f.write(line + "\n" + line1)
                 logging.getLogger("CodeAnalyzer").info("writing success")
 
 
     def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher, MultiStepMatcher]):
         icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
-        P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
-        logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{analyzer.llm_analyzer.model_name} "
-                     f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
-        line1 = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
-
-        llm_analyzer: BaseLLMAnalyzer = analyzer.llm_analyzer
+        P, R, F = evaluate(icall_2_targets, self.ground_truths)
+        if hasattr(analyzer, "llm_analyzer"):
+            model_name = analyzer.llm_analyzer.model_name
+            llm_analyzer: BaseLLMAnalyzer = analyzer.llm_analyzer
+        else:
+            model_name = ""
+            llm_analyzer = None
+        logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{model_name} "
+                     f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F * 100):.1f} |")
+        line1 = f"{(P * 100):.1f},{(R * 100):.1f},{(F * 100):.1f}"
 
         acc, prec, recall, F1, fpr, fnr = \
             evaluate_binary(self.ground_truths, icall_2_targets,
                             analyzer.type_matched_callsites)
-        logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{llm_analyzer.model_name} "
+        logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{model_name} "
                      f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                      f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
         line2 = f"{(acc * 100):.1f},{(prec * 100):.1f},{(recall * 100):.1f}," \

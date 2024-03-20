@@ -31,6 +31,7 @@ class BaseInfoCollector:
         self.struct_names: Set[str] = global_visitor.struct_names
         # 结构体和联合体field信息
         self.struct_infos: DefaultDict[str, Dict[str, str]] = global_visitor.struct_infos
+        self.struct_field_list: Dict[str, List[str]] = global_visitor.struct_2_field_list
         # 结构体和联合体定义
         self.struct_name2declarator: Dict[str, str] = global_visitor.struct_name2declarator
         # 将函数指针类型映射回原本定义

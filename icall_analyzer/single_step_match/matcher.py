@@ -6,7 +6,7 @@ from code_analyzer.schemas.function_info import FuncInfo
 
 from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.flta.matcher import TypeAnalyzer
 from icall_analyzer.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
 
 from tqdm import tqdm

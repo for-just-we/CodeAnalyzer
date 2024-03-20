@@ -1,4 +1,4 @@
-from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.flta.matcher import TypeAnalyzer
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary

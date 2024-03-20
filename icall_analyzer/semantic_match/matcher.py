@@ -4,7 +4,7 @@ from code_analyzer.schemas.function_info import FuncInfo
 
 from llm_utils.common_prompt import summarizing_prompt
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.signature_match.matcher import TypeAnalyzer
+from icall_analyzer.flta.matcher import TypeAnalyzer
 from icall_analyzer.semantic_match.base_prompt import System_ICall_Summary, User_ICall_Summary, \
                                 System_Func_Summary, User_Func_Summary, \
                                 System_Match, User_Match, supplement_prompts, \

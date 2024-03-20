@@ -46,7 +46,6 @@ def get_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
                             "for_statement", "while_statement",
                             "do_statement", "switch_statement",
                             "preproc_ifdef", "preproc_if", "preproc_else", "preproc_elif"}
-
     initializer_level = 0
     cur_node = node
     while cur_node.parent is not None and \
@@ -61,13 +60,14 @@ def get_local_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
     # 通过赋值语句传播
     cur_node: ASTNode = node
     initializer_level: int = 0
+    arg_idx = -1
     while cur_node is not None:
         if cur_node.node_type == "init_declarator":
             return (cur_node, initializer_level)
         elif cur_node.node_type == "assignment_expression":
             return (cur_node, initializer_level)
         elif cur_node.node_type == "call_expression":
-            return (cur_node, initializer_level)
+            return (cur_node, arg_idx)
         # 出现了三目表达式
         elif cur_node.node_type == "conditional_expression" \
                 and hasattr(cur_node, "assignment_expression"):
@@ -75,6 +75,8 @@ def get_local_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
 
         if cur_node.node_type == "initializer_list":
             initializer_level += 1
+        if cur_node.parent.node_type == "argument_list":
+            arg_idx = cur_node.parent.children.index(cur_node)
 
         cur_node = cur_node.parent
 
@@ -124,7 +126,7 @@ class AddrTakenSiteRetriver:
                     DefaultDict[str, List[Tuple[ASTNode, int, ASTNode]]]] = defaultdict(lambda: defaultdict(list))
         self.local_assignment_exprs: DefaultDict[str,
                     DefaultDict[str, List[Tuple[ASTNode, int, ASTNode]]]] = defaultdict(lambda: defaultdict(list))
-        self.local_call_expr: DefaultDict[str, List[ASTNode]] = defaultdict(list)
+        self.local_call_expr: DefaultDict[str, List[Tuple[ASTNode, int]]] = defaultdict(list)
 
         for func_name, node_in_func in raw_local_addr_sites.items():
             for func_key, nodes in node_in_func.items():
@@ -144,7 +146,7 @@ class AddrTakenSiteRetriver:
 
 
                     elif top_level_node.node_type == "call_expression":
-                        self.local_call_expr[func_name].append(top_level_node)
+                        self.local_call_expr[func_name].append((top_level_node, initializer_level))
 
 
     def group(self):
@@ -188,12 +190,14 @@ class AddrTakenSiteRetriver:
 
         # call expression
         self.call_expr_info: DefaultDict[str, DefaultDict[str, Set[Tuple[str, str]]]] = \
-            defaultdict(lambda :defaultdict(set))
+            defaultdict(lambda: defaultdict(set))
+        self.call_expr_arg_idx: DefaultDict[str, List[Tuple[FuncInfo, int]]] = defaultdict(list)
         for func_name, call_nodes in self.local_call_expr.items():
-            for call_node in call_nodes:
+            for call_node, arg_idx in call_nodes:
                 callee_func_name = call_node.children[0].node_text
                 target_funcs: List[FuncInfo] = list(filter(lambda func_info: func_info.func_name == callee_func_name,
                        self.collector.func_info_dict.values()))
+
                 if len(target_funcs) <= 0:
                     self.call_expr_info[func_name][callee_func_name].add((call_node.node_text, ""))
                 else:
@@ -201,6 +205,8 @@ class AddrTakenSiteRetriver:
                     self.call_expr_info[func_name][callee_func_name].add((call_node.node_text,
                                                         target_func.raw_declarator_text))
 
+                    for target_func in target_funcs:
+                        self.call_expr_arg_idx[func_name].append((target_func, arg_idx))
 
     def generate_queries_for_func(self, func_name) -> List[str]:
         queries: List[str] = list()
@@ -351,7 +357,7 @@ class AddrTakenSiteRetriver:
         if not (node.node_type == "assignment_expression" and node.child_count == 3):
             return ("", "", "", node.children[0].node_text, node.node_text)
         assert node.node_type == "assignment_expression" and node.child_count == 3
-        declarator, refered_struct_name = self.var_analyzer.analyze_var(node.children[0], func_key)
+        declarator, refered_struct_name, base_type, field_name = self.var_analyzer.analyze_var(node.children[0], func_key)
         var_text = node.children[0].node_text
         struct_decl_text = ""
         if refered_struct_name != "":
