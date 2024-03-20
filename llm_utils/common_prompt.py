@@ -9,9 +9,19 @@ qwen_1_5_template = """The text below answer whether an indirect call can invoke
 {}
 """
 
+qwen_1_5_template_type = """The text below answer whether argument types of an indirect call match parameters of a function; summarize and answer with just 'yes' or 'no'.
+
+{}
+"""
+
 summarizing_prompt_4_model = {
     "Qwen1.5-14B-Chat": qwen_1_5_template,
     "Qwen1.5-72B-Chat": qwen_1_5_template
+}
+
+summarizing_prompt_4_model_type = {
+"Qwen1.5-14B-Chat": qwen_1_5_template_type,
+    "Qwen1.5-72B-Chat": qwen_1_5_template_type
 }
 
 # WizardCoder prompt参考 https://github.com/nlpxucan/WizardLM#hiring

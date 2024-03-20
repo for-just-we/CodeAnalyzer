@@ -7,7 +7,7 @@ from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.enums import TypeEnum
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from llm_utils.common_prompt import summarizing_prompt
+from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model_type
 from icall_analyzer.flta.matching_result import MatchingResult
 from icall_analyzer.flta.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
@@ -472,7 +472,9 @@ class TypeAnalyzer:
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')
             if len(tokens) >= 8:
-                summarizing_text: str = summarizing_prompt.format(answer)
+                summarizing_template = summarizing_prompt_4_model_type. \
+                    get(self.llm_analyzer.model_type, summarizing_prompt)
+                summarizing_text: str = summarizing_template.format(answer)
                 answer = self.llm_analyzer.get_response([summarizing_text])
                 prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_text
                 prompt_log += "\n\n" + answer
@@ -515,7 +517,9 @@ class TypeAnalyzer:
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')
             if len(tokens) >= 8:
-                summarizing_text: str = summarizing_prompt.format(answer)
+                summarizing_template = summarizing_prompt_4_model_type. \
+                    get(self.llm_analyzer.model_type, summarizing_prompt)
+                summarizing_text: str = summarizing_template.format(answer)
                 answer = self.llm_analyzer.get_response([summarizing_text])
                 prompt_log += "\n\nvote {}:===========================\n".format(i + 1) + summarizing_text
                 prompt_log += "\n\n" + answer
@@ -773,9 +777,11 @@ class TypeAnalyzer:
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')
             if len(tokens) >= 8:
-                answer = self.llm_analyzer.get_response([summarizing_prompt.format(answer)])
-                prompt_log += "\n\nvote {}:**************************\n".format(i + 1) + summarizing_prompt.format(
-                    answer)
+                summarizing_template = summarizing_prompt_4_model_type. \
+                    get(self.llm_analyzer.model_type, summarizing_prompt)
+                summarizing_text: str = summarizing_template.format(answer)
+                answer = self.llm_analyzer.get_response([summarizing_text])
+                prompt_log += "\n\nvote {}:**************************\n".format(i + 1) + summarizing_text
                 prompt_log += "\n\nLLM response: " + answer
 
             if 'yes' in answer.lower():
