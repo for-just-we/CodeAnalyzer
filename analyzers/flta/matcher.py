@@ -8,8 +8,8 @@ from code_analyzer.schemas.enums import TypeEnum
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model_type
-from icall_analyzer.flta.matching_result import MatchingResult
-from icall_analyzer.flta.prompt import system_prompt, user_prompt, \
+from analyzers.flta.matching_result import MatchingResult
+from analyzers.flta.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
     system_prompt_context, user_prompt_context, \
     supplement_prompts

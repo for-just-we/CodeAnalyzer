@@ -1,8 +1,8 @@
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 
-from icall_analyzer.flta.matcher import TypeAnalyzer
-from icall_analyzer.mlta.init_info import InitInfo
+from analyzers.flta.matcher import TypeAnalyzer
+from analyzers.mlta.init_info import InitInfo
 
 from typing import Dict, Set, DefaultDict
 from collections import defaultdict
@@ -65,6 +65,5 @@ class StructTypeMatcher:
                 cur_func_name: str = self.collector.func_info_dict[func_key].func_name
                 if cur_func_name in func_names:
                     self.matched_callsites[callsite_key].add(func_key)
-            print()
         else:
             self.matched_callsites[callsite_key].update(func_keys)

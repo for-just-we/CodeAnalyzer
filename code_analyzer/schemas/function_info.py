@@ -7,11 +7,13 @@ class FuncInfo:
                  declarator_texts: List[str],
                  var_arg: bool,
                  raw_declarator_text: str, func_body: ASTNode, file: str,
-                 func_name: str):
+                 func_name: str,
+                 return_type: Tuple[str, int]):
         self.parameter_types: List[Tuple[str, str]] = parameter_types
         self.var_arg: bool = var_arg
         self.name_2_declarator_text: Dict[str, str] = name_2_declarator_text
         self.declarator_texts: List[str] = declarator_texts
+        self.return_type: Tuple[str, int] = return_type
 
         # 可变参数
         if len(self.parameter_types) > 0 and self.parameter_types[-1][0] == "va_list":

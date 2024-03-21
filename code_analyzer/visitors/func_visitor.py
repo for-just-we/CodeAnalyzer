@@ -23,10 +23,11 @@ import logging
 
 # 遍历函数名称和参数列表部分
 class FunctionDeclaratorVisitor(ASTVisitor):
-    def __init__(self, parentVisitor: 'FunctionDefVisitor', func_body: ASTNode, raw_declarator_text: str):
+    def __init__(self, parentVisitor: 'FunctionDefVisitor', func_body: ASTNode, raw_declarator_text: str, raw_return_type: str):
         self.parentVisitor: 'FunctionDefVisitor' = parentVisitor
         self.func_body: ASTNode = func_body
         self.raw_declarator_text: str = raw_declarator_text
+        self.raw_return_type = raw_return_type
 
     def visit_function_declarator(self, node: ASTNode):
         if hasattr(node, "identifier"):
@@ -42,6 +43,7 @@ class FunctionDeclaratorVisitor(ASTVisitor):
         else:
             logging.getLogger("CodeAnalyzer").debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
             return False
+        pointer_level: int = get_pointer_level_for_return_type(node)
         # assert node.children[1].type == "parameter_list"
         parameter_visitor = ParameterListVisitor()
         self.parentVisitor.func_name_sets.add(func_name)
@@ -49,10 +51,11 @@ class FunctionDeclaratorVisitor(ASTVisitor):
         parameter_visitor.traverse_node(node)
         # 添加一下对va_list的处理
         func_info: FuncInfo = FuncInfo(parameter_visitor.parameter_types.copy(),
-                                           parameter_visitor.name_2_declarator_text.copy(),
-                                           parameter_visitor.declarator_texts.copy(),
-                                           parameter_visitor.var_arg, self.raw_declarator_text,
-                                           self.func_body, self.parentVisitor.current_file, func_name)
+                                       parameter_visitor.name_2_declarator_text.copy(),
+                                       parameter_visitor.declarator_texts.copy(),
+                                       parameter_visitor.var_arg, self.raw_declarator_text,
+                                       self.func_body, self.parentVisitor.current_file, func_name,
+                                       (self.raw_return_type, pointer_level))
         self.parentVisitor.func_info_dict[func_key] = func_info
         # 添加支持可变参数的函数指针形参
         if len(parameter_visitor.var_arg_var_params) > 0:
@@ -79,13 +82,36 @@ class FunctionDefVisitor(ASTVisitor):
 
     def visit_function_definition(self, node: ASTNode):
         assert hasattr(node, "compound_statement")
+        if not hasattr(node, "ERROR"):
+            assert sum(hasattr(node, attr) for attr in
+                       ["primitive_type", "type_identifier", "struct_specifier", "enum_specifier", "union_specifier",
+                        "sized_type_specifier", "macro_type_specifier"]) == 1
+
+        prim_type_values = [
+            (lambda node: TypeEnum.UnknownType.value, "ERROR"),
+            (lambda node: node.primitive_type.node_text, "primitive_type"),
+            (lambda node: node.type_identifier.node_text, "type_identifier"),
+            (lambda node: node.sized_type_specifier.node_text, "sized_type_specifier"),
+            (lambda node: node.struct_specifier.type_identifier.node_text, "struct_specifier"),
+            (lambda node: node.enum_specifier.type_identifier.node_text, "enum_specifier"),
+            (lambda node: node.union_specifier.type_identifier.node_text, "union_specifier"),
+        ]
+
+        for value_fn, attr_name in prim_type_values:
+            if hasattr(node, attr_name):
+                prim_type = value_fn(node)
+                break
+        else:
+            prim_type = TypeEnum.UnknownType.value
+
+
         func_body: ASTNode = node.compound_statement
         full_text: str = node.node_text
         func_body_text: str = func_body.node_text
         idx = full_text.find(func_body_text)
         raw_declarator_text: str = full_text[: idx]
         # 考虑到error_node存在
-        declarator_visitor = FunctionDeclaratorVisitor(self, func_body, raw_declarator_text)
+        declarator_visitor = FunctionDeclaratorVisitor(self, func_body, raw_declarator_text, prim_type)
         declarator_visitor.traverse_node(node)
 
         return False
@@ -446,6 +472,8 @@ class FunctionBodyVisitor(ASTVisitor):
             return ("char", 0, "", "", "")
         elif node.node_type == "string_literal":
             return ("char", 1, "", "", "")
+        elif node.node_type == "concatenated_string":
+            return ("char", 1, "", "", "")
         # 数组访问
         elif node.node_type == "subscript_expression":
             pointer_level -= 1
@@ -498,6 +526,7 @@ class FunctionBodyVisitor(ASTVisitor):
                 if func_declarator is not None:
                     self.icall_2_decl_text[icall_loc] = func_declarator
                     self.icall_2_struct_name[icall_loc] = original_src_type
+                    self.icall_2_field_name[icall_loc] = field_name
 
                 # 该field是否支持可变参数
                 var_arg_fields: Set[str] = self.collector.var_arg_struct_fields.\
@@ -522,11 +551,51 @@ class FunctionBodyVisitor(ASTVisitor):
             return (src_type[0], src_type[1], "", "", "")
         # 括号表达式
         elif node.node_type == "parenthesized_expression":
+            if hasattr(node, "ERROR"):
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
             assert node.child_count == 1
             return self.process_argument(node.children[0], pointer_level, icall_loc)
+
+        # 函数调用
+        elif node.node_type == "call_expression":
+            callee_name = node.children[0].node_text
+            arg_num = node.argument_list.child_count
+
+            from code_analyzer.visitors.util_visitor import arg_num_match
+            callee_func_infos: List[FuncInfo] = list(filter(lambda func_info: func_info.func_name == callee_name
+                                                       and arg_num_match(arg_num, func_info),
+                                                       self.collector.func_info_dict.values()))
+            return_type_set: Set[Tuple[str, int]] = set()
+            for func_info in callee_func_infos:
+                src_type = func_info.return_type
+                original_src_type, ori_pointer_level = get_original_type(src_type,
+                                                     self.collector.type_alias_infos)
+                return_type_set.add((original_src_type, ori_pointer_level))
+
+            # 有可能是宏函数
+            if len(return_type_set) == 0:
+                # 如果是宏函数
+                if callee_name in self.collector.macro_funcs:
+                    expand_util = MacroCallExpandUtil(self.collector.macro_func_bodies,
+                                  self.collector.macro_func_args,
+                                  self.collector.global_visitor.var_arg_macro_funcs)
+                    code_text = expand_util.expand_macro_call(node)
+                    expand_call_tree: Tree = parser.parse(code_text.encode("utf-8"))
+                    expand_root_node: ASTNode = processor.visit(expand_call_tree.root_node)
+                    return self.process_argument(expand_root_node, 0, icall_loc)
+                else:
+                    return (TypeEnum.UnknownType.value, 0, "", "", "")
+            else:
+                assert len(return_type_set) == 1
+                original_src_type, ori_pointer_level = return_type_set.pop()
+                return (original_src_type, ori_pointer_level, "", "", "")
+
         # 其它复杂表达式
         else:
-            return (TypeEnum.UnknownType.value, 0, "", "", "")
+            if node.child_count == 1:
+                return self.process_argument(node.children[0], 0, icall_loc)
+            else:
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
 
     # 提取每个实参表达式对应变量的context
     def extract_decl_context(self, node: ASTNode) -> List[str]:
@@ -551,7 +620,7 @@ class FunctionBodyVisitor(ASTVisitor):
             return self.extract_decl_context(node.children[1])
         elif node.node_type == "field_expression":
             assert node.child_count == 3
-            base_type: Tuple[str, int, str, str] = self.process_argument(node.children[0], 0, None)
+            base_type: Tuple[str, int, str, str, str] = self.process_argument(node.children[0], 0, None)
             # 如果解不出base的类型，那么返回未知
             if base_type[0] == TypeEnum.UnknownType.value:
                 return []
@@ -710,3 +779,14 @@ class LocalFunctionRefVisitor(ASTVisitor):
                 return False
         else:
             return super().visit(node)
+
+
+def get_pointer_level_for_return_type(node: ASTNode):
+    assert node.node_type == "function_declarator"
+    cur_node = node
+    pointer_level = 0
+    while cur_node.node_type != "function_definition":
+        if cur_node.node_type in {"array_declarator", "pointer_declarator"}:
+            pointer_level += 1
+        cur_node = cur_node.parent
+    return pointer_level

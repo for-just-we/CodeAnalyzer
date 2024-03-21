@@ -2,10 +2,15 @@ from code_analyzer.visitors.base_visitor import ASTVisitor
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.enums import TypeEnum
+from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type, \
     get_original_type_with_name
+from code_analyzer.preprocessor.node_processor import processor
+from code_analyzer.macro_expand import MacroCallExpandUtil
+from code_analyzer.config import parser
 
 from typing import Tuple, Dict, Set, List
+from tree_sitter import Tree
 
 class IdentifierExtractor(ASTVisitor):
     def __init__(self):
@@ -185,6 +190,9 @@ class VarAnalyzer(ASTVisitor):
             return ("char", 0, "", "", "")
         elif node.node_type == "string_literal":
             return ("char", 1, "", "", "")
+        elif node.node_type == "concatenated_string":
+            return ("char", 1, "", "", "")
+
         # 数组访问
         elif node.node_type == "subscript_expression":
             pointer_level -= 1
@@ -240,23 +248,63 @@ class VarAnalyzer(ASTVisitor):
                 f_type = field_type_name
             return (f_type, field_type[1] + pointer_level, field_declarator, original_src_type, field_name)
 
+        # call expression
+        elif node.node_type == "call_expression":
+            callee_name = node.children[0].node_text
+            arg_num = node.argument_list.child_count
+
+            callee_func_infos: List[FuncInfo] = list(filter(lambda func_info: func_info.func_name == callee_name
+                                                                              and arg_num_match(arg_num, func_info),
+                                                            self.collector.func_info_dict.values()))
+            return_type_set: Set[Tuple[str, int]] = set()
+            for func_info in callee_func_infos:
+                src_type = func_info.return_type
+                original_src_type, ori_pointer_level = get_original_type(src_type,
+                                                                         self.collector.type_alias_infos)
+                return_type_set.add((original_src_type, ori_pointer_level))
+
+            # 有可能是宏函数
+            if len(return_type_set) == 0:
+                # 如果是宏函数
+                if callee_name in self.collector.macro_funcs:
+                    expand_util = MacroCallExpandUtil(self.collector.macro_func_bodies,
+                                                      self.collector.macro_func_args,
+                                                      self.collector.global_visitor.var_arg_macro_funcs)
+                    code_text = expand_util.expand_macro_call(node)
+                    expand_call_tree: Tree = parser.parse(code_text.encode("utf-8"))
+                    expand_root_node: ASTNode = processor.visit(expand_call_tree.root_node)
+                    return self.process_variable(expand_root_node, 0, local_var_infos,
+                                         local_var2declarator, arg_infos, arg_declarators)
+                else:
+                    return (TypeEnum.UnknownType.value, 0, "", "", "")
+            else:
+                assert len(return_type_set) == 1
+                original_src_type, ori_pointer_level = return_type_set.pop()
+                return (original_src_type, ori_pointer_level, "", "", "")
+
         # 其它复杂表达式
         else:
-            return (TypeEnum.UnknownType.value, 0, "", "", "")
-
+            if node.child_count == 1:
+                return self.process_variable(node.children[0], 0, local_var_infos,
+                                         local_var2declarator, arg_infos, arg_declarators)
+            else:
+                return (TypeEnum.UnknownType.value, 0, "", "", "")
 
 class FuncPointerCollector(ASTVisitor):
     def __init__(self, func_pointer_param_name: str):
         self.func_pointer_param_name = func_pointer_param_name
         # addr_taken_node, top_level_node
-        self.assignment_node_infos: List[Tuple[ASTNode, ASTNode]] = list()
+        self.assignment_node_infos: List[Tuple[ASTNode, int, ASTNode]] = list()
+        # initializer node: addr_taken_node, initializer_list, top_level_node
+        self.init_node_infos: List[Tuple[ASTNode, int, ASTNode]] = list()
+        # call nodes
         self.call_nodes: List[Tuple[ASTNode, int]] = list()
 
     def visit_identifier(self, node: ASTNode):
         identfier = node.node_text
         if identfier != self.func_pointer_param_name:
             return False
-        top_level_node, idx = get_top_level_node(node)
+        top_level_node, idx = get_local_top_level_expr(node)
         if top_level_node is None:
             return False
 
@@ -264,8 +312,11 @@ class FuncPointerCollector(ASTVisitor):
         if top_level_node.node_type == "assignment_expression" or \
             (top_level_node.node_type == "conditional_expression"
              and top_level_node.node_type == "assignment_expression"):
-            var_node = top_level_node.children[0]
-            self.assignment_node_infos.append((var_node, top_level_node))
+            self.assignment_node_infos.append((node, idx, top_level_node))
+
+        # 如果是init declarator
+        elif top_level_node.node_type == "init_declarator":
+            self.init_node_infos.append((node, idx, top_level_node))
 
         # 如果是call expression
         elif top_level_node.node_type == "call_expression":
@@ -274,33 +325,69 @@ class FuncPointerCollector(ASTVisitor):
 
         return super().visit(node)
 
-
-def get_top_level_node(node: ASTNode) -> Tuple[ASTNode, int]:
-    # 考虑assignment_node, call_expression, init_declarator
-    cur_node = node
-    arg_idx = -1
-    while cur_node.parent is not None and  \
-            cur_node.parent.node_type != "compound_statement":
-        if cur_node.parent.node_type == "init_declarator" and cur_node == cur_node.parent.children[0]:
-            return None, -1
-        if cur_node.parent.node_type in {"binary_expression", "field_expression"}:
-            return None, -1
-        assert cur_node.node_type not in {"initializer_list"}
-        if cur_node.node_type == "assignment_expression" or \
-                (cur_node.node_type == "conditional_expression"
-                 and hasattr(cur_node, "assignment_expression")):
-            return cur_node, arg_idx
-        elif cur_node.parent.node_type == "argument_list":
-            arg_idx = index_of(cur_node.parent, cur_node)
-            assert arg_idx != -1
-        elif cur_node.node_type == "call_expression":
-            return cur_node, arg_idx
-        cur_node = cur_node.parent
-    return None, arg_idx
-
-
 def index_of(parent_node: ASTNode, child_node: ASTNode):
     for i, child in enumerate(parent_node.children):
         if child is child_node:
             return i
     return -1
+
+# 全局top_level_expr
+def get_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
+    node_types: Set[str] = {"compound_statement", "function_definition",
+                            "translation_unit", "if_statement", "declaration",
+                            "for_statement", "while_statement",
+                            "do_statement", "switch_statement",
+                            "preproc_ifdef", "preproc_if", "preproc_else", "preproc_elif"}
+    initializer_level = 0
+    cur_node = node
+    while cur_node.parent is not None and \
+            cur_node.parent.node_type not in node_types:
+        if cur_node.node_type == "initializer_list":
+            initializer_level += 1
+        elif cur_node.node_type == "sizeof_expression":
+            return (None, -1)
+        cur_node = cur_node.parent
+    return (cur_node, initializer_level)
+
+# 只关注declaration, assignment_expression, call_expression
+def get_local_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
+    # 通过赋值语句传播
+    cur_node: ASTNode = node
+    initializer_level: int = 0
+    arg_idx = -1
+    while cur_node is not None:
+        if cur_node.node_type == "init_declarator":
+            return (cur_node, initializer_level)
+        elif cur_node.node_type == "assignment_expression":
+            return (cur_node, initializer_level)
+        elif cur_node.node_type == "call_expression":
+            return (cur_node, arg_idx)
+        # 出现了三目表达式
+        elif cur_node.node_type == "conditional_expression" \
+                and hasattr(cur_node, "assignment_expression"):
+            return (cur_node, initializer_level)
+        # 不应出现在sizeof(...)中
+        elif cur_node.node_type == "sizeof_expression":
+            return (None, -1)
+
+        if cur_node.node_type == "initializer_list":
+            initializer_level += 1
+
+        if cur_node.parent is not None:
+            if cur_node.parent.node_type == "argument_list":
+                arg_idx = cur_node.parent.children.index(cur_node)
+            # 不能作为三目表达式的第一个子节点
+            elif cur_node.parent.node_type == "conditional_expression":
+                child_idx = cur_node.parent.children.index(cur_node)
+                if child_idx == 0:
+                    return (None, -1)
+        cur_node = cur_node.parent
+
+    return (cur_node, initializer_level)
+
+def arg_num_match(arg_num: int, func_info: FuncInfo) -> bool:
+    # 如果支持可变参数，调用的参数数量应该大于形参数量
+    if func_info.var_arg:
+        return arg_num >= len(func_info.parameter_types)
+    else:
+        return arg_num == len(func_info.parameter_types)

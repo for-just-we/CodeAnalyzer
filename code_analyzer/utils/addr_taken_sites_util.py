@@ -1,12 +1,14 @@
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
-from code_analyzer.visitors.util_visitor import IdentifierExtractor, VarAnalyzer
+from code_analyzer.visitors.util_visitor import IdentifierExtractor, VarAnalyzer, \
+    get_local_top_level_expr, get_top_level_expr
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 
 from typing import DefaultDict, List, Dict, Set, Tuple
 from collections import defaultdict
 import random
+from tqdm import tqdm
 
 def is_addr_taken_site(node: ASTNode) -> bool:
     # 通过赋值语句传播
@@ -39,49 +41,6 @@ def is_addr_taken_site(node: ASTNode) -> bool:
 
     return False
 
-
-def get_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
-    node_types: Set[str] = {"compound_statement", "function_definition",
-                            "translation_unit", "if_statement", "declaration",
-                            "for_statement", "while_statement",
-                            "do_statement", "switch_statement",
-                            "preproc_ifdef", "preproc_if", "preproc_else", "preproc_elif"}
-    initializer_level = 0
-    cur_node = node
-    while cur_node.parent is not None and \
-            cur_node.parent.node_type not in node_types:
-        if cur_node.node_type == "initializer_list":
-            initializer_level += 1
-        cur_node = cur_node.parent
-    return (cur_node, initializer_level)
-
-# 只关注declaration, assignment_expression, call_expression
-def get_local_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
-    # 通过赋值语句传播
-    cur_node: ASTNode = node
-    initializer_level: int = 0
-    arg_idx = -1
-    while cur_node is not None:
-        if cur_node.node_type == "init_declarator":
-            return (cur_node, initializer_level)
-        elif cur_node.node_type == "assignment_expression":
-            return (cur_node, initializer_level)
-        elif cur_node.node_type == "call_expression":
-            return (cur_node, arg_idx)
-        # 出现了三目表达式
-        elif cur_node.node_type == "conditional_expression" \
-                and hasattr(cur_node, "assignment_expression"):
-            return (cur_node, initializer_level)
-
-        if cur_node.node_type == "initializer_list":
-            initializer_level += 1
-        if cur_node.parent.node_type == "argument_list":
-            arg_idx = cur_node.parent.children.index(cur_node)
-
-        cur_node = cur_node.parent
-
-    return (cur_node, initializer_level)
-
 def extract_addr_site(refer_sites: DefaultDict[str, List[ASTNode]]):
     addr_taken_sites_: Dict[str, List[ASTNode]] = dict()
     for func_name, refer_site in refer_sites.items():
@@ -101,16 +60,18 @@ class AddrTakenSiteRetriver:
     def __init__(self, raw_global_addr_sites: Dict[str, List[ASTNode]],
                  raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]],
                  collector: BaseInfoCollector):
-
         self.collector: BaseInfoCollector = collector
         self.var_analyzer: VarAnalyzer = VarAnalyzer(collector)
 
         # global scope的address-taken site只需要考虑init_declarator
         self.global_addr_sites: Dict[str, List[Tuple[ASTNode, int, ASTNode]]] = dict()
-        for func_name, nodes in raw_global_addr_sites.items():
+
+        for func_name, nodes in tqdm(raw_global_addr_sites.items(), desc="collecting raw declarators"):
             decl_nodes: List[Tuple[ASTNode, int, ASTNode]] = list()
             for node in nodes:
                 top_level_node, initializer_level = get_top_level_expr(node)
+                if top_level_node is None:
+                    continue
                 if top_level_node.node_type == "init_declarator":
                     decl_nodes.append((top_level_node, initializer_level, node))
 
@@ -128,7 +89,7 @@ class AddrTakenSiteRetriver:
                     DefaultDict[str, List[Tuple[ASTNode, int, ASTNode]]]] = defaultdict(lambda: defaultdict(list))
         self.local_call_expr: DefaultDict[str, List[Tuple[ASTNode, int]]] = defaultdict(list)
 
-        for func_name, node_in_func in raw_local_addr_sites.items():
+        for func_name, node_in_func in tqdm(raw_local_addr_sites.items(), desc="collecting local declarators"):
             for func_key, nodes in node_in_func.items():
                 for node in nodes:
                     top_level_node, initializer_level = get_local_top_level_expr(node)
@@ -155,7 +116,7 @@ class AddrTakenSiteRetriver:
                                 defaultdict(lambda: defaultdict(set))
 
         # global init declarator
-        for func_name, declarator_infos in self.global_addr_sites.items():
+        for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="grouping global declarators"):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                 struct_decl, ori_var_type, init_node_text = \
                     self.retrive_info_from_declarator(addr_taken_site_top,
@@ -166,13 +127,13 @@ class AddrTakenSiteRetriver:
 
 
         # local init declarator
-        for func_name, local_declarator_infos in self.local_declarators.items():
+        for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="grouping local declarators"):
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                     struct_decl, ori_var_type, init_node_text = \
                         self.retrive_info_from_declarator(addr_taken_site_top,
                                                           addr_taken_site, init_level,
-                                                          self.collector.global_var_info)
+                                                          self.collector.func_info_dict[func_key].local_var)
                     self.init_addr_infos[func_name][(struct_decl,
                                                      ori_var_type)].add(init_node_text)
 
@@ -180,7 +141,7 @@ class AddrTakenSiteRetriver:
         self.local_assignment_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
                                                                   Set[Tuple[str, str, str]]]] = \
             defaultdict(lambda :defaultdict(set))
-        for func_name, assignment_infos in self.local_assignment_exprs.items():
+        for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="grouping local assignments"):
             for func_key, assignment_info in assignment_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
                     declarator, refered_struct_name, struct_decl_text, \
@@ -191,22 +152,23 @@ class AddrTakenSiteRetriver:
         # call expression
         self.call_expr_info: DefaultDict[str, DefaultDict[str, Set[Tuple[str, str]]]] = \
             defaultdict(lambda: defaultdict(set))
-        self.call_expr_arg_idx: DefaultDict[str, List[Tuple[FuncInfo, int]]] = defaultdict(list)
-        for func_name, call_nodes in self.local_call_expr.items():
+        self.call_expr_arg_idx: DefaultDict[str, List[Tuple[str, int]]] = defaultdict(list)
+        for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions"):
             for call_node, arg_idx in call_nodes:
                 callee_func_name = call_node.children[0].node_text
-                target_funcs: List[FuncInfo] = list(filter(lambda func_info: func_info.func_name == callee_func_name,
-                       self.collector.func_info_dict.values()))
+                target_funcs: List[str] = list(filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == callee_func_name,
+                       self.collector.func_info_dict.keys()))
 
                 if len(target_funcs) <= 0:
                     self.call_expr_info[func_name][callee_func_name].add((call_node.node_text, ""))
                 else:
-                    target_func: FuncInfo = random.choice(target_funcs)
+                    target_func_key: str = random.choice(target_funcs)
+                    target_func: FuncInfo = self.collector.func_info_dict[target_func_key]
                     self.call_expr_info[func_name][callee_func_name].add((call_node.node_text,
                                                         target_func.raw_declarator_text))
 
-                    for target_func in target_funcs:
-                        self.call_expr_arg_idx[func_name].append((target_func, arg_idx))
+                    for target_func_key in target_funcs:
+                        self.call_expr_arg_idx[func_name].append((target_func_key, arg_idx))
 
     def generate_queries_for_func(self, func_name) -> List[str]:
         queries: List[str] = list()
@@ -269,11 +231,11 @@ class AddrTakenSiteRetriver:
                 var_text, assign_node_text)
 
         elif len(self.local_call_expr[func_name]) > 0:
-            call_nodes: List[ASTNode] = self.local_call_expr[func_name]
-            addr_taken_site: ASTNode = random.choice(call_nodes)
+            call_nodes: List[Tuple[ASTNode, int]] = self.local_call_expr[func_name]
+            addr_taken_site: Tuple[ASTNode, int] = random.choice(call_nodes)
             return "The address of target function {func_name} is used as a arguments of call expression: {call_expr}, " \
                    "which can also help you analyze the functionality of function {func_name}."\
-                .format(func_name=func_name, call_expr=addr_taken_site.node_text)
+                .format(func_name=func_name, call_expr=addr_taken_site[0].node_text)
 
         return ""
 

@@ -18,16 +18,16 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, AddrTakenSiteRetriver
 from code_analyzer.utils.func_key_collector import get_all_func_keys
 
-from icall_analyzer.flta.matcher import TypeAnalyzer
-from icall_analyzer.mlta.init_info import InitInfo
-from icall_analyzer.mlta.matcher import StructTypeMatcher
-from icall_analyzer.semantic_match.matcher import SemanticMatcher
-from icall_analyzer.single_step_match.matcher import SingleStepMatcher
-from icall_analyzer.single_step_complex_match.matcher import SingleStepComplexMatcher
-from icall_analyzer.multi_step_match.matcher import MultiStepMatcher
-from icall_analyzer.addr_site_v1.matcher import AddrSiteMatcherV1
-from icall_analyzer.addr_site_v2.matcher import AddrSiteMatcherV2
-from icall_analyzer.base_utils.func_summarizer import FunctionSummarizer
+from analyzers.flta.matcher import TypeAnalyzer
+from analyzers.mlta.init_info import InitInfo
+from analyzers.mlta.matcher import StructTypeMatcher
+from analyzers.semantic_match.matcher import SemanticMatcher
+from analyzers.single_step_match.matcher import SingleStepMatcher
+from analyzers.single_step_complex_match.matcher import SingleStepComplexMatcher
+from analyzers.multi_step_match.matcher import MultiStepMatcher
+from analyzers.addr_site_v1.matcher import AddrSiteMatcherV1
+from analyzers.addr_site_v2.matcher import AddrSiteMatcherV2
+from analyzers.base_utils.func_summarizer import FunctionSummarizer
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 
@@ -394,6 +394,9 @@ class ProjectAnalyzer:
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
         line1 = ""
 
+        open("res.txt", 'a', encoding='utf-8').write(
+            f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
+
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
             for key, values in new_icall_2_target.items():
@@ -479,6 +482,7 @@ class ProjectAnalyzer:
     def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher, MultiStepMatcher]):
         icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
         P, R, F = evaluate(icall_2_targets, self.ground_truths)
+
         if hasattr(analyzer, "llm_analyzer"):
             model_name = analyzer.llm_analyzer.model_name
             llm_analyzer: BaseLLMAnalyzer = analyzer.llm_analyzer

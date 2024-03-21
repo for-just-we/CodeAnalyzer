@@ -1,18 +1,19 @@
-import time
-
-from icall_analyzer.flta.matcher import TypeAnalyzer
+from analyzers.flta.matcher import TypeAnalyzer
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
+from analyzers.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary
+from analyzers.addr_site_v2.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
+    System_multi_summary, end_multi_summary
 from llm_utils.common_prompt import summarizing_prompt
-from icall_analyzer.base_utils.prompts import supplement_prompts
-from icall_analyzer.addr_site_v1.prompts import System_Match, User_Match
+from analyzers.addr_site_v1.prompts import System_Match, User_Match
+from analyzers.base_utils.prompts import supplement_prompts
 
 from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
+import time
 from tqdm import tqdm
 import os
 import logging
@@ -23,7 +24,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 
-class AddrSiteMatcherV1:
+class AddrSiteMatcherV2:
     def __init__(self, collector: BaseInfoCollector,
                  args,
                  type_analyzer: TypeAnalyzer,
@@ -68,11 +69,12 @@ class AddrSiteMatcherV1:
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
             root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-            self.log_dir = f"{root_path}/experimental_logs/addr_site_v1_analysis/" \
+            self.log_dir = f"{root_path}/experimental_logs/addr_site_v2_analysis/" \
                            f"{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
                            f"{project}"
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
+
 
     def generate_icall_additional(self, callsite_key, icall_text) -> str:
         if callsite_key in self.icall_2_decl_text.keys():
@@ -84,13 +86,14 @@ class AddrSiteMatcherV1:
             if callsite_key in self.icall_2_struct_name.keys():
                 struct_name = self.icall_2_struct_name[callsite_key]
                 struct_decl = self.collector.struct_name2declarator[struct_name]
-                messages.append("The function pointer of the indirect-call is a field of struct {},"
+                messages.append("The function pointer is a field of struct {},"
                                 "where its definition is: \n{}.".format(struct_name, struct_decl))
-            messages.append("\nThe information below can also help you identify the functionlity of the indirect-call.")
 
-            return "\n".join(messages)
+            messages.append("Summarize the function pointer's purpose with information provided before.")
+            return "\n\n".join(messages)
 
         return ""
+
 
     def process_all(self):
         logging.getLogger("CodeAnalyzer").info("Start address-taken site matching...")
@@ -109,8 +112,6 @@ class AddrSiteMatcherV1:
                                            self.func_key_2_name.get(func_key, '') in self.collector.refered_funcs,
                                            func_keys))
                     self.matched_callsites[callsite_key] = func_keys
-                    self.type_matched_callsites.pop(callsite_key)
-
             return
 
         if os.path.exists(f"{self.log_dir}/semantic_result.txt"):
@@ -170,10 +171,15 @@ class AddrSiteMatcherV1:
                     f.write(content)
 
 
+
     def process_callsite(self, callsite_key: str, i: int, func_keys: Set[str],
                          user_prompt: str, callsite_text: str):
         icall_summary: str = self.llm_analyzer.get_response([System_ICall_Summary, user_prompt])
-        icall_additional = self.generate_icall_additional(callsite_key, callsite_text)
+        func_pointer_info = self.generate_icall_additional(callsite_key, callsite_text)
+        if func_pointer_info != "":
+            func_pointer_summary: str = self.llm_analyzer.get_response([System_func_pointer_Summary, func_pointer_info])
+        else:
+            func_pointer_summary = ""
 
         cur_log_dir = f"{self.log_dir}/callsite-{i}"
         target_analyze_log_dir = f"{cur_log_dir}/semantic"
@@ -182,10 +188,16 @@ class AddrSiteMatcherV1:
         if self.log_flag:
             if not os.path.exists(target_analyze_log_dir):
                 os.makedirs(target_analyze_log_dir)
-            log_content = "callsite_key: {} \n\n====================\n\n" \
-                          "{}\n\n{}\n\n===================\n\n" \
+            log_content = "callsite_key: {} \n\n========icall info============\n\n" \
+                          "{}\n\n{}\n\n=======icall_summary============\n\n" \
+                          "=======additional_information===========\n\n" \
+                          "{}\n\n{}\n\n" \
+                          "=======func pointer summary=============\n\n" \
                           "{}".format(callsite_key, System_ICall_Summary,
-                                      user_prompt, icall_summary)
+                                      user_prompt, icall_summary,
+                                      System_func_pointer_Summary, func_pointer_info,
+                                      func_pointer_summary)
+
             with open(f"{cur_log_dir}/callsite_summary.txt", "w", encoding='utf-8') as f:
                 f.write(log_content)
 
@@ -200,7 +212,7 @@ class AddrSiteMatcherV1:
             pbar.update(1)
 
         def worker(func_key: str, idx: int):
-            flag = self.process_callsite_target(callsite_text, icall_additional,
+            flag = self.process_callsite_target(callsite_text, func_pointer_summary,
                                                 icall_summary, target_analyze_log_dir, func_key, idx)
             if flag:
                 with lock:
@@ -214,10 +226,8 @@ class AddrSiteMatcherV1:
         for future in as_completed(futures):
             future.result()
 
-
-    def process_callsite_target(self, callsite_text: str, icall_additional: str,
+    def process_callsite_target(self, callsite_text: str, func_pointer_summary: str,
                                 icall_summary: str, target_analyze_log_dir: str, func_key: str, idx: int) -> bool:
-
         func_info: FuncInfo = self.collector.func_info_dict[func_key]
         func_name: str = func_info.func_name
         func_def_text: str = func_info.func_def_text
@@ -234,23 +244,53 @@ class AddrSiteMatcherV1:
         prompt_log += "{}:\n{}\n=========================\n".format(self.llm_analyzer.model_name,
                                                                     func_summary)
 
-        # 生成target function的address_taken_information
-        target_additional_information = self.addr_taken_site_retriver.\
-            random_select_one(func_name)
+        # target function address-taken site summary：
+        queries: List[str] = self.addr_taken_site_retriver.generate_queries_for_func(func_name)
+        addr_summaries: List[str] = list()
+        for i, query in enumerate(queries):
+            addr_site_summary: str = self.llm_analyzer.get_response([System_addr_taken_site_Summary,
+                                                                     query])
+            addr_summaries.append(addr_site_summary)
+            prompt_log += "******************addr site prompt{idx}*******************\n" \
+                          "{query}\n\n" \
+                          "**************addr site summary{idx}********************\n" \
+                          "{response}\n\n"\
+                .format(idx=i+1, query=query, response=addr_site_summary)
+
+        # 如果有多个address-taken site
+        if len(addr_summaries) > 1:
+            multi_messages = []
+            for i, addr_summary in enumerate(addr_summaries):
+                multi_messages.append("Summary {}:\n{}".format(i+1, addr_summary))
+            multi_messages.append(end_multi_summary)
+            total_addr_query = "\n\n".join(addr_summaries)
+            total_addr_summary = self.llm_analyzer.get_response([System_multi_summary,
+                                                            total_addr_query])
+            prompt_log += "\n*****************total addr summary*******************\n" \
+                          "{}".format(total_addr_summary)
+
+
+        elif len(addr_summaries) == 1:
+            total_addr_summary = addr_summaries[0]
+
+        else:
+            total_addr_summary = ""
+
+        prompt_log += "****************end of addr site summary*****************\n"
 
         # 进行匹配
         add_suffix = False
         user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
-                                                   icall_additional=icall_additional,
+                                                   icall_additional=func_pointer_summary,
                                                    icall_summary=icall_summary,
                                                    func_summary=func_summary,
                                                    func_name=func_name,
-                                                   target_additional_information=target_additional_information)
+                                                   target_additional_information=total_addr_summary)
         # 如果不需要二段式，也就是不需要COT
         user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
 
-
         return self.query_llm([System_Match, user_prompt_match], target_analyze_log_dir, f"{idx}.txt", add_suffix, prompt_log)
+
 
     def query_llm(self, contents: List[str], target_analyze_log_dir, file_name, add_suffix, prompt_log: str) -> bool:
         prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])

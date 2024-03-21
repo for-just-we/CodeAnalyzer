@@ -1,7 +1,7 @@
 from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver, get_init_node
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.function_info import FuncInfo
-from typing import DefaultDict, Set, Dict, List
+from typing import DefaultDict, Set, Dict, List, Union
 from collections import defaultdict
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.visitors.util_visitor import IdentifierExtractor
@@ -21,36 +21,38 @@ class InitInfo:
 
     def analyze(self):
         # global init declarator
-        for func_name, declarator_infos in self.addr_taken_site_retriver.global_addr_sites.items():
+        for func_name, declarator_infos in tqdm(self.addr_taken_site_retriver.global_addr_sites.items(), desc="analyzing global declarators"):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                 self.retrive_info_from_declarator(addr_taken_site_top,
-                                                      addr_taken_site, init_level,
-                                                      self.collector.global_var_info)
+                                                  addr_taken_site, init_level,
+                                                  self.collector.global_var_info,
+                                                  addr_taken_site.node_text)
 
         # local init declarator
-        for func_name, local_declarator_infos in self.addr_taken_site_retriver.local_declarators.items():
+        for func_name, local_declarator_infos in tqdm(self.addr_taken_site_retriver.local_declarators.items(), desc="analyzing local declarators"):
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                     self.retrive_info_from_declarator(addr_taken_site_top,
                                              addr_taken_site, init_level,
-                                             self.collector.global_var_info)
+                                             self.collector.func_info_dict[func_key].local_var,
+                                             addr_taken_site.node_text)
 
         # 处理assignment语句
-        for func_name, assignment_infos in self.addr_taken_site_retriver.local_assignment_exprs.items():
+        for func_name, assignment_infos in tqdm(self.addr_taken_site_retriver.local_assignment_exprs.items(), desc="analyzing assignment expressions"):
             for func_key, assignment_info in assignment_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
-                    self.retrive_info_from_assignment(addr_taken_site_top, func_key, addr_taken_site)
+                    self.retrive_info_from_assignment(addr_taken_site_top, func_key, addr_taken_site, addr_taken_site.node_text)
 
         # 处理call语句
         for func_name, call_expr_arg_idxs in \
             tqdm(self.addr_taken_site_retriver.call_expr_arg_idx.items(), desc="analyzing call expr"):
-            for func_info, arg_idx in call_expr_arg_idxs:
+            for func_key, arg_idx in call_expr_arg_idxs:
                 traversed_func_names = set()
-                self.traverse_call(func_name, func_info, arg_idx, traversed_func_names)
+                self.traverse_call(func_name, func_key, arg_idx, traversed_func_names)
 
 
     def retrive_info_from_declarator(self, node: ASTNode, func_node: ASTNode, initializer_level: int,
-                                     var_info: Dict[str, str]):
+                                     var_info: Dict[str, str], func_name: str):
         assert node.node_type == "init_declarator"
         # 默认取整个initializer
         init_level_in_need = initializer_level
@@ -77,13 +79,13 @@ class InitInfo:
             if init_level_in_need <= 0:
                 init_level_in_need = 1
             init_node = get_init_node(func_node, init_level_in_need)
-            idx_list: List[int] = get_init_idx_list(func_node, init_node)
+            idx_list: List[Union[int, str]] = get_init_idx_list(func_node, init_node)
             base_struct, field_name = self.get_struct_field(ori_var_type, idx_list)
             if base_struct != "" and field_name != "":
-                self.struct_name_2_field_4_type[base_struct][field_name].add(func_node.node_text)
+                self.struct_name_2_field_4_type[base_struct][field_name].add(func_name)
 
 
-    def retrive_info_from_assignment(self, node: ASTNode, func_key: str, addr_taken_site: ASTNode):
+    def retrive_info_from_assignment(self, node: ASTNode, func_key: str, addr_taken_site: ASTNode, func_name: str):
         # c++语法可能导致错误
         if not (node.node_type == "assignment_expression" and node.child_count == 3):
             return ("", "", "", node.children[0].node_text, node.node_text)
@@ -91,29 +93,32 @@ class InitInfo:
         declarator, refered_struct_name, base_type, field_name = \
             self.addr_taken_site_retriver.var_analyzer.analyze_var(node.children[0], func_key)
 
-        # 如果是struct的赋值
+        # 如果是struct的赋值，直接给struct用initializer_list赋初值
         if base_type in self.collector.struct_infos.keys() and \
             node.children[2].node_type == "initializer_list":
-            idx_list: List[int] = get_init_idx_list(addr_taken_site, node.children[2])
+            idx_list: List[Union[int, str]] = get_init_idx_list(addr_taken_site, node.children[2])
             base_struct, field__name = self.get_struct_field(refered_struct_name, idx_list)
             if base_struct != "" and field_name != "":
                 refered_struct_name = base_struct
                 field_name = field__name
 
         if refered_struct_name != "" and field_name != "":
-            self.struct_name_2_field_4_type[refered_struct_name][field_name].add(addr_taken_site.node_text)
+            self.struct_name_2_field_4_type[refered_struct_name][field_name].add(func_name)
 
 
 
     def get_struct_field(self, base_struct_name: str, idx_list: List[int]):
         cur_struct = base_struct_name
         for i, idx in enumerate(idx_list):
-            if cur_struct not in self.collector.struct_field_list.keys():
-                return ("", "")
-            if len(self.collector.struct_field_list[cur_struct]) <= idx:
-                return ("", "")
+            if isinstance(idx, str):
+                field_name = idx
+            else:
+                if cur_struct not in self.collector.struct_field_list.keys():
+                    return ("", "")
+                if len(self.collector.struct_field_list[cur_struct]) <= idx:
+                    return ("", "")
+                field_name = self.collector.struct_field_list[cur_struct][idx]
 
-            field_name = self.collector.struct_field_list[cur_struct][idx]
             if i == len(idx_list) - 1:
                 return (base_struct_name, field_name)
             field_type = self.collector.struct_infos[cur_struct].get(field_name, "")
@@ -127,7 +132,8 @@ class InitInfo:
         return ("", "")
 
 
-    def traverse_call(self, func_name: str, func_info: FuncInfo, idx: int, traversed_func_names: Set[str]):
+    def traverse_call(self, func_name: str, func_key: str, idx: int, traversed_func_names: Set[str]):
+        func_info: FuncInfo = self.collector.func_info_dict[func_key]
         if len(func_info.parameter_types) <= idx:
             return
         # 防止递归
@@ -140,23 +146,38 @@ class InitInfo:
         func_pointer_collector.traverse_node(func_info.func_body)
 
         # 遍历assignment
-        for addr_taken_node, top_level_node in func_pointer_collector.assignment_node_infos:
-            pass
+        for addr_taken_node, initializer_level, top_level_node in func_pointer_collector.assignment_node_infos:
+            # var_node为被赋值的变量，top_level_node为赋值语句
+            self.retrive_info_from_assignment(top_level_node, func_key, addr_taken_node, func_name)
+
+        # 遍历init_declarator
+        for addr_taken_node, initializer_level, top_level_node in func_pointer_collector.init_node_infos:
+            self.retrive_info_from_declarator(top_level_node, addr_taken_node,
+                                              initializer_level, func_info.local_var,
+                                              func_name)
 
         # 递归遍历call
         for call_node, arg_idx in func_pointer_collector.call_nodes:
             caller_func_name = call_node.children[0].node_text
-            target_funcs: List[FuncInfo] = list(filter(lambda func_info: func_info.func_name == caller_func_name,
-                                                       self.collector.func_info_dict.values()))
-            for target_func in target_funcs:
-                self.traverse_call(func_name, target_func, arg_idx, traversed_func_names)
+            target_func_keys: List[str] = list(filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == caller_func_name,
+                                                       self.collector.func_info_dict.keys()))
+            for target_func_key in target_func_keys:
+                self.traverse_call(func_name, target_func_key, arg_idx, traversed_func_names)
 
 
 def get_init_idx_list(func_node: ASTNode, top_level_node: ASTNode):
-    idx_list: List[int] = list()
+    idx_list: List[Union[int, str]] = list()
     cur_node = func_node
     while cur_node != top_level_node:
         if cur_node.parent.node_type == "initializer_list":
-            idx_list.append(cur_node.parent.children.index(cur_node))
+            if cur_node.node_type == "initializer_pair":
+                field_designator = cur_node.field_designator
+                if isinstance(field_designator, ASTNode):
+                    idx_list.append(field_designator.node_text[1:])
+                elif isinstance(field_designator, list):
+                    for designator in list(reversed(field_designator)):
+                        idx_list.append(designator.node_text[1:])
+            else:
+                idx_list.append(cur_node.parent.children.index(cur_node))
         cur_node = cur_node.parent
     return list(reversed(idx_list))

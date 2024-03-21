@@ -1,9 +1,9 @@
-from icall_analyzer.flta.matcher import TypeAnalyzer
+from analyzers.flta.matcher import TypeAnalyzer
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from icall_analyzer.base_utils.prompts import System_ICall_Summary, \
+from analyzers.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary
 from llm_utils.common_prompt import summarizing_prompt
-from icall_analyzer.multi_step_match.prompt import User_Match, System_Match, supplement_prompts
+from analyzers.multi_step_match.prompt import User_Match, System_Match, supplement_prompts
 
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.ast_node import ASTNode
