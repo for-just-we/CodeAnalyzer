@@ -115,7 +115,7 @@ class SingleStepMatcher:
             if callsite_key not in self.icall_2_func.keys():
                 continue
             i: int = self.callsite_idxs[callsite_key]
-            if callsite_key in self.macro_callsites and self.args.disable_analysis_for_macro:
+            if callsite_key in self.macro_callsites and not self.args.enable_analysis_for_macro:
                 continue
             elif callsite_key not in self.macro_callsites and self.args.disable_analysis_for_normal:
                 continue

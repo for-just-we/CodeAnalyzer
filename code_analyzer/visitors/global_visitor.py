@@ -142,7 +142,7 @@ class GlobalVisitor(ASTVisitor):
             # 如果是函数指针定义，只记录它是个函数类型，而不指示具体类型
             if declarator.node_type == "function_declarator":
                 cur_dst_type: str = TypeEnum.FunctionType.value
-                from code_analyzer.visitors.func_visitor import extract_param_types
+                from code_analyzer.visitors.base_func_visitor import extract_param_types
                 src_type = get_func_pointer_name(declarator, node)
                 infos = extract_param_types(declarator)
                 param_types: List[str] = infos[0]
@@ -208,7 +208,6 @@ class GlobalVisitor(ASTVisitor):
             type_name = node.type_identifier.node_text
             self.process_struct_specifier(node, type_name)
         return False
-
 
     def process_struct_specifier(self, node: ASTNode, struct_name: str):
         struct_field_visitor = StructFieldVisitor(self)

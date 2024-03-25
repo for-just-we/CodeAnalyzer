@@ -11,7 +11,8 @@ from scope_strategy.base_strategy import BaseStrategy
 from code_analyzer.preprocessor.node_processor import processor
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
-from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisitor, LocalFunctionRefVisitor
+from code_analyzer.visitors.base_func_visitor import FunctionDefVisitor, LocalVarVisitor, LocalFunctionRefVisitor
+from code_analyzer.visitors.func_body_visitors import EscapeTypeVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
 from code_analyzer.definition_collector import BaseInfoCollector
 
@@ -68,13 +69,19 @@ def load_icall_infos(path: str) -> Tuple[DefaultDict[str, List[Tuple[int, int]]]
     return icall_dict, ground_truths, callsite_idxs
 
 
-def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
+def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]],
+             enable_analysis_for_macro: bool,
+             macro_callsites: Set[str]
+             ):
     logging.getLogger("CodeAnalyzer").debug("start evaluating")
     precs = [] # 查准率
     recalls = [] # 召回率
     F1s = []
     count = 0
     for icall_key, labeled_funcs in tqdm(ground_truths.items(), desc="evaluating"):
+        # 如果是macro callsite但是不计算macro callsite结果
+        if icall_key in macro_callsites and not enable_analysis_for_macro:
+            continue
         if len(labeled_funcs) == 0:
             continue
         analyzed_targets: Set[str] = targets.get(icall_key, set())
@@ -102,12 +109,13 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]]):
     R = np.mean(recalls)
     F1 = np.mean(F1s)
     logging.getLogger("CodeAnalyzer").debug(f"{count} examples didn't produce valid analyze results")
-
     return (P, R, F1)
 
 
 def print_added_true_positive(ground_truths: Dict[str, Set[str]],
-                    predicted_t_keys_4_callsites: Dict[str, Set[str]]
+                    predicted_t_keys_4_callsites: Dict[str, Set[str]],
+                    enable_analysis_for_macro: bool,
+                    macro_callsites: Set[str]
                     ):
     for callsite_key in ground_truths.keys():
         label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
@@ -118,6 +126,9 @@ def print_added_true_positive(ground_truths: Dict[str, Set[str]],
             logging.getLogger("CodeAnalyzer").debug("added true positive callsite: {}|{}".format(callsite_key, ",".join(TPs)))
 
     for callsite_key in ground_truths.keys():
+        # 如果是macro callsite但是不计算macro callsite结果
+        if callsite_key in macro_callsites and not enable_analysis_for_macro:
+            continue
         label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
         predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
         FPs: Set[str] = predicted_t_keys - label_t_keys
@@ -127,12 +138,18 @@ def print_added_true_positive(ground_truths: Dict[str, Set[str]],
 
 def evaluate_binary(ground_truths: Dict[str, Set[str]],
                     predicted_t_keys_4_callsites: Dict[str, Set[str]],
-                    total_targets: Dict[str, Set[str]]):
+                    total_targets: Dict[str, Set[str]],
+                    enable_analysis_for_macro: bool,
+                    macro_callsites: Set[str]
+                    ):
     TP = 0
     TN = 0
     FP = 0
     FN = 0
     for callsite_key in ground_truths.keys():
+        # 如果是macro callsite但是不计算macro callsite结果
+        if callsite_key in macro_callsites and not enable_analysis_for_macro:
+            continue
         label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
         label_f_keys: Set[str] = total_targets.get(callsite_key, set()) - label_t_keys
         predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
@@ -276,7 +293,8 @@ class ProjectAnalyzer:
         # -
         collector: BaseInfoCollector = BaseInfoCollector(self.icall_dict, refered_func_names,
                                                          func_info_dict, global_visitor,
-                                                         func_key_2_declarator)
+                                                         func_key_2_declarator,
+                                                         self.args.enable_analysis_for_macro)
         collector.build_all()
 
         llm_analyzer: BaseLLMAnalyzer = None
@@ -364,16 +382,24 @@ class ProjectAnalyzer:
             analyzer.process_all()
 
         elif self.args.pipeline == "mlta":
-            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
-                                                             raw_local_addr_sites, collector)
-            addr_taken_site_retriver.group()
-            init_info = InitInfo(addr_taken_site_retriver, collector)
+            init_info = InitInfo(collector, raw_global_addr_sites, raw_local_addr_sites)
             init_info.analyze()
+
+            # 进行escape分析
+            escaped_types: DefaultDict[str, Set[str]] = defaultdict(set)
+            for func_key, func_info in tqdm(func_info_dict.items(), desc="type escape analysis"):
+                arg_info: Dict[str, str] = {parameter_type[1]: parameter_type[0]
+                                            for parameter_type in func_info.parameter_types}
+                escape_visitor = EscapeTypeVisitor(arg_info, func_info.name_2_declarator_text,
+                            func_info.local_var, func_info.local_var2declarator, collector, escaped_types)
+                escape_visitor.traverse_node(func_info.func_body)
+
             analyzer = StructTypeMatcher(collector, self.args, type_analyzer,
-                                         init_info, self.callsite_idxs)
+                                         init_info, self.callsite_idxs, escaped_types)
             analyzer.process_all()
 
         return type_analyzer, analyzer
+
 
     def evaluate(self):
         type_analyzer, semantic_analyzer = self.analyze_c_files_sig_match()
@@ -385,23 +411,24 @@ class ProjectAnalyzer:
                                     "addr_site_v1", "addr_site_v2", "mlta"}:
             self.evaluate_semantic_analysis(semantic_analyzer)
 
+
     def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
         logging.getLogger("CodeAnalyzer").info("result of project, Precision, Recall, F1 is:")
         icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees.copy()
-        P, R, F1 = evaluate(icall_2_targets, self.ground_truths)
+
+        P, R, F1 = evaluate(icall_2_targets, self.ground_truths, self.args.enable_analysis_for_macro,
+                   type_analyzer.macro_callsites)
         logging.getLogger("CodeAnalyzer").info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
         line1 = ""
 
-        open("res.txt", 'a', encoding='utf-8').write(
-            f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
-
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
             for key, values in new_icall_2_target.items():
                 icall_2_targets1[key] = icall_2_targets1.get(key, set()) | values
-            P, R, F1 = evaluate(icall_2_targets1, self.ground_truths)
+            P, R, F1 = evaluate(icall_2_targets1, self.ground_truths, self.args.enable_analysis_for_macro,
+                   type_analyzer.macro_callsites)
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
@@ -414,7 +441,8 @@ class ProjectAnalyzer:
                                                          all_ground_truths.keys()}
             acc, prec, recall, F1, fpr, fnr = \
                 evaluate_binary(partial_ground_truth, analyzed_res,
-                                all_potential_targets)
+                                all_potential_targets, self.args.enable_analysis_for_macro,
+                            type_analyzer.macro_callsites)
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                          f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
@@ -481,7 +509,8 @@ class ProjectAnalyzer:
 
     def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher, MultiStepMatcher]):
         icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
-        P, R, F = evaluate(icall_2_targets, self.ground_truths)
+        P, R, F = evaluate(icall_2_targets, self.ground_truths, self.args.enable_analysis_for_macro,
+                   analyzer.macro_callsites)
 
         if hasattr(analyzer, "llm_analyzer"):
             model_name = analyzer.llm_analyzer.model_name
@@ -495,7 +524,8 @@ class ProjectAnalyzer:
 
         acc, prec, recall, F1, fpr, fnr = \
             evaluate_binary(self.ground_truths, icall_2_targets,
-                            analyzer.type_matched_callsites)
+                            analyzer.type_matched_callsites, self.args.enable_analysis_for_macro,
+                            analyzer.macro_callsites)
         logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{model_name} "
                      f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                      f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")

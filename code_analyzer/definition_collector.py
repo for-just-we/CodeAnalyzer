@@ -19,7 +19,9 @@ class BaseInfoCollector:
                  refered_funcs: Set[str],
                  func_info_dict: Dict[str, FuncInfo],
                  global_visitor,
-                 func_key_2_declarator: Dict[str, str]):
+                 func_key_2_declarator: Dict[str, str],
+                 enable_analysis_for_macro: bool = False):
+        self.enable_analysis_for_macro = enable_analysis_for_macro
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict
         self.func_info_dict: Dict[str, FuncInfo] = func_info_dict
         self.type_alias_infos: Dict[str, str] = global_visitor.type_alias_infos

@@ -107,6 +107,20 @@ typedef int (* const secstream_protocol_connect_munge_t)(lws_ss_handle_t *h,
 		union lws_ss_contemp *ct);
 """
 
+global_init_decl1 = """
+const cairo_font_face_backend_t _cairo_ft_font_face_backend = {
+    CAIRO_FONT_TYPE_FT,
+#if CAIRO_HAS_FC_FONT
+    _cairo_ft_font_face_create_for_toy,
+#else
+    NULL,
+#endif
+    _cairo_ft_font_face_destroy,
+    _cairo_ft_font_face_scaled_font_create,
+    _cairo_ft_font_face_get_implementation
+};
+"""
+
 def testTypeDef():
     typeDefs = [macro_case1,
                 type_decl_case1,
@@ -125,7 +139,8 @@ def testTypeDef():
                 func_ptr_case1,
                 Union_case1,
                 struct_case1,
-                global_decl_case2]
+                global_decl_case2,
+                global_init_decl1]
 
     for i, typeDef in enumerate(typeDefs):
         print(typeDef)

@@ -37,6 +37,8 @@ static int* p[];
 int (*p)[];
 const struct Node* node;
 int* (*add)(int a, int b);
+
+stk->auto_op.func2 = stk->auto_op.func2_default = (H5E_auto2_t)H5E__print2;
 """
 
 global_decl_case3 = """

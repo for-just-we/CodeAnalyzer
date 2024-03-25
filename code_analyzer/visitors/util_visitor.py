@@ -367,7 +367,7 @@ def get_local_top_level_expr(node: ASTNode) -> Tuple[ASTNode, int]:
                 and hasattr(cur_node, "assignment_expression"):
             return (cur_node, initializer_level)
         # 不应出现在sizeof(...)中
-        elif cur_node.node_type == "sizeof_expression":
+        elif cur_node.node_type in {"sizeof_expression", "binary_expression"}:
             return (None, -1)
 
         if cur_node.node_type == "initializer_list":

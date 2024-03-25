@@ -1,5 +1,5 @@
 from code_analyzer.config import parser
-from code_analyzer.visitors.func_visitor import FunctionDefVisitor
+from code_analyzer.visitors.base_func_visitor import FunctionDefVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor
 from tree_sitter import Tree
 from code_analyzer.schemas.ast_node import ASTNode

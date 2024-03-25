@@ -3,7 +3,7 @@ from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.preprocessor.node_processor import processor
 
 from code_analyzer.config import parser
-from code_analyzer.visitors.func_visitor import FunctionDefVisitor
+from code_analyzer.visitors.base_func_visitor import FunctionDefVisitor
 
 from typing import List
 

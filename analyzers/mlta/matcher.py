@@ -13,10 +13,12 @@ class StructTypeMatcher:
                  args,
                  type_analyzer: TypeAnalyzer,
                  init_info: InitInfo,
-                 callsite_idxs: Dict[str, int] = None):
+                 callsite_idxs: Dict[str, int] = None,
+                 escaped_types: DefaultDict[str, Set[str]] = None):
         self.collector: BaseInfoCollector = collector
         self.args = args
         self.init_info: InitInfo = init_info
+        self.escaped_types = escaped_types
 
         # 保存类型匹配的callsite
         self.type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees.copy()
@@ -46,8 +48,10 @@ class StructTypeMatcher:
         for (callsite_key, func_keys) in self.type_matched_callsites.items():
             if callsite_key not in self.icall_2_func.keys():
                 continue
-            if callsite_key in self.macro_callsites and self.args.disable_analysis_for_macro:
+            # 如果不分析macro call
+            if callsite_key in self.macro_callsites and not self.args.enable_analysis_for_macro:
                 continue
+            # 如果不分析正常call
             elif callsite_key not in self.macro_callsites and self.args.disable_analysis_for_normal:
                 continue
 
@@ -60,10 +64,18 @@ class StructTypeMatcher:
         field_name = self.icall_2_field_name.get(callsite_key, "")
 
         if struct_name != "" and field_name != "":
+            # 是escape type
+            if field_name in self.escaped_types[struct_name]:
+                self.matched_callsites[callsite_key].update(func_keys)
+                return
             func_names: Set[str] = self.init_info.struct_name_2_field_4_type[struct_name][field_name]
             for func_key in tqdm(func_keys, desc="match for callsite key: {}".format(i)):
                 cur_func_name: str = self.collector.func_info_dict[func_key].func_name
                 if cur_func_name in func_names:
                     self.matched_callsites[callsite_key].add(func_key)
+            # 出现escape type
+            if len(self.matched_callsites[callsite_key]) == 0:
+                self.matched_callsites[callsite_key].update(func_keys)
+
         else:
             self.matched_callsites[callsite_key].update(func_keys)

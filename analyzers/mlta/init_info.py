@@ -1,10 +1,10 @@
-from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver, get_init_node
+from code_analyzer.utils.addr_taken_sites_util import get_init_node
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.function_info import FuncInfo
-from typing import DefaultDict, Set, Dict, List, Union
+from typing import DefaultDict, Set, Dict, List, Union, Tuple
 from collections import defaultdict
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
-from code_analyzer.visitors.util_visitor import IdentifierExtractor
+from code_analyzer.visitors.util_visitor import VarAnalyzer, IdentifierExtractor, arg_num_match, get_top_level_expr, get_local_top_level_expr
 
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.visitors.util_visitor import FuncPointerCollector
@@ -12,16 +12,69 @@ from tqdm import tqdm
 
 
 class InitInfo:
-    def __init__(self, addr_taken_site_retriver: AddrTakenSiteRetriver, collector: BaseInfoCollector):
-        self.addr_taken_site_retriver: AddrTakenSiteRetriver = addr_taken_site_retriver
+    def __init__(self, collector: BaseInfoCollector,
+                 raw_global_addr_sites: Dict[str, List[ASTNode]],
+                 raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]]):
         self.struct_name_2_field_4_type: DefaultDict[str, DefaultDict[str,
                        Set[str]]] = defaultdict(lambda: defaultdict(set))
         self.collector: BaseInfoCollector = collector
+        self.var_analyzer: VarAnalyzer = VarAnalyzer(collector)
 
+        # global scope的address-taken site只需要考虑init_declarator
+        self.global_addr_sites: Dict[str, List[Tuple[ASTNode, int, ASTNode]]] = dict()
+        # local scope的address-taken site考虑init_declarator, assignment_expression, argument_list,
+        # conditional_expression
+        self.local_declarators: DefaultDict[str, DefaultDict[str, List[Tuple[ASTNode, int, ASTNode]]]] = defaultdict(
+            lambda: defaultdict(list))
+        self.local_assignment_exprs: DefaultDict[str, DefaultDict[str, List[Tuple[ASTNode, int, ASTNode]]]] = defaultdict(
+            lambda: defaultdict(list))
+        self.local_call_expr: DefaultDict[str, List[Tuple[ASTNode, int]]] = defaultdict(list)
+        self.call_expr_arg_idx: DefaultDict[str, List[Tuple[str, int]]] = defaultdict(list)
+
+        self.pre_analyze(raw_global_addr_sites, raw_local_addr_sites)
+
+    def pre_analyze(self, raw_global_addr_sites: Dict[str, List[ASTNode]],
+                    raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]]):
+        # 全局declarator分析
+        for func_name, nodes in tqdm(raw_global_addr_sites.items(), desc="collecting raw declarators"):
+            decl_nodes: List[Tuple[ASTNode, int, ASTNode]] = list()
+            for node in nodes:
+                top_level_node, initializer_level = get_top_level_expr(node)
+                if top_level_node is None:
+                    continue
+                if top_level_node.node_type == "init_declarator":
+                    decl_nodes.append((top_level_node, initializer_level, node))
+
+            decl_nodes: List[Tuple[ASTNode, int, ASTNode]] = \
+                list(map(lambda x: (x[0], x[1], x[2]), decl_nodes))
+
+            if len(decl_nodes) > 0:
+                self.global_addr_sites[func_name] = decl_nodes
+
+        # local declarator分析
+        for func_name, node_in_func in tqdm(raw_local_addr_sites.items(), desc="collecting local declarators"):
+            for func_key, nodes in node_in_func.items():
+                for node in nodes:
+                    top_level_node, initializer_level = get_local_top_level_expr(node)
+                    if top_level_node is None:
+                        continue
+                    if top_level_node.node_type == "init_declarator":
+                        self.local_declarators[func_name][func_key].append((top_level_node,
+                                                                            initializer_level, node))
+
+                    elif top_level_node.node_type == "assignment_expression" or \
+                        (top_level_node.node_type == "conditional_expression"
+                         and hasattr(top_level_node, "assignment_expression")):
+                        self.local_assignment_exprs[func_name][func_key].append((top_level_node,
+                                                                                 initializer_level, node))
+
+
+                    elif top_level_node.node_type == "call_expression":
+                        self.local_call_expr[func_name].append((top_level_node, initializer_level))
 
     def analyze(self):
         # global init declarator
-        for func_name, declarator_infos in tqdm(self.addr_taken_site_retriver.global_addr_sites.items(), desc="analyzing global declarators"):
+        for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="analyzing global declarators"):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                 self.retrive_info_from_declarator(addr_taken_site_top,
                                                   addr_taken_site, init_level,
@@ -29,7 +82,7 @@ class InitInfo:
                                                   addr_taken_site.node_text)
 
         # local init declarator
-        for func_name, local_declarator_infos in tqdm(self.addr_taken_site_retriver.local_declarators.items(), desc="analyzing local declarators"):
+        for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="analyzing local declarators"):
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                     self.retrive_info_from_declarator(addr_taken_site_top,
@@ -38,14 +91,30 @@ class InitInfo:
                                              addr_taken_site.node_text)
 
         # 处理assignment语句
-        for func_name, assignment_infos in tqdm(self.addr_taken_site_retriver.local_assignment_exprs.items(), desc="analyzing assignment expressions"):
+        for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="analyzing assignment expressions"):
             for func_key, assignment_info in assignment_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
                     self.retrive_info_from_assignment(addr_taken_site_top, func_key, addr_taken_site, addr_taken_site.node_text)
 
         # 处理call语句
+        # 首先分析每个address-taken function的参数索引
+        for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions"):
+            for call_node, arg_idx in call_nodes:
+                callee_func_name = call_node.children[0].node_text
+                arg_num = call_node.argument_list.child_count
+                target_funcs: List[str] = list(filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == callee_func_name
+                                                      and arg_num_match(arg_num, self.collector.func_info_dict[func_key]),
+                       self.collector.func_info_dict.keys()))
+                if len(target_funcs) <= 0:
+                    # 如果是宏函数
+                    continue
+                else:
+                    for target_func_key in target_funcs:
+                        self.call_expr_arg_idx[func_name].append((target_func_key, arg_idx))
+
+        # 然后递归进入call-chain进行type confine分析
         for func_name, call_expr_arg_idxs in \
-            tqdm(self.addr_taken_site_retriver.call_expr_arg_idx.items(), desc="analyzing call expr"):
+            tqdm(self.call_expr_arg_idx.items(), desc="analyzing call expr"):
             for func_key, arg_idx in call_expr_arg_idxs:
                 traversed_func_names = set()
                 self.traverse_call(func_name, func_key, arg_idx, traversed_func_names)
@@ -79,6 +148,10 @@ class InitInfo:
             if init_level_in_need <= 0:
                 init_level_in_need = 1
             init_node = get_init_node(func_node, init_level_in_need)
+
+            if init_node is None:
+                return
+
             idx_list: List[Union[int, str]] = get_init_idx_list(func_node, init_node)
             base_struct, field_name = self.get_struct_field(ori_var_type, idx_list)
             if base_struct != "" and field_name != "":
@@ -87,16 +160,19 @@ class InitInfo:
 
     def retrive_info_from_assignment(self, node: ASTNode, func_key: str, addr_taken_site: ASTNode, func_name: str):
         # c++语法可能导致错误
-        if not (node.node_type == "assignment_expression" and node.child_count == 3):
-            return ("", "", "", node.children[0].node_text, node.node_text)
-        assert node.node_type == "assignment_expression" and node.child_count == 3
+        cur_node = node
+        if cur_node.node_type == "conditional_expression" and hasattr(cur_node, "assignment_expression"):
+            cur_node = cur_node.assignment_expression
+        if not (cur_node.node_type == "assignment_expression" and cur_node.child_count == 3):
+            return ("", "", "", cur_node.children[0].node_text, cur_node.node_text)
+        assert cur_node.node_type == "assignment_expression" and cur_node.child_count == 3
         declarator, refered_struct_name, base_type, field_name = \
-            self.addr_taken_site_retriver.var_analyzer.analyze_var(node.children[0], func_key)
+            self.var_analyzer.analyze_var(cur_node.children[0], func_key)
 
         # 如果是struct的赋值，直接给struct用initializer_list赋初值
         if base_type in self.collector.struct_infos.keys() and \
-            node.children[2].node_type == "initializer_list":
-            idx_list: List[Union[int, str]] = get_init_idx_list(addr_taken_site, node.children[2])
+            cur_node.children[2].node_type == "initializer_list":
+            idx_list: List[Union[int, str]] = get_init_idx_list(addr_taken_site, cur_node.children[2])
             base_struct, field__name = self.get_struct_field(refered_struct_name, idx_list)
             if base_struct != "" and field_name != "":
                 refered_struct_name = base_struct
@@ -120,7 +196,7 @@ class InitInfo:
                 field_name = self.collector.struct_field_list[cur_struct][idx]
 
             if i == len(idx_list) - 1:
-                return (base_struct_name, field_name)
+                return (cur_struct, field_name)
             field_type = self.collector.struct_infos[cur_struct].get(field_name, "")
             if field_type == "":
                 return ("", "")
@@ -159,6 +235,7 @@ class InitInfo:
         # 递归遍历call
         for call_node, arg_idx in func_pointer_collector.call_nodes:
             caller_func_name = call_node.children[0].node_text
+            # 需要检查是否存在宏调用
             target_func_keys: List[str] = list(filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == caller_func_name,
                                                        self.collector.func_info_dict.keys()))
             for target_func_key in target_func_keys:

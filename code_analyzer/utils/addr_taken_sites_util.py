@@ -1,7 +1,7 @@
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.util_visitor import IdentifierExtractor, VarAnalyzer, \
-    get_local_top_level_expr, get_top_level_expr
+    get_local_top_level_expr, get_top_level_expr, arg_num_match
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 
@@ -43,11 +43,11 @@ def is_addr_taken_site(node: ASTNode) -> bool:
 
 def extract_addr_site(refer_sites: DefaultDict[str, List[ASTNode]]):
     addr_taken_sites_: Dict[str, List[ASTNode]] = dict()
-    for func_name, refer_site in refer_sites.items():
+    for func_key, refer_site in refer_sites.items():
         addr_taken_sites: List[ASTNode] = list(filter(is_addr_taken_site, refer_site))
         if len(addr_taken_sites) == 0:
             continue
-        addr_taken_sites_[func_name] = addr_taken_sites
+        addr_taken_sites_[func_key] = addr_taken_sites
 
     return addr_taken_sites_
 
@@ -156,11 +156,14 @@ class AddrTakenSiteRetriver:
         for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions"):
             for call_node, arg_idx in call_nodes:
                 callee_func_name = call_node.children[0].node_text
-                target_funcs: List[str] = list(filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == callee_func_name,
+                arg_num = call_node.argument_list.child_count
+                target_funcs: List[str] = list(filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == callee_func_name
+                                                      and arg_num_match(arg_num, self.collector.func_info_dict[func_key]),
                        self.collector.func_info_dict.keys()))
 
                 if len(target_funcs) <= 0:
-                    self.call_expr_info[func_name][callee_func_name].add((call_node.node_text, ""))
+                    # 如果是宏函数
+                    continue
                 else:
                     target_func_key: str = random.choice(target_funcs)
                     target_func: FuncInfo = self.collector.func_info_dict[target_func_key]
@@ -336,4 +339,7 @@ def get_init_node(func_node: ASTNode, level) -> ASTNode:
             if count == level:
                 return cur_node
         cur_node = cur_node.parent
+
+        if cur_node.node_type == "call_expression":
+            return None
     return cur_node

@@ -36,14 +36,14 @@ def add_subparser(parser: argparse.ArgumentParser):
     hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
     hf_parser.add_argument('--address', help='huggingface server ip:port, default to 127.0.0.1:8080',
                            default='127.0.0.1:8080')
-    hf_parser.add_argument('--model_name', choices=['codellama', 'wizardcoder', 'chatglm', 'qwen'],
+    hf_parser.add_argument('--model_type', choices=['codellama', 'wizardcoder', 'chatglm', 'qwen'],
                            help='specify model name used. Could be codellama or WizardCoder')
     hf_parser.add_argument('--max_new_tokens', type=int, default=20)
 
     vllm_parser = subparsers.add_parser('vllm', help='using model deployed by vllm')
     vllm_parser.add_argument('--address', help='vllm server ip:port, default to 127.0.0.1:8080',
                              default='127.0.0.1:8080')
-    vllm_parser.add_argument('--model_name', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-72B-Chat'],
+    vllm_parser.add_argument('--model_type', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-72B-Chat'],
                              help='specify model name used.')
 
 def build_arg_parser():
@@ -79,8 +79,8 @@ def build_arg_parser():
     parser.add_argument("--only_count_scope", action="store_true", default=False, help="only count ground_truth in scope")
     parser.add_argument("--enable_cast", action="store_true", default=False, help="enable cast between param types")
 
-    parser.add_argument("--disable_analysis_for_macro", action="store_true", default=False,
-                        help="disable analysis for macro callsite")
+    parser.add_argument("--enable_analysis_for_macro", action="store_true", default=False,
+                        help="enable analysis for macro callsite")
     parser.add_argument("--disable_analysis_for_normal", action="store_true", default=False,
                         help="disable analysis for normal callsite")
 
@@ -125,9 +125,7 @@ def main():
     else:
         logger.setLevel(level=logging.INFO)
 
-    if args.llm in {"hf", "vllm"}:
-        model_name = args.model_name
-    elif args.llm in {"gpt", "google", "zhipu", "tongyi"}:
+    if args.llm in {"hf", "vllm", "gpt", "google", "zhipu", "tongyi"}:
         model_name = args.model_type
     else:
         model_name = ""

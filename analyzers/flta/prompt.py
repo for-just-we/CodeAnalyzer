@@ -70,7 +70,7 @@ Analyze whether the {idx} argument types are compatible with the {idx} parameter
 
 - 1.Extract the expressions of {idx} arguments from argument list and analyze their types with corresponding variable declaration if provided.
 
-- 2.Extract the {idx} parameter declarator, ensuring exact match of its type with corresponding arguments. Note that two types match only with identical names and pointer hierarchies.
+- 2.Extract the {idx} parameter declarator, ensuring exact match of its type with corresponding arguments if provided. Note that two types match only with identical names and pointer hierarchies.
 
 Note that:
 
@@ -78,10 +78,12 @@ Note that:
 
 - 2.Types like int, long, size_t could be considered as compatible due to implicit cast.
 
+- 3.If declarators of {idx} arguments are missing, you may infer their compatibility with {idx} parameters using the argument text and parameter names of {idx}.
+
 """
 
 
 supplement_prompts = {
 "user_prompt_declarator": "If function pointer parameters match function parameters, answer 'yes'; otherwise, answer 'no'.",
-"user_prompt_context": "If all {idx} argument types match their respective parameters, respond with 'yes'. Otherwise, or if the information is incomplete, respond with 'no'."
+"user_prompt_context": "If all {idx} argument types potentially match their respective parameters, respond with 'yes'. Otherwise, respond with 'no'."
 }

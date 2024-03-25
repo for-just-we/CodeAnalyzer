@@ -1,5 +1,5 @@
 from code_analyzer.config import parser
-from code_analyzer.visitors.func_visitor import FunctionDefVisitor, LocalVarVisitor
+from code_analyzer.visitors.base_func_visitor import FunctionDefVisitor, LocalVarVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor
 from code_analyzer.visitors.macro_visitor import MacroCallExpandVisitor, ICallVisitor
 

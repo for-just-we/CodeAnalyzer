@@ -133,7 +133,7 @@ class AddrSiteMatcherV2:
         for (callsite_key, func_keys) in self.type_matched_callsites.items():
             if callsite_key not in self.icall_2_func.keys():
                 continue
-            if callsite_key in self.macro_callsites and self.args.disable_analysis_for_macro:
+            if callsite_key in self.macro_callsites and not self.args.enable_analysis_for_macro:
                 continue
             elif callsite_key not in self.macro_callsites and self.args.disable_analysis_for_normal:
                 continue

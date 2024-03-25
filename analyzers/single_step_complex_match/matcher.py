@@ -102,7 +102,7 @@ class SingleStepComplexMatcher:
             i = self.callsite_idxs[callsite_key]
 
             if callsite_key in self.macro_callsites:
-                if self.args.disable_analysis_for_macro:
+                if not self.args.enable_analysis_for_macro:
                     continue
                 self.process_macro_callsite(callsite_key, i)
             else:

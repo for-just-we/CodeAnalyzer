@@ -2,7 +2,7 @@ from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.visit_utils.base_util import loc_inside
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
-from code_analyzer.visitors.func_visitor import FunctionBodyVisitor
+from code_analyzer.visitors.func_body_visitors import ICallInfoVisitor
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.enums import TypeEnum
 
@@ -91,7 +91,7 @@ class TypeAnalyzer:
         self.macro_call_exprs: Dict[str, str] = dict()
 
         self.vote_time: int = args.vote_time
-        self.disable_analysis_for_macro: bool = args.disable_analysis_for_macro
+        self.enable_analysis_for_macro: bool = args.enable_analysis_for_macro
         self.disable_analysis_for_normal: bool = args.disable_analysis_for_normal
 
         # llm帮助分析过的icall以及func_key
@@ -186,7 +186,7 @@ class TypeAnalyzer:
     def process_function(self, func_key: str, func_info: FuncInfo, icall_locs: List[Tuple[int, int]]):
         arg_info: Dict[str, str] = {parameter_type[1]: parameter_type[0]
                                        for parameter_type in func_info.parameter_types}
-        func_body_visitor: FunctionBodyVisitor = FunctionBodyVisitor(
+        func_body_visitor: ICallInfoVisitor = ICallInfoVisitor(
             icall_locs, arg_info, func_info.name_2_declarator_text, func_info.local_var,
         func_info.local_var2declarator, self.collector)
         # 设置局部变量和形参涉及到函数指针的信息
@@ -204,6 +204,18 @@ class TypeAnalyzer:
         for icall_loc in icall_locs:
             callsite_key: str = f"{func_info.file}:{icall_loc[0] + 1}:{icall_loc[1] + 1}"
             # 如果该indirect-call对应的call expression没有被正确解析，跳过。
+            # 是macro icall且没有开启macro call的分析
+            if icall_loc in func_body_visitor.current_macro_funcs.keys():
+                self.macro_callsites.add(callsite_key)
+                self.macro_used_in_callsite[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
+                if not self.enable_analysis_for_macro:
+                    continue
+                # self.expanded_macros[callsite_key] = func_body_visitor.expanded_macros[icall_loc]
+                # self.macro_call_exprs[callsite_key] = func_body_visitor.macro_call_exprs[icall_loc]
+            # 是正常icall但是关闭了正常icall的分析
+            elif icall_loc not in func_body_visitor.current_macro_funcs.keys() and self.disable_analysis_for_normal:
+                continue
+
             logging.getLogger("CodeAnalyzer").info("visiting {}-th icall {}".format(self.callsite_idxs[callsite_key], callsite_key))
             if icall_loc not in func_body_visitor.icall_nodes.keys():
                 self.callees[callsite_key] = set()
@@ -215,19 +227,7 @@ class TypeAnalyzer:
 
     # 处理一个indirect-call
     def process_indirect_call(self, callsite_key: str, icall_loc: Tuple[int, int],
-                              func_body_visitor: FunctionBodyVisitor):
-        if icall_loc in func_body_visitor.current_macro_funcs.keys() and self.disable_analysis_for_macro:
-            return
-        elif icall_loc not in func_body_visitor.current_macro_funcs.keys() and self.disable_analysis_for_normal:
-            return
-        # 如果是宏函数
-        if icall_loc in func_body_visitor.current_macro_funcs.keys():
-            # ToDo: mark all address-taken functions as uncertain
-            self.macro_callsites.add(callsite_key)
-            self.macro_used_in_callsite[callsite_key] = func_body_visitor.current_macro_funcs[icall_loc]
-            self.expanded_macros[callsite_key] = func_body_visitor.expanded_macros[icall_loc]
-            self.macro_call_exprs[callsite_key] = func_body_visitor.macro_call_exprs[icall_loc]
-
+                              func_body_visitor: ICallInfoVisitor):
         if icall_loc in func_body_visitor.icall_2_decl_text.keys():
             self.icall_2_decl_text[callsite_key] = func_body_visitor.icall_2_decl_text[icall_loc]
         if icall_loc in func_body_visitor.icall_2_decl_type_text.keys():

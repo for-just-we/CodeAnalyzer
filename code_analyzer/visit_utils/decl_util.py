@@ -46,11 +46,15 @@ def process_multi_var_declaration(node: ASTNode, is_field_decl: bool = False,
 
         # 是函数声明
         if var_name_extractor.is_function:
-            return ()
+            # 如果是函数指针，那么只能定义一个函数指针变量
+            if isinstance(var_name_extractor, FieldIdentifierExtractor):
+                return ([("", "")], dict(), set())
+            else:
+                return ()
 
         # 如果是函数指针变量
         if var_name_extractor.is_function_type:
-            from code_analyzer.visitors.func_visitor import extract_param_types
+            from code_analyzer.visitors.base_func_visitor import extract_param_types
             type_name = TypeEnum.FunctionType.value
             infos = extract_param_types(node)
             param_types: List[str] = infos[0]
