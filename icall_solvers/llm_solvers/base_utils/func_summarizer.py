@@ -2,7 +2,7 @@ from typing import Set, Dict
 from code_analyzer.schemas.function_info import FuncInfo
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from analyzers.base_utils.prompts import System_Func_Summary, User_Func_Summary
+from icall_solvers.llm_solvers.base_utils.prompts import System_Func_Summary, User_Func_Summary
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading

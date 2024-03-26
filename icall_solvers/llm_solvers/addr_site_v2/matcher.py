@@ -1,12 +1,15 @@
-from analyzers.flta.matcher import TypeAnalyzer
-from llm_utils.base_analyzer import BaseLLMAnalyzer
-from analyzers.base_utils.prompts import System_ICall_Summary, \
+from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
+from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
+from icall_solvers.llm_solvers.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary
-from analyzers.addr_site_v2.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
+from icall_solvers.llm_solvers.addr_site_v2.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
     System_multi_summary, end_multi_summary
+
+from icall_solvers.llm_solvers.addr_site_v1.prompts import System_Match, User_Match
+from icall_solvers.llm_solvers.base_utils.prompts import supplement_prompts
+
+from llm_utils.base_analyzer import BaseLLMAnalyzer
 from llm_utils.common_prompt import summarizing_prompt
-from analyzers.addr_site_v1.prompts import System_Match, User_Match
-from analyzers.base_utils.prompts import supplement_prompts
 
 from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver
 from code_analyzer.definition_collector import BaseInfoCollector
@@ -17,53 +20,32 @@ import time
 from tqdm import tqdm
 import os
 import logging
-from typing import Dict, Set, DefaultDict, List
-from collections import defaultdict
+from typing import Dict, Set, List
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 
-class AddrSiteMatcherV2:
+class AddrSiteMatcherV2(BaseLLMSolver):
     def __init__(self, collector: BaseInfoCollector,
                  args,
-                 type_analyzer: TypeAnalyzer,
+                 base_analyzer: BaseStaticMatcher,
                  addr_taken_site_retriver: AddrTakenSiteRetriver,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  project="",
                  callsite_idxs: Dict[str, int] = None,
                  func_name_2_key: Dict[str, str] = None):
-        self.func_key_2_name: Dict[str, str] = func_name_2_key
-
-        self.collector: BaseInfoCollector = collector
-        self.args = args
+        super().__init__(collector, args, base_analyzer, llm_analyzer,
+                         callsite_idxs, func_name_2_key)
         self.addr_taken_site_retriver: AddrTakenSiteRetriver \
             = addr_taken_site_retriver
 
-        # 保存类型匹配的callsite
-        self.type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees.copy()
-        for key, values in type_analyzer.llm_declarator_analysis.items():
-            self.type_matched_callsites[key] = self.type_matched_callsites.get(key, set()) | values
-
-        # 保存最终匹配的callsite
-        self.matched_callsites: DefaultDict[str, Set[str]] = defaultdict(set)
-
-        self.macro_callsites: Set[str] = type_analyzer.macro_callsites
-        self.icall_2_func: Dict[str, str] = type_analyzer.icall_2_func
-        self.icall_nodes: Dict[str, ASTNode] = type_analyzer.icall_nodes
-
         # 每一个indirect-call对应的函数指针声明的文本
-        self.icall_2_decl_text: Dict[str, str] = type_analyzer.icall_2_decl_text
+        self.icall_2_decl_text: Dict[str, str] = base_analyzer.icall_2_decl_text
         # 每一个indirect-call对应的函数指针声明文本，保留原始类型
-        self.icall_2_decl_type_text: Dict[str, str] = type_analyzer.icall_2_decl_type_text
+        self.icall_2_decl_type_text: Dict[str, str] = base_analyzer.icall_2_decl_type_text
         # 如果icall引用了结构体的field，找到对应的结构体名称
-        self.icall_2_struct_name: Dict[str, str] = type_analyzer.icall_2_struct_name
-
-        self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
-        self.callsite_idxs: Dict[str, int] = callsite_idxs
-
-        self.expanded_macros: Dict[str, str] = type_analyzer.expanded_macros
-        self.macro_call_exprs: Dict[str, str] = type_analyzer.macro_call_exprs
+        self.icall_2_struct_name: Dict[str, str] = base_analyzer.icall_2_struct_name
 
         # log的位置
         self.log_flag: bool = args.log_llm_output

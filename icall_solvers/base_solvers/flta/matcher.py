@@ -3,13 +3,13 @@ from code_analyzer.visit_utils.base_util import loc_inside
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.func_body_visitors import ICallInfoVisitor
-from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.enums import TypeEnum
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model_type
-from analyzers.flta.matching_result import MatchingResult
-from analyzers.flta.prompt import system_prompt, user_prompt, \
+from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
+from icall_solvers.base_solvers.flta.matching_result import MatchingResult
+from icall_solvers.base_solvers.flta.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
     system_prompt_context, user_prompt_context, \
     supplement_prompts
@@ -28,39 +28,29 @@ base_pointer_type = {"void", "char"}
 idx_text_gen = {1: '2nd', 2: '3rd'}
 idx_2_text = lambda idx: idx_text_gen.get(idx, f'{idx + 1}th')
 
-class TypeAnalyzer:
+class TypeAnalyzer(BaseStaticMatcher):
     def __init__(self, collector: BaseInfoCollector,
                  args,
                  scope_strategy: BaseStrategy = None,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  project: str = "",
                  callsite_idxs: Dict[str, int] = None):
+        super().__init__()
         self.collector: BaseInfoCollector = collector
-        # 保存每个indirect-callsite的代码文本
-        self.icall_nodes: Dict[str, ASTNode] = dict()
-        # 保存每个indirect-callsite所在的function
-        self.icall_2_func: Dict[str, str] = dict()
         # scope策略
         self.scope_strategy: BaseStrategy = scope_strategy
 
-        self.icall_2_decl_text: Dict[str, str] = dict()
-        self.icall_2_decl_type_text: Dict[str, str] = dict()
         self.icall_2_arg_declarators: Dict[str, List[List[str]]] = dict()
         self.icall_2_arg_texts: Dict[str, List[str]] = dict()
         self.icall_2_arg_text: Dict[str, str] = dict()
-        self.icall_2_struct_name: Dict[str, str] = dict()
         self.icall_2_field_name: Dict[str, str] = dict()
 
         # LLM访问过的所有函数
         self.all_potential_targets: Dict[str, Set[str]] = dict()
-        # 保存匹配上的函数名
-        self.callees: Dict[str, Set[str]] = dict()
         # 仅通过传统类型分析得到的结果
         self.strict_type_match_res: Dict[str, Set[str]] = dict()
         # 将宏函数间接调用点映射为宏名称
         self.macro_icall2_callexpr: Dict[str, str] = dict()
-        # 保存每个indirect-callsite的代码文本
-        self.icall_nodes: Dict[str, ASTNode] = dict()
 
         self.callsite_idxs: Dict[str, int] = callsite_idxs
 
@@ -74,10 +64,6 @@ class TypeAnalyzer:
 
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
-        # 是否cast
-        self.enable_cast: bool = args.enable_cast
-        # 是否让llm辅助cast
-        self.llm_help_cast: bool = args.llm_help_cast
         # 是否取消让llm进行uncertain分析
         self.disable_llm_for_uncertain: bool = args.disable_llm_for_uncertain
 
@@ -85,10 +71,7 @@ class TypeAnalyzer:
         self.load_pre_type_analysis_res: bool = args.load_pre_type_analysis_res
 
         self.running_epoch: int = args.running_epoch
-        self.macro_callsites: Set[str] = set()
         self.macro_used_in_callsite: Dict[str, str] = dict()
-        self.expanded_macros: Dict[str, str] = dict()
-        self.macro_call_exprs: Dict[str, str] = dict()
 
         self.vote_time: int = args.vote_time
         self.enable_analysis_for_macro: bool = args.enable_analysis_for_macro
@@ -96,13 +79,7 @@ class TypeAnalyzer:
 
         # llm帮助分析过的icall以及func_key
         self.llm_helped_type_analysis_icall_pair: DefaultDict[str, Set[str]] = defaultdict(set)
-        self.llm_declarator_analysis: DefaultDict[str, Set[str]] = defaultdict(set)
 
-        # 通过cast分析后得到的matching result
-        self.cast_callees: DefaultDict[str, Set[str]] = defaultdict(set)
-        # 如果uncertain
-        self.uncertain_callees: DefaultDict[str, Set[str]] = defaultdict(set)
-        self.uncertain_idxs: DefaultDict[str, Dict[str, Set[int]]] = defaultdict(dict)
         # 确定为false的部分
         self.no_match_callees: DefaultDict[str, Set[str]] = defaultdict(set)
 
@@ -251,7 +228,7 @@ class TypeAnalyzer:
         func_pointer_arg_type: List[str] = func_body_visitor.icall_2_decl_param_types. \
             get(icall_loc, None)
 
-        running_epochs = 2 if self.enable_cast else 1
+        running_epochs = 2
         for matching_epoch in range(running_epochs):
             # 如果不是宏函数
             # 根据参数的类型进行间接调用匹配
@@ -403,18 +380,6 @@ class TypeAnalyzer:
         # 考虑void*, char*和其它类型指针转换关系
         if self.match_pointer_type(arg_type, param_type):
             return MatchingResult.YES, False
-
-        # if self.is_type_contain(arg_type, param_type):
-        #     return MatchingResult.YES, False
-        # elif self.is_type_contain(param_type, arg_type):
-        #     return MatchingResult.YES, False
-        #
-        # # 如果不需要LLM来辅助
-        # if self.llm_analyzer is None or not self.llm_help_cast or self.disable_llm_for_uncertain:
-        #     return MatchingResult.NO, False
-        # elif self.is_parent_child_relation(arg_type, param_type,
-        #                                    ori_arg_type_name, ori_param_type_name):
-        #     return MatchingResult.YES, True
 
         return MatchingResult.NO, False
 

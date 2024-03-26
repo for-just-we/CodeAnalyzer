@@ -6,46 +6,38 @@ from code_analyzer.schemas.function_info import FuncInfo
 
 from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from analyzers.flta.matcher import TypeAnalyzer
-from analyzers.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
+from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
+from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
+from icall_solvers.llm_solvers.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
 
 from tqdm import tqdm
 import os
 import logging
-from typing import Dict, Set, DefaultDict, List
-from collections import defaultdict
+from typing import Dict, Set, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
-class SingleStepMatcher:
+class SingleStepMatcher(BaseLLMSolver):
     def __init__(self, collector: BaseInfoCollector,
                  args,
-                 type_analyzer: TypeAnalyzer,
+                 base_analyzer: BaseStaticMatcher,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  callsite_keys: Set[str] = None,
                  project="",
                  callsite_idxs: Dict[str, int] = None,
                  func_key_2_name: Dict[str, str] = None):
-        self.collector: BaseInfoCollector = collector
+        super().__init__(collector, args, base_analyzer, llm_analyzer,
+                         callsite_idxs, func_key_2_name)
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
-        self.args = args
         self.callsite_keys: Set[str] = callsite_keys.copy()
-        self.callsite_idxs: Dict[str, int] = callsite_idxs
-
-        self.icall_2_func: Dict[str, str] = type_analyzer.icall_2_func
-        self.icall_nodes: Dict[str, ASTNode] = type_analyzer.icall_nodes
-        self.macro_callsites: Set[str] = type_analyzer.macro_callsites
-
-        self.expanded_macros: Dict[str, str] = type_analyzer.expanded_macros
-        self.macro_call_exprs: Dict[str, str] = type_analyzer.macro_call_exprs
 
         # 严格类型匹配成功的callsite
-        self.strict_type_matched_callsites: Dict[str, Set[str]] = type_analyzer.callees
+        self.strict_type_matched_callsites: Dict[str, Set[str]] = base_analyzer.callees
         # 通过cast分析得到类型匹配成功的callsite
-        self.cast_type_matched_callsites: Dict[str, Set[str]] = type_analyzer.cast_callees
+        self.cast_type_matched_callsites: Dict[str, Set[str]] = base_analyzer.cast_callees
         # 包含在uncertain部分的callsite
-        self.uncertain_type_matched_callsites: Dict[str, Set[str]] = type_analyzer.uncertain_callees
+        self.uncertain_type_matched_callsites: Dict[str, Set[str]] = base_analyzer.uncertain_callees
 
         self.type_matched_callsites: Dict[str, Set[str]] = dict()
         for callsite_key in self.callsite_keys:
@@ -54,12 +46,6 @@ class SingleStepMatcher:
             func_keys.update(self.cast_type_matched_callsites.get(callsite_key, set()))
             func_keys.update(self.uncertain_type_matched_callsites.get(callsite_key, set()))
             self.type_matched_callsites[callsite_key] = func_keys
-
-        # 保存语义匹配的callsite
-        self.matched_callsites: DefaultDict[str, Set[str]] = defaultdict(set)
-        self.llm_analyzer: BaseLLMAnalyzer = llm_analyzer
-
-        self.func_key_2_name: Dict[str, str] = func_key_2_name
 
         # log的位置
         self.log_flag: bool = args.log_llm_output

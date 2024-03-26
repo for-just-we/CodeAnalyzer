@@ -1,5 +1,4 @@
 import os
-import yaml
 import argparse
 
 from typing import List
@@ -48,9 +47,12 @@ def add_subparser(parser: argparse.ArgumentParser):
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
-    parser.add_argument("--pipeline", type=str, choices=['flta', 'mlta', 'semantic', 'single', 'single_complex',
-                                                         'multi_step', 'addr_site_v1', 'addr_site_v2'],
-                        default='flta')
+    parser.add_argument("--root_path", type=str, required=True, help="root path of all benchmarks.")
+    parser.add_argument("--pipeline", type=str, choices=['none', 'semantic', 'single',
+                                                         'addr_site_v1', 'addr_site_v2'],
+                        default='none')
+    parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta'], default='flta')
+
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
     parser.add_argument("--log_llm_output", action="store_true", default=False,
@@ -77,19 +79,16 @@ def build_arg_parser():
     # double_prompt表示是否采用二段式prompt策略
     parser.add_argument("--double_prompt", action="store_true", default=False)
     parser.add_argument("--only_count_scope", action="store_true", default=False, help="only count ground_truth in scope")
-    parser.add_argument("--enable_cast", action="store_true", default=False, help="enable cast between param types")
 
     parser.add_argument("--enable_analysis_for_macro", action="store_true", default=False,
                         help="enable analysis for macro callsite")
     parser.add_argument("--disable_analysis_for_normal", action="store_true", default=False,
                         help="disable analysis for normal callsite")
 
-    parser.add_argument("--llm_help_cast", action="store_true", default=False, help="enable llm helped type analysis")
     parser.add_argument("--disable_llm_for_uncertain", action="store_true", default=False)
-    parser.add_argument("--count_uncertain", action="store_true", default=False,
+    parser.add_argument("--evaluate_uncertain", action="store_true", default=False,
                         help="enable cast between void* or char* with other pointer type")
-    parser.add_argument("--count_cast", action="store_true", default=False,
-                        help="enable cast between void* or char* with other pointer type")
+
     parser.add_argument("--log_res_to_file", action="store_true", default=False,
                         help="If true, will log analysis result to file.")
 
@@ -102,10 +101,9 @@ def build_arg_parser():
     return parser
 
 def main():
-    config_data: dict = yaml.safe_load(open("config.yaml", 'r', encoding='utf-8'))
-    root_path: str = config_data['root']
     parser = build_arg_parser()
     args = parser.parse_args()
+    root_path: str = args.root_path
     # 检查是否提供了项目参数
     if not args.projects:
         parser.error("You must specify one or more project to analyze")

@@ -1,5 +1,5 @@
 import os
-from typing import DefaultDict, List, Tuple, Set, Dict, Union
+from typing import DefaultDict, List, Tuple, Set, Dict
 from collections import defaultdict
 from tqdm import tqdm
 from tree_sitter import Tree
@@ -15,20 +15,18 @@ from code_analyzer.visitors.base_func_visitor import FunctionDefVisitor, LocalVa
 from code_analyzer.visitors.func_body_visitors import EscapeTypeVisitor
 from code_analyzer.visitors.global_visitor import GlobalVisitor, GlobalFunctionRefVisitor
 from code_analyzer.definition_collector import BaseInfoCollector
-
 from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, AddrTakenSiteRetriver
-from code_analyzer.utils.func_key_collector import get_all_func_keys
 
-from analyzers.flta.matcher import TypeAnalyzer
-from analyzers.mlta.init_info import InitInfo
-from analyzers.mlta.matcher import StructTypeMatcher
-from analyzers.semantic_match.matcher import SemanticMatcher
-from analyzers.single_step_match.matcher import SingleStepMatcher
-from analyzers.single_step_complex_match.matcher import SingleStepComplexMatcher
-from analyzers.multi_step_match.matcher import MultiStepMatcher
-from analyzers.addr_site_v1.matcher import AddrSiteMatcherV1
-from analyzers.addr_site_v2.matcher import AddrSiteMatcherV2
-from analyzers.base_utils.func_summarizer import FunctionSummarizer
+from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
+from icall_solvers.base_solvers.flta.matcher import TypeAnalyzer
+from icall_solvers.base_solvers.mlta.init_info import InitInfo
+from icall_solvers.base_solvers.mlta.matcher import StructTypeMatcher
+
+from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
+from icall_solvers.llm_solvers.semantic_match.matcher import SemanticMatcher
+from icall_solvers.llm_solvers.single_step_match.matcher import SingleStepMatcher
+from icall_solvers.llm_solvers.addr_site_v1.matcher import AddrSiteMatcherV1
+from icall_solvers.llm_solvers.addr_site_v2.matcher import AddrSiteMatcherV2
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 
@@ -110,30 +108,6 @@ def evaluate(targets: Dict[str, Set[str]], ground_truths: Dict[str, Set[str]],
     F1 = np.mean(F1s)
     logging.getLogger("CodeAnalyzer").debug(f"{count} examples didn't produce valid analyze results")
     return (P, R, F1)
-
-
-def print_added_true_positive(ground_truths: Dict[str, Set[str]],
-                    predicted_t_keys_4_callsites: Dict[str, Set[str]],
-                    enable_analysis_for_macro: bool,
-                    macro_callsites: Set[str]
-                    ):
-    for callsite_key in ground_truths.keys():
-        label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
-        predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
-
-        TPs: Set[str] = label_t_keys & predicted_t_keys
-        if len(TPs) > 0:
-            logging.getLogger("CodeAnalyzer").debug("added true positive callsite: {}|{}".format(callsite_key, ",".join(TPs)))
-
-    for callsite_key in ground_truths.keys():
-        # 如果是macro callsite但是不计算macro callsite结果
-        if callsite_key in macro_callsites and not enable_analysis_for_macro:
-            continue
-        label_t_keys: Set[str] = ground_truths.get(callsite_key, set())
-        predicted_t_keys: Set[str] = predicted_t_keys_4_callsites.get(callsite_key, set())
-        FPs: Set[str] = predicted_t_keys - label_t_keys
-        if len(FPs) > 0:
-            logging.getLogger("CodeAnalyzer").debug("added false positive callsite: {}|{}".format(callsite_key, ",".join(FPs)))
 
 
 def evaluate_binary(ground_truths: Dict[str, Set[str]],
@@ -297,6 +271,16 @@ class ProjectAnalyzer:
                                                          self.args.enable_analysis_for_macro)
         collector.build_all()
 
+        return self.analyze_infos(collector, scope_strategy, raw_global_addr_sites,
+                                  raw_local_addr_sites, func_key_2_name)
+
+
+
+    def analyze_infos(self, collector: BaseInfoCollector, scope_strategy,
+                      raw_global_addr_sites: Dict[str, List[ASTNode]],
+                      raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]],
+                      func_key_2_name: Dict[str, str]
+                      ) -> Tuple[BaseStaticMatcher, BaseLLMSolver]:
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
             from llm_utils.openai_analyzer import OpenAIAnalyzer
@@ -329,98 +313,85 @@ class ProjectAnalyzer:
         type_analyzer.process_all()
         logging.getLogger("CodeAnalyzer").debug("macro callsite num: {}".format(len(type_analyzer.macro_callsites)))
         logging.getLogger("CodeAnalyzer").debug("macro callsites: {}".format("\n".join(type_analyzer.macro_callsites)))
+        base_analyzer: BaseStaticMatcher = type_analyzer
 
-        analyzer = None
-        if self.args.pipeline == "semantic":
-            analyzer = SemanticMatcher(collector, self.args,
-                            type_analyzer, llm_analyzer, self.project, self.callsite_idxs,
-                                       func_key_2_name)
-            analyzer.process_all()
-
-        elif self.args.pipeline == "single":
-            analyzer = SingleStepMatcher(collector, self.args,
-                            type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
-                                         self.project, self.callsite_idxs,
-                                         func_key_2_name)
-            analyzer.process_all()
-
-        elif self.args.pipeline == "single_complex":
-            analyzer = SingleStepComplexMatcher(collector, self.args,
-                                         type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
-                                         self.project, self.callsite_idxs)
-            analyzer.process_all()
-
-        elif self.args.pipeline == "multi_step":
-            func_keys: Set[str] = get_all_func_keys(type_analyzer.callees,
-                                                    type_analyzer.llm_declarator_analysis)
-            func_summarizer: FunctionSummarizer = FunctionSummarizer(func_keys,
-                                                                     collector.func_info_dict,
-                                                                     self.args,
-                                                                     llm_analyzer)
-            func_summarizer.analyze()
-            analyzer = MultiStepMatcher(collector, self.args, type_analyzer,
-                                        func_summarizer.func_key2summary, llm_analyzer,
-                                        self.project, self.callsite_idxs)
-            analyzer.process_all()
-
-
-        elif self.args.pipeline == "addr_site_v1":
-            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
-                                                             raw_local_addr_sites, collector)
-            analyzer = AddrSiteMatcherV1(collector, self.args, type_analyzer,
-                                         addr_taken_site_retriver, llm_analyzer,
-                                         self.project, self.callsite_idxs, func_key_2_name)
-            analyzer.process_all()
-
-        elif self.args.pipeline == "addr_site_v2":
-            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
-                                                             raw_local_addr_sites, collector)
-            addr_taken_site_retriver.group()
-            analyzer = AddrSiteMatcherV2(collector, self.args, type_analyzer,
-                                         addr_taken_site_retriver, llm_analyzer,
-                                         self.project, self.callsite_idxs, func_key_2_name)
-            analyzer.process_all()
-
-        elif self.args.pipeline == "mlta":
+        # 确定base_analyzer
+        if self.args.base_analyzer == "mlta":
             init_info = InitInfo(collector, raw_global_addr_sites, raw_local_addr_sites)
             init_info.analyze()
 
             # 进行escape分析
             escaped_types: DefaultDict[str, Set[str]] = defaultdict(set)
-            for func_key, func_info in tqdm(func_info_dict.items(), desc="type escape analysis"):
+            for func_key, func_info in tqdm(collector.func_info_dict.items(), desc="type escape analysis"):
                 arg_info: Dict[str, str] = {parameter_type[1]: parameter_type[0]
                                             for parameter_type in func_info.parameter_types}
                 escape_visitor = EscapeTypeVisitor(arg_info, func_info.name_2_declarator_text,
-                            func_info.local_var, func_info.local_var2declarator, collector, escaped_types)
+                                                   func_info.local_var, func_info.local_var2declarator, collector,
+                                                   escaped_types)
                 escape_visitor.traverse_node(func_info.func_body)
 
-            analyzer = StructTypeMatcher(collector, self.args, type_analyzer,
-                                         init_info, self.callsite_idxs, escaped_types)
-            analyzer.process_all()
+            base_analyzer = StructTypeMatcher(collector, self.args, type_analyzer,
+                                              init_info, self.callsite_idxs, escaped_types)
+            base_analyzer.process_all()
 
-        return type_analyzer, analyzer
+
+        # 筛选icall_solver
+        llm_solver: BaseLLMSolver = None
+        if self.args.pipeline == "semantic":
+            llm_solver = SemanticMatcher(collector, self.args,
+                                       base_analyzer, llm_analyzer, self.project, self.callsite_idxs,
+                                       func_key_2_name)
+            llm_solver.process_all()
+
+        elif self.args.pipeline == "single":
+            llm_solver = SingleStepMatcher(collector, self.args,
+                                         type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
+                                         self.project, self.callsite_idxs,
+                                         func_key_2_name)
+            llm_solver.process_all()
+
+
+        elif self.args.pipeline == "addr_site_v1":
+            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
+                                                             raw_local_addr_sites, collector)
+            llm_solver = AddrSiteMatcherV1(collector, self.args, type_analyzer,
+                                         addr_taken_site_retriver, llm_analyzer,
+                                         self.project, self.callsite_idxs, func_key_2_name)
+            llm_solver.process_all()
+
+        elif self.args.pipeline == "addr_site_v2":
+            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
+                                                             raw_local_addr_sites, collector)
+            addr_taken_site_retriver.group()
+            llm_solver = AddrSiteMatcherV2(collector, self.args, type_analyzer,
+                                         addr_taken_site_retriver, llm_analyzer,
+                                         self.project, self.callsite_idxs, func_key_2_name)
+            llm_solver.process_all()
+
+        return base_analyzer, llm_solver
 
 
     def evaluate(self):
-        type_analyzer, semantic_analyzer = self.analyze_c_files_sig_match()
+        base_analyzer, llm_solver = self.analyze_c_files_sig_match()
         # 只进行类型分析
-        if self.args.pipeline == "flta":
-            self.evaluate_type_analysis(type_analyzer)
-        # 随后进行语义匹配
-        elif self.args.pipeline in {"semantic", "single", "single_complex", "multi_step",
-                                    "addr_site_v1", "addr_site_v2", "mlta"}:
-            self.evaluate_semantic_analysis(semantic_analyzer)
+        if self.args.pipeline == "none":
+            self.evaluate_base_analysis(base_analyzer)
+        # 进行语义匹配
+        else:
+            self.evaluate_semantic_analysis(llm_solver)
 
 
-    def evaluate_type_analysis(self, type_analyzer: TypeAnalyzer):
+    def evaluate_base_analysis(self, base_analyzer: BaseStaticMatcher):
         logging.getLogger("CodeAnalyzer").info("result of project, Precision, Recall, F1 is:")
-        icall_2_targets: Dict[str, Set[str]] = type_analyzer.callees.copy()
+        icall_2_targets: Dict[str, Set[str]] = base_analyzer.callees.copy()
 
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths, self.args.enable_analysis_for_macro,
-                   type_analyzer.macro_callsites)
+                            base_analyzer.macro_callsites)
         logging.getLogger("CodeAnalyzer").info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
+        open("res1.txt", 'a', encoding='utf-8'). \
+            write(f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
         line1 = ""
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
@@ -428,10 +399,12 @@ class ProjectAnalyzer:
             for key, values in new_icall_2_target.items():
                 icall_2_targets1[key] = icall_2_targets1.get(key, set()) | values
             P, R, F1 = evaluate(icall_2_targets1, self.ground_truths, self.args.enable_analysis_for_macro,
-                   type_analyzer.macro_callsites)
+                                base_analyzer.macro_callsites)
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
+            return line
+
 
         def analyze_binary(all_potential_targets: Dict[str, Set[str]],
                            all_ground_truths: Dict[str, Set[str]],
@@ -442,79 +415,65 @@ class ProjectAnalyzer:
             acc, prec, recall, F1, fpr, fnr = \
                 evaluate_binary(partial_ground_truth, analyzed_res,
                                 all_potential_targets, self.args.enable_analysis_for_macro,
-                            type_analyzer.macro_callsites)
+                                base_analyzer.macro_callsites)
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                          f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
             line1 = f"{self.project}-{info},{(acc * 100):.1f},{(prec * 100):.1f}," \
                     f"{(recall * 100):.1f},{(F1 * 100):.1f},{(fpr * 100):.1f},{(fnr * 100):.1f}"
+            return line1
 
-        if self.args.count_uncertain:
-            evaluate_icall_target(type_analyzer.uncertain_callees, "UC")
-            analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
-                           type_analyzer.uncertain_callees, "UC-yes")
-            analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
-                           dict(), "UC-no")
 
-        if self.args.count_cast and self.args.enable_cast:
-            evaluate_icall_target(type_analyzer.cast_callees, "Cast")
-            analyze_binary(type_analyzer.cast_callees, self.ground_truths,
-                           type_analyzer.cast_callees, "Cast-yes")
-            analyze_binary(type_analyzer.cast_callees, self.ground_truths,
-                           dict(), "Cast-no")
-
-        if self.args.count_uncertain and self.args.count_cast and self.args.enable_cast:
-            total_extra_callees: Dict[str, Set[str]] = dict()
-            for callsite_key in self.ground_truths.keys():
-                total_extra_callees[callsite_key] = type_analyzer.cast_callees.get(callsite_key, set()) | \
-                                                    type_analyzer.uncertain_callees.get(callsite_key, set())
+        if self.args.evaluate_uncertain:
+            total_extra_callees = base_analyzer.uncertain_callees
             evaluate_icall_target(total_extra_callees, "TotalExtra")
-            analyze_binary(total_extra_callees, self.ground_truths,
+            line = analyze_binary(total_extra_callees, self.ground_truths,
                            total_extra_callees, "TotalExtra-yes")
-            analyze_binary(total_extra_callees, self.ground_truths,
+            line1 = analyze_binary(total_extra_callees, self.ground_truths,
                            dict(), "TotalExtra-no")
 
         if self.args.evaluate_soly_for_llm:
-            evaluate_icall_target(type_analyzer.llm_declarator_analysis,
+            line = evaluate_icall_target(base_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
-            analyze_binary(type_analyzer.uncertain_callees, self.ground_truths,
-                           type_analyzer.llm_declarator_analysis,
+            line1 = analyze_binary(base_analyzer.uncertain_callees, self.ground_truths,
+                           base_analyzer.llm_declarator_analysis,
                            self.args.model_type + '-' + str(self.args.temperature))
 
 
-        if type_analyzer.llm_analyzer is not None and \
-                hasattr(type_analyzer.llm_analyzer, "input_token_num") and \
-                hasattr(type_analyzer.llm_analyzer, "output_token_num"):
-            price = prices.get(type_analyzer.llm_analyzer.model_type, [0, 0])
-            cost = count_cost(type_analyzer.llm_analyzer.input_token_num,
-                              type_analyzer.llm_analyzer.output_token_num,
+        if hasattr(base_analyzer, "llm_analyzer") and \
+                base_analyzer.llm_analyzer is not None and \
+                hasattr(base_analyzer.llm_analyzer, "input_token_num") and \
+                hasattr(base_analyzer.llm_analyzer, "output_token_num"):
+            price = prices.get(base_analyzer.llm_analyzer.model_type, [0, 0])
+            cost = count_cost(base_analyzer.llm_analyzer.input_token_num,
+                              base_analyzer.llm_analyzer.output_token_num,
                               price[0], price[1])
             logging.getLogger("CodeAnalyzer").info("spent {} input tokens and {} output tokens for {}: , cost: {:.2f}"
-                         .format(type_analyzer.llm_analyzer.input_token_num,
-                                 type_analyzer.llm_analyzer.output_token_num,
-                                 type_analyzer.llm_analyzer.model_type,
+                         .format(base_analyzer.llm_analyzer.input_token_num,
+                                 base_analyzer.llm_analyzer.output_token_num,
+                                 base_analyzer.llm_analyzer.model_type,
                                  cost))
             logging.getLogger("CodeAnalyzer").info(
-                "| {} | {} | {} | {} | {:.2f} |".format(self.project, type_analyzer.llm_analyzer.input_token_num,
-                                                        type_analyzer.llm_analyzer.output_token_num,
-                                                        type_analyzer.llm_analyzer.model_type, cost))
+                "| {} | {} | {} | {} | {:.2f} |".format(self.project, base_analyzer.llm_analyzer.input_token_num,
+                                                        base_analyzer.llm_analyzer.output_token_num,
+                                                        base_analyzer.llm_analyzer.model_type, cost))
 
-        if self.args.log_res_to_file:
+        if self.args.log_res_to_file and hasattr(base_analyzer, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
-            assert hasattr(type_analyzer, "log_dir")
-            with open(f"{type_analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
+            assert hasattr(base_analyzer, "log_dir")
+            with open(f"{base_analyzer.log_dir}/evaluation_result.txt", "w", encoding='utf-8') as f:
                 f.write(line + "\n" + line1)
                 logging.getLogger("CodeAnalyzer").info("writing success")
 
 
-    def evaluate_semantic_analysis(self, analyzer: Union[SemanticMatcher, SingleStepMatcher, MultiStepMatcher]):
-        icall_2_targets: Dict[str, Set[str]] = analyzer.matched_callsites.copy()
+    def evaluate_semantic_analysis(self, llm_solver: BaseLLMSolver):
+        icall_2_targets: Dict[str, Set[str]] = llm_solver.matched_callsites.copy()
         P, R, F = evaluate(icall_2_targets, self.ground_truths, self.args.enable_analysis_for_macro,
-                   analyzer.macro_callsites)
+                           llm_solver.macro_callsites)
 
-        if hasattr(analyzer, "llm_analyzer"):
-            model_name = analyzer.llm_analyzer.model_name
-            llm_analyzer: BaseLLMAnalyzer = analyzer.llm_analyzer
+        if hasattr(llm_solver, "llm_analyzer"):
+            model_name = llm_solver.llm_analyzer.model_name
+            llm_analyzer: BaseLLMAnalyzer = llm_solver.llm_analyzer
         else:
             model_name = ""
             llm_analyzer = None
@@ -524,8 +483,8 @@ class ProjectAnalyzer:
 
         acc, prec, recall, F1, fpr, fnr = \
             evaluate_binary(self.ground_truths, icall_2_targets,
-                            analyzer.type_matched_callsites, self.args.enable_analysis_for_macro,
-                            analyzer.macro_callsites)
+                            llm_solver.type_matched_callsites, self.args.enable_analysis_for_macro,
+                            llm_solver.macro_callsites)
         logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{model_name} "
                      f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
                      f"| {(F1 * 100):.1f} | {(fpr * 100):.1f} | {(fnr * 100):.1f} |")
@@ -547,9 +506,8 @@ class ProjectAnalyzer:
             line3 = f"{llm_analyzer.input_token_num / 1000},{llm_analyzer.output_token_num / 1000},{llm_analyzer.model_type},{cost}"
             line = line + "\n" + line3
 
-        if self.args.log_res_to_file:
+        if self.args.log_res_to_file and hasattr(llm_solver, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
-            assert hasattr(analyzer, "log_dir")
-            with open(f"{analyzer.log_dir}/evaluation_result.txt", "a", encoding='utf-8') as f:
+            with open(f"{llm_solver.log_dir}/evaluation_result.txt", "w", encoding='utf-8') as f:
                 f.write(line)
                 logging.getLogger("CodeAnalyzer").info("writing success")
