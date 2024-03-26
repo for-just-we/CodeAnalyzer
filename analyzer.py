@@ -458,6 +458,8 @@ class ProjectAnalyzer:
                                                         base_analyzer.llm_analyzer.output_token_num,
                                                         base_analyzer.llm_analyzer.model_type, cost))
 
+            line1 += f"\n{base_analyzer.llm_analyzer.input_token_num / 1000},{base_analyzer.llm_analyzer.output_token_num}"
+
         if self.args.log_res_to_file and hasattr(base_analyzer, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
             assert hasattr(base_analyzer, "log_dir")
