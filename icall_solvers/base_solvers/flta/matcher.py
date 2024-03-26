@@ -255,6 +255,8 @@ class TypeAnalyzer(BaseStaticMatcher):
         # 根据函数指针declarator和function declarator进行匹配
         function_pointer_declarator: str = func_body_visitor\
             .icall_2_decl_text.get(icall_loc, None)
+        if icall_loc in func_body_visitor.icall_2_decl_type_text.keys():
+            function_pointer_declarator = func_body_visitor.icall_2_decl_type_text[icall_loc] + "\n" + function_pointer_declarator
         decl_context: List[List[str]] = func_body_visitor.icall_2_arg_declarators.get(icall_loc, None)
         arg_texts: List[str] = func_body_visitor.icall_2_arg_texts.get(icall_loc, None)
         callsite_text: str = func_body_visitor.icall_2_text.get(icall_loc, None)
