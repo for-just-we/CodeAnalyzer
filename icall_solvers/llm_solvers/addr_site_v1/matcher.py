@@ -1,6 +1,7 @@
 import time
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
+from icall_solvers.dir_util import get_parent_directory
 
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
@@ -48,7 +49,7 @@ class AddrSiteMatcherV1(BaseLLMSolver):
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
-            root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+            root_path = get_parent_directory(os.path.realpath(__file__), 4)
             self.log_dir = f"{root_path}/experimental_logs/addr_site_v1_analysis/" \
                            f"{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
                            f"{project}"

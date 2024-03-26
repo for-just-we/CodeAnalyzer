@@ -7,6 +7,7 @@ from icall_solvers.llm_solvers.addr_site_v2.prompts import System_func_pointer_S
 
 from icall_solvers.llm_solvers.addr_site_v1.prompts import System_Match, User_Match
 from icall_solvers.llm_solvers.base_utils.prompts import supplement_prompts
+from icall_solvers.dir_util import get_parent_directory
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from llm_utils.common_prompt import summarizing_prompt
@@ -50,7 +51,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
-            root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+            root_path = get_parent_directory(os.path.realpath(__file__), 4)
             self.log_dir = f"{root_path}/experimental_logs/addr_site_v2_analysis/" \
                            f"{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
                            f"{project}"

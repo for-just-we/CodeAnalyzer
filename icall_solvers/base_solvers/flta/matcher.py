@@ -13,6 +13,7 @@ from icall_solvers.base_solvers.flta.prompt import system_prompt, user_prompt, \
     system_prompt_declarator, user_prompt_declarator, \
     system_prompt_context, user_prompt_context, \
     supplement_prompts
+from icall_solvers.dir_util import get_parent_directory
 
 from scope_strategy.base_strategy import BaseStrategy
 
@@ -89,7 +90,7 @@ class TypeAnalyzer(BaseStaticMatcher):
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
         if (self.log_flag or self.load_pre_type_analysis_res) and self.llm_analyzer is not None and not self.disable_llm_for_uncertain:
-            root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+            root_path = get_parent_directory(os.path.realpath(__file__), 4)
             log_dir = f"{root_path}/experimental_logs/type_analysis/{self.running_epoch}/{self.llm_analyzer.model_name}/" \
                       f"{project}"
             if not os.path.exists(log_dir):

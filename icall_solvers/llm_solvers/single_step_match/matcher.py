@@ -1,7 +1,6 @@
 import time
 
 from code_analyzer.definition_collector import BaseInfoCollector
-from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
 from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model
@@ -9,6 +8,7 @@ from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
 from icall_solvers.llm_solvers.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
+from icall_solvers.dir_util import get_parent_directory
 
 from tqdm import tqdm
 import os
@@ -50,7 +50,7 @@ class SingleStepMatcher(BaseLLMSolver):
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
-            root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+            root_path = get_parent_directory(os.path.realpath(__file__), 4)
             epoch_sig: str = str(self.args.running_epoch)
             if self.args.double_prompt:
                 epoch_sig += "-double"

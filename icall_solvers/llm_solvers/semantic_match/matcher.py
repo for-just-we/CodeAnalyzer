@@ -1,5 +1,4 @@
 from code_analyzer.definition_collector import BaseInfoCollector
-from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 
 from llm_utils.common_prompt import summarizing_prompt
@@ -10,6 +9,7 @@ from icall_solvers.llm_solvers.semantic_match.base_prompt import System_ICall_Su
                                 System_Func_Summary, User_Func_Summary, \
                                 System_Match, User_Match, supplement_prompts, \
                                 User_ICall_Summary_Macro
+from icall_solvers.dir_util import get_parent_directory
 
 import time
 from tqdm import tqdm
@@ -36,7 +36,7 @@ class SemanticMatcher(BaseLLMSolver):
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
-            root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+            root_path = get_parent_directory(os.path.realpath(__file__), 4)
             self.log_dir = f"{root_path}/experimental_logs/semantic_analysis/{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
                       f"{project}"
             if not os.path.exists(self.log_dir):
