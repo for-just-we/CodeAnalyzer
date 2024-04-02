@@ -38,6 +38,8 @@ class StructTypeMatcher(BaseStaticMatcher):
         if hasattr(type_analyzer, "log_dir"):
             self.log_dir = type_analyzer.log_dir
 
+        self.flta_cases: Set[str] = set()
+        self.mlta_cases: Set[str] = set()
 
     def process_all(self):
         # 遍历callsite
@@ -52,6 +54,12 @@ class StructTypeMatcher(BaseStaticMatcher):
                 continue
 
             self.process_callsite(callsite_key, i)
+
+            if len(self.callees[callsite_key]) == len(self.type_analyzer.callees[callsite_key]) and \
+                len(self.uncertain_callees[callsite_key]) == len(self.type_analyzer.uncertain_callees[callsite_key]):
+                self.flta_cases.add(callsite_key)
+            else:
+                self.mlta_cases.add(callsite_key)
 
 
     def process_callsite(self, callsite_key: str, i: int):

@@ -10,7 +10,7 @@ from icall_solvers.llm_solvers.base_utils.prompts import supplement_prompts
 from icall_solvers.dir_util import get_parent_directory
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
-from llm_utils.common_prompt import summarizing_prompt
+from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model
 
 from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver
 from code_analyzer.definition_collector import BaseInfoCollector
@@ -279,6 +279,8 @@ class AddrSiteMatcherV2(BaseLLMSolver):
         prompt_log += "query:\n{}\n\n{}\n=========================\n".format(contents[0], contents[1])
 
         yes_time = 0
+        summarizing_template = summarizing_prompt_4_model. \
+            get(self.llm_analyzer.model_type, summarizing_prompt)
         # 投票若干次
         for i in range(self.args.vote_time):
             answer: str = self.llm_analyzer.get_response(contents, add_suffix)
@@ -286,7 +288,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
             # 如果回答的太长了，让它summarize一下
             tokens = answer.split(' ')
             if len(tokens) >= 8:
-                summarizing_text: str = summarizing_prompt.format(answer)
+                summarizing_text: str = summarizing_template.format(answer)
                 answer = self.llm_analyzer.get_response([summarizing_text])
                 prompt_log += "***************************\nsummary {}:\n{}\n\n".format(i + 1, answer)
 

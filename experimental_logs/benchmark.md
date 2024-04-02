@@ -415,3 +415,42 @@ macro:
    (cinfo)->err->msg_parm.i[1] = (p2), \
    (*(cinfo)->err->emit_message) ((j_common_ptr)(cinfo), -1))
 ```
+
+
+# 3.callsite占比
+
+
+| project | flta | mlta | kelp |
+| ---- | ---- | ---- | ---- |
+| bind9 | 20 | 24 | 1 |
+| bluez | 0 | 0 | 4 |
+| cairo | 31 | 8 | 2 |
+| cyclonedds | 31 | 12 | 4 |
+| dovecot | 17 | 22 | 0 |
+| fwupd | 28 | 0 | 3 |
+| gdbm | 2 | 10 | 6 |
+| gdk-pixbuf | 3 | 0 | 0 |
+| hdf5 | 46 | 39 | 4 |
+| igraph | 4 | 2 | 0 |
+| krb5 | 9 | 1 | 0 |
+| libdwarf | 4 | 8 | 5 |
+| libjpeg-turbo | 140 | 65 | 0 |
+| libpg_query | 5 | 6 | 0 |
+| librabbitmq | 1 | 5 | 0 |
+| libsndfile | 3 | 5 | 0 |
+| libssh | 3 | 10 | 1 |
+| lua | 0 | 2 | 0 |
+| lxc | 5 | 2 | 0 |
+| md4c | 3 | 0 | 3 |
+| mdbtools | 0 | 1 | 1 |
+| nginx | 3 | 20 | 0 |
+| oniguruma | 16 | 2 | 0 |
+| opensips | 8 | 0 | 0 |
+| pjsip | 14 | 7 | 1 |
+| postfix | 1 | 2 | 0 |
+| rtpproxy | 4 | 3 | 1 |
+| selinux | 11 | 0 | 10 |
+| sudo | 50 | 13 | 32 |
+| tmux | 1 | 7 | 3 |
+| vlc | 22 | 3 | 2 |
+| total | 485 | 279 | 83 |

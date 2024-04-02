@@ -16,4 +16,4 @@ The target function is named: {func_name}, with the following summary:
 
 {target_additional_information}
 
-Using this information, ascertain whether the indirect-call {icall_expr} can invoke the target function {func_name} based on their functionality."""
+Assess if the indirect call {icall_expr} can invoke {func_name} based solely on their respective functionalities. Please disregard control- and data-flow information for now; we'll verify that separately."""

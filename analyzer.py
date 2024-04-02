@@ -400,12 +400,18 @@ class ProjectAnalyzer:
 
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths, self.args.enable_analysis_for_macro,
                             base_analyzer.macro_callsites)
-        open("res.txt", 'a', encoding='utf-8'). \
-            write(f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
+
         logging.getLogger("CodeAnalyzer").info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
         line1 = ""
+
+        additional = "{},{},{},{}\n"
+        flta_info = len(base_analyzer.flta_cases) if hasattr(base_analyzer, "flta_cases") else ""
+        mlta_info = len(base_analyzer.mlta_cases) if hasattr(base_analyzer, "mlta_cases") else ""
+        kelp_info = len(base_analyzer.kelp_cases) if hasattr(base_analyzer, "kelp_cases") else ""
+        additional_info = additional.format(self.project, flta_info, mlta_info, kelp_info)
+        open("total.txt", 'a', encoding='utf-8').write(additional_info)
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
@@ -416,9 +422,7 @@ class ProjectAnalyzer:
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
-            if info == "TotalExtra":
-                open("res1.txt", 'a', encoding='utf-8').\
-                    write(f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
+
             return line
 
 

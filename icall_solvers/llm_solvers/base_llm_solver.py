@@ -19,7 +19,12 @@ class BaseLLMSolver:
         self.args = args
         # 保存类型匹配的callsite
         self.type_matched_callsites: Dict[str, Set[str]] = base_analyzer.callees.copy()
-        for key, values in base_analyzer.llm_declarator_analysis.items():
+        additional_callsite_infos: DefaultDict[str, Set[str]] = defaultdict(set)
+        if self.args.evaluate_uncertain:
+            additional_callsite_infos = base_analyzer.uncertain_callees
+        elif self.args.evaluate_soly_for_llm:
+            additional_callsite_infos = base_analyzer.llm_declarator_analysis
+        for key, values in additional_callsite_infos.items():
             self.type_matched_callsites[key] = self.type_matched_callsites.get(key, set()) | values
 
         # 保存语义匹配的callsite

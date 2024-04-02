@@ -34,6 +34,12 @@ class Kelp(BaseStaticMatcher):
 
         self.analyze_simple_icalls(confine_func_analyzer)
 
+        self.flta_cases: Set[str] = struct_type_matcher.flta_cases
+        self.mlta_cases: Set[str] = struct_type_matcher.mlta_cases
+        self.kelp_cases: Set[str] = set(self.simple_icall2func_names.keys())
+        self.flta_cases = self.flta_cases - self.kelp_cases
+        self.mlta_cases = self.mlta_cases - self.kelp_cases
+
 
     def analyze_simple_icalls(self, confine_func_analyzer: ConfineFuncAnalyzer):
         # 提取simple icall key

@@ -1,3 +1,5 @@
+import time
+
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.visit_utils.base_util import loc_inside
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
@@ -86,6 +88,8 @@ class TypeAnalyzer(BaseStaticMatcher):
 
         # 如果不需要llm分析
         if self.disable_llm_for_uncertain:
+            logging.info("no need to use llm for type analysis")
+            time.sleep(2)
             self.llm_analyzer = None
 
         # 如果需要log LLM的输出结果或者加载LLM预先分析的结果
