@@ -2,22 +2,22 @@ from code_analyzer.definition_collector import BaseInfoCollector
 
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.base_solvers.flta.matcher import TypeAnalyzer
-from icall_solvers.base_solvers.mlta.init_info import InitInfo
+from icall_solvers.base_solvers.mlta.type_confine_analyzer import TypeConfineAnalyzer
 
-from typing import Dict, Set, DefaultDict, Union
+from typing import Dict, Set, DefaultDict
 from tqdm import tqdm
 
 class StructTypeMatcher(BaseStaticMatcher):
     def __init__(self, collector: BaseInfoCollector,
                  args,
                  type_analyzer: TypeAnalyzer,
-                 init_info: InitInfo,
+                 confine_analyzer: TypeConfineAnalyzer,
                  callsite_idxs: Dict[str, int] = None,
                  escaped_types: DefaultDict[str, Set[str]] = None):
         super().__init__()
         self.collector: BaseInfoCollector = collector
         self.args = args
-        self.init_info: InitInfo = init_info
+        self.confine_analyzer: TypeConfineAnalyzer = confine_analyzer
         self.escaped_types = escaped_types
 
         # 保存类型匹配的callsite
@@ -33,6 +33,7 @@ class StructTypeMatcher(BaseStaticMatcher):
         # 如果icall引用了结构体的field，找到对应的field_name
         self.icall_2_field_name: Dict[str, str] = type_analyzer.icall_2_field_name
         self.macro_callsites: Set[str] = type_analyzer.macro_callsites
+        self.icall_nodes = type_analyzer.icall_nodes
 
         if hasattr(type_analyzer, "log_dir"):
             self.log_dir = type_analyzer.log_dir
@@ -66,7 +67,7 @@ class StructTypeMatcher(BaseStaticMatcher):
             if field_name in self.escaped_types[struct_name]:
                 self.update_default_values(callsite_key, strict_type_targets, uncertain_targets, llm_decl_targets)
                 return
-            func_names: Set[str] = self.init_info.struct_name_2_field_4_type[struct_name][field_name]
+            func_names: Set[str] = self.confine_analyzer.struct_name_2_field_4_type[struct_name][field_name]
 
             for field_name, target_set in [("callees", strict_type_targets),
                                ("uncertain_callees", uncertain_targets),

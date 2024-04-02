@@ -57,8 +57,16 @@ global_5 = """
 #define $LINE                 MakeString( Stringize, __LINE__ )
 """
 
+global_6 = """
+static log_sink_t sinks[2] = {
+  [LOG]   = { .func = default_sink, .ptr = NULL, .out = NULL },
+  [TRACE] = { .func = default_sink, .ptr = NULL, .out = NULL }
+};
+"""
+
 if __name__ == '__main__':
-    decls = [global_decl_case1, global_decl_case2, global_decl_case3, global_4, global_5]
+    decls = [global_decl_case1, global_decl_case2, global_decl_case3, global_4, global_5,
+             global_6]
     visitor = GlobalVisitor()
     for i, decl in enumerate(decls):
         tree: Tree = parser.parse(decl.encode("utf-8"))

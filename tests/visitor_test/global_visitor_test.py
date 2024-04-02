@@ -121,6 +121,13 @@ const cairo_font_face_backend_t _cairo_ft_font_face_backend = {
 };
 """
 
+func_array_decl = """
+static int (*write_f[SYM_NUM]) (hashtab_key_t key, hashtab_datum_t datum,
+				void *datap) = {
+common_write, class_write, role_write, type_write, user_write,
+	    cond_write_bool, sens_write, cat_write,};
+"""
+
 def testTypeDef():
     typeDefs = [macro_case1,
                 type_decl_case1,
@@ -140,7 +147,8 @@ def testTypeDef():
                 Union_case1,
                 struct_case1,
                 global_decl_case2,
-                global_init_decl1]
+                global_init_decl1,
+                func_array_decl]
 
     for i, typeDef in enumerate(typeDefs):
         print(typeDef)
@@ -379,4 +387,9 @@ enum {Yellow, Blue}* colors;
 """
 
 if __name__ == '__main__':
-    testTypeDef()
+    # testTypeDef()
+    tree: Tree = parser.parse(func_array_decl.encode("utf-8"))
+    ast_node: ASTNode = processor.visit(tree.root_node)
+    global_visitor = GlobalVisitor()
+    global_visitor.traverse_node(ast_node)
+    pass

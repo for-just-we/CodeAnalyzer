@@ -34,7 +34,10 @@ typedef arith_entropy_decoder *arith_entropy_ptr;
 ## 2.1.FLTA
 
 
-# 2.2.MLTA
+## 2.2.MLTA
+
+
+### 2.2.1.principle
 
 在实现MLTA时，我们采用2lta实现
 
@@ -91,6 +94,260 @@ o_stream_default_set_flush_callback(struct ostream_private *_stream,
 属于simple data flow ([Kelp paper](https://www.usenix.org/system/files/sec23winter-prepub-350-cai.pdf)中定义的)。
 不过当这个调用链涉及到indirect-call时，那么type confinement时可能漏过部分函数。
 因此当function pointer struct field被函数参数赋值时，我们将该field标记为escape。
+
+
+### 2.2.2.exceptional cases
+
+在source code的某些场景下，由于类型解析错误，比如找不到类型，下面来自fwupd的示例找不到 `FuFirmwareClass` 的定义，导致type confine失败。
+
+
+```cpp
+FuFirmwareClass *klass
+
+object_class->finalize = fu_firmware_finalize;
+```
+
+
+
+## 2.3.Kelp
+
+### 2.3.1.Rule
+
+Kelp中的一些核心定义：
+
+- 1.simple function pointer: 
+
+    * (1).not referenced by other pointers 
+
+    * (2).does not derive its values by dereferencing other pointers
+
+- 2.confined function: refered only by simple function pointer.
+
+- 3.direct value flow: 可直接从LLVM IR追溯的数据流，不涉及 `store`、`load`。
+
+- 4.indirect value flow: `store` 和 `load` 之间的数据流，需要先做指针分析。
+
+
+Rule (`pt(s, v) = {o|o ∈ O}` 表示指针v在语句s中的取地址变量，这里只关注function。同时假设定义 `p` 的语句为 `s`):
+
+- Func-Site: `p = &func` (assignment expression), `pt(s, p) = pt(s, p) ∪ {func}`
+
+- Copy: `p = q` (q defined at s1, assignment expression), add def-use edge `(s1, q) -> (s, p)`
+
+- Phi: `p = phi(q, r)` (could be conditional_expression), add def-use edge `(s1, q) -> (s, p), (s2, r) -> (s, p)`
+
+- Field: `p = &q->fld`，add def-use edge `(s1, q) -> (s, p)`，relation `p = FLD(q, fld)`
+
+
+### 2.3.2.simple function pointer case
+
+#### bind9
+
+```cpp
+isc_hashmap_find(ring->keys, dns_name_hash(name), tkey_match,
+				  name, (void **)&key);
+
+isc_result_t
+isc_hashmap_find(const isc_hashmap_t *hashmap, const uint32_t hashval,
+		 isc_hashmap_match_fn match, const void *key, void **valuep) {
+	...
+	hashmap_find(hashmap, hashval, match, key,
+					    &(uint32_t){ 0 }, &idx);
+	...
+}
+
+static hashmap_node_t *
+hashmap_find(const isc_hashmap_t *hashmap, const uint32_t hashval,
+	     isc_hashmap_match_fn match, const uint8_t *key, uint32_t *pslp,
+	     uint8_t *idxp) {
+    ...
+    match(node->value, key)
+}
+```
+
+
+#### cyclonedds
+
+```cpp
+static dds_allocator_t dds_allocator_fns = { ddsrt_malloc, ddsrt_realloc, ddsrt_free };
+
+...
+// 只在间接调用处引用
+void * ret = (dds_allocator_fns.malloc) (size);
+```
+
+#### gdbm
+
+数组类型全局变量相关间接调用
+
+```cpp
+static setvar_t setvar[3][3] = {
+            /*    s     b    i */
+  /* s */    {   s2s,  b2s, i2s },
+  /* b */    {   s2b,  b2b, i2b },
+  /* i */    {   s2i,  b2i, i2i }
+};
+
+...
+setvar[vp->type][type] (&v, val, vp->flags);
+```
+
+
+#### libssh
+
+```cpp
+// addr-taken function ssh_server_kex_termination
+ssh_handle_packets_termination(session, SSH_TIMEOUT_USER,
+                                        ssh_server_kex_termination,session);
+                                        
+int ssh_handle_packets_termination(ssh_session session,
+                                   int timeout,
+                                   ssh_termination_function fct,
+                                   void *user) {
+    ...
+    while(!fct(user)) 
+    ...                                  
+}
+```
+
+
+#### selinux
+
+```cpp
+static int __cil_copy_node_helper(struct cil_tree_node *orig, uint32_t *finished, void *extra_args)
+{
+    int (*copy_func)(struct cil_db *db, void *data, void **copy, symtab_t *symtab) = NULL;
+    ....
+    copy_func = ...
+    
+    rc = (*copy_func)(db, orig->data, &data, symtab);
+}
+```
+
+
+#### pjsip
+
+引用全局变量，且全局变量没有被非赋值语句引用
+
+```cpp
+// function pointer declaration
+static pj_log_func *log_writer = &pj_log_write;
+
+pj_log_set_log_func(&pj_log_write);
+
+PJ_DEF(void) pj_log_set_log_func( pj_log_func *func )
+{
+    log_writer = func;
+}
+
+...
+// indirect-call
+(*log_writer)(level, log_buffer, len);
+```
+
+
+### 2.3.3.non-simple function pointer
+
+#### igraph
+
+```cpp
+// igraph_i_error_handler会被多次赋值
+static IGRAPH_THREAD_LOCAL igraph_error_handler_t *igraph_i_error_handler = 0;
+
+igraph_error_handler_t *igraph_set_error_handler(igraph_error_handler_t *new_handler) {
+    igraph_error_handler_t *previous_handler = igraph_i_error_handler;
+    igraph_i_error_handler = new_handler;
+    return previous_handler;
+}
+```
+
+
+```cpp
+static void * (*gmp_allocate_func) (size_t) = gmp_default_alloc;
+
+// 全局变量被赋值给别的函数指针
+void
+mp_get_memory_functions (void *(**alloc_func) (size_t),
+			 void *(**realloc_func) (void *, size_t, size_t),
+			 void (**free_func) (void *, size_t))
+{
+  if (alloc_func)
+    *alloc_func = gmp_allocate_func;
+
+  if (realloc_func)
+    *realloc_func = gmp_reallocate_func;
+
+  if (free_func)
+    *free_func = gmp_free_func;
+}
+```
+
+
+#### lua
+
+```cpp
+lua_newstate(l_alloc, NULL);
+
+LUA_API lua_State *lua_newstate (lua_Alloc f, void *ud) {
+  ...
+  LG *l = cast(LG *, (*f)(ud, NULL, LUA_TTHREAD, sizeof(LG)));
+  ...
+  // f被赋值给了其它指针
+  g->frealloc = f;
+}
+```
+
+
+#### postfix
+
+```cpp
+void    msg_output(MSG_OUTPUT_FN output_fn)
+{
+    ...
+    msg_output_fn[msg_output_fn_count++] = output_fn;
+}
+
+void    msg_vprintf(int level, const char *format, va_list ap) 
+{
+    ...
+    msg_output_fn[i] (level, vstring_str(vp));
+}
+```
+
+
+#### selinux
+
+```cpp
+static int (*write_f[SYM_NUM]) (hashtab_key_t key, hashtab_datum_t datum,
+				void *datap) = {
+common_write, class_write, role_write, type_write, user_write,
+	    cond_write_bool, sens_write, cat_write,};
+	    
+	   
+static int avrule_decl_write(avrule_decl_t * decl, int num_scope_syms,
+			     policydb_t * p, struct policy_file *fp) {
+    ...
+    hashtab_map(decl->symtab[i].table, write_f[i], &pd)
+}
+
+int hashtab_map(hashtab_t h,
+		int (*apply) (hashtab_key_t k,
+			      hashtab_datum_t d, void *args), void *args) {
+	...
+	ret = apply(cur->key, cur->datum, args);
+}
+```
+
+
+### 2.3.4.source code实现
+
+source code只考虑下面几种confined function case:
+
+- 通过call expression的参数传值，中间没有其它指针赋值（最终indirect-call直接从函数参数加载）。
+
+- 通过全局变量直接调用，全局变量不应在其它函数内部被re-define以及被其它变量引用。
+
+- 直接在当前function scope定义局部变量并直接调用，局部变量没有进一步赋值给其它函数或者全局变量。
 
 
 # 3.静态分析result

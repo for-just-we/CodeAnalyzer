@@ -15,12 +15,14 @@ def unused_macro_check(macro_cotent: str) -> bool:
 
 # 收集类型别名、结构体定义等信息
 class BaseInfoCollector:
-    def __init__(self, icall_dict: DefaultDict[str, List[Tuple[int, int]]],
+    def __init__(self, func_names: Set[str],
+                 icall_dict: DefaultDict[str, List[Tuple[int, int]]],
                  refered_funcs: Set[str],
                  func_info_dict: Dict[str, FuncInfo],
                  global_visitor,
                  func_key_2_declarator: Dict[str, str],
                  enable_analysis_for_macro: bool = False):
+        self.func_names = func_names
         self.enable_analysis_for_macro = enable_analysis_for_macro
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict
         self.func_info_dict: Dict[str, FuncInfo] = func_info_dict

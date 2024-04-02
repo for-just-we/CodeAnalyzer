@@ -48,10 +48,10 @@ def add_subparser(parser: argparse.ArgumentParser):
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
     parser.add_argument("--root_path", type=str, required=True, help="root path of all benchmarks.")
-    parser.add_argument("--pipeline", type=str, choices=['none', 'semantic', 'single',
+    parser.add_argument("--llm_strategy", type=str, choices=['none', 'semantic', 'single',
                                                          'addr_site_v1', 'addr_site_v2'],
                         default='none')
-    parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta'], default='flta')
+    parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'], default='flta')
 
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")

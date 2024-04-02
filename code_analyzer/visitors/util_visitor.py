@@ -290,6 +290,32 @@ class VarAnalyzer(ASTVisitor):
             else:
                 return (TypeEnum.UnknownType.value, 0, "", "", "")
 
+# 分析一个函数指针的变量
+class ExprAnalyzer(ASTVisitor):
+    def __init__(self):
+        self.array_level = 0
+        self.identifiers: List[str] = list()
+
+    def visit_identifier(self, node: ASTNode):
+        if len(self.identifiers) == 0:
+            self.identifiers.append(node.node_text)
+        return super().visit(node)
+
+    def visit_subscript_expression(self, node: ASTNode):
+        self.array_level += 1
+        return super().visit(node)
+
+    def visit_field_identifier(self, node: ASTNode):
+        self.identifiers.append(node.node_text)
+        return super().visit(node)
+
+    def visit(self, node: ASTNode):
+        if node.parent.node_type == "subscript_expression" and \
+                node is not node.parent.children[0]:
+            return False
+        return super().visit(node)
+
+
 class FuncPointerCollector(ASTVisitor):
     def __init__(self, func_pointer_param_name: str):
         self.func_pointer_param_name = func_pointer_param_name
@@ -324,6 +350,22 @@ class FuncPointerCollector(ASTVisitor):
                 self.call_nodes.append((top_level_node, idx))
 
         return super().visit(node)
+
+
+class ConfinedFuncPointerCollector(FuncPointerCollector):
+    def __init__(self, func_pointer_param_name: str):
+        super().__init__(func_pointer_param_name)
+        self.callsites: List[ASTNode] = list()
+
+    def visit_call_expression(self, node: ASTNode):
+        callee_expr: ASTNode = node.children[0]
+        expr_analyzer = ExprAnalyzer()
+        expr_analyzer.traverse_node(callee_expr)
+        if len(expr_analyzer.identifiers) == 1 and \
+            expr_analyzer.identifiers[0] == self.func_pointer_param_name:
+            self.callsites.append(node)
+        return super().visit(node)
+
 
 def index_of(parent_node: ASTNode, child_node: ASTNode):
     for i, child in enumerate(parent_node.children):

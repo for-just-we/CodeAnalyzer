@@ -364,3 +364,95 @@ def get_pointer_level_for_return_type(node: ASTNode):
         cur_node = cur_node.parent
     return pointer_level
 
+
+
+
+class LocalGlobalRefVisitor(ASTVisitor):
+    def __init__(self, func_set: Set[str], local_vars: Set[str], arg_names: Set[str],
+                 var_name: str, macro_dict: Dict[str, str]):
+        self.func_set: Set[str] = func_set
+        self.local_vars: Set[str] = local_vars
+        self.arg_names: Set[str] = arg_names
+        self.var_name: str = var_name
+        self.macro_dict: Dict[str, str] = macro_dict
+        self.local_refer_sites: DefaultDict[str, List[ASTNode]] = defaultdict(list)
+
+    def visit_identifier(self, node: ASTNode):
+        if node.parent.node_type in {"init_declarator", "assignment_expression",
+                                     "initializer_pair"}:
+            if hasattr(node.parent, "="):
+                assign_node: ASTNode = getattr(node.parent, "=")
+                assign_idx: int = node.parent.children.index(assign_node)
+                if node.parent.children.index(node) <= assign_idx:
+                    return False
+
+        if node.parent.node_type == "preproc_ifdef":
+            return False
+
+        if node.parent.node_type == "binary_expression" and \
+            node.parent.children.index(node) <= 1:
+            return False
+
+        identifier: str = node.node_text
+        if identifier == self.var_name:
+            self.local_refer_sites[self.var_name].append(node)
+
+
+    def visit_function_declarator(self, node: ASTNode):
+        return False
+
+    def visit_function_definition(self, node: ASTNode):
+        return False
+
+    # 不考虑宏定义
+    def visit_preproc_def(self, node: ASTNode):
+        return False
+
+    def visit_preproc_function_def(self, node: ASTNode):
+        return False
+
+    def visit_preproc_defined(self, node: ASTNode):
+        return False
+
+    def visit_struct_specifier(self, node: ASTNode):
+        return False
+
+    def visit_union_specifier(self, node: ASTNode):
+        return False
+
+    def visit_enum_specifier(self, node: ASTNode):
+        return False
+
+    def visit_type_definition(self, node: ASTNode):
+        return False
+
+    def visit_declaration(self, node: ASTNode):
+        if not hasattr(node, "init_declarator"):
+            return False
+        return super().visit(node)
+
+    def visit_field_expression(self, node: ASTNode):
+        return False
+
+    def visit(self, node: ASTNode):
+        parent_node: ASTNode = node.parent
+        if parent_node is None:
+            return super().visit(node)
+        # 处理变量名和函数名重名的情况
+        # 如果是变量定义且变量名和函数名重名
+        if parent_node.node_type == "declaration":
+            return super().visit(node) \
+                if node.node_type == "init_declarator" \
+                else False
+        elif parent_node.node_type in {"init_declarator", "assignment_expression", "initializer_pair"}:
+            if hasattr(parent_node, "="):
+                assign_node: ASTNode = getattr(parent_node, "=")
+                assign_idx: int = parent_node.children.index(assign_node)
+                if parent_node.children.index(node) > assign_idx:
+                    return super().visit(node)
+                else:
+                    return False
+            else:
+                return False
+        else:
+            return super().visit(node)

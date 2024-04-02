@@ -19,8 +19,10 @@ from code_analyzer.utils.addr_taken_sites_util import extract_addr_site, AddrTak
 
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.base_solvers.flta.matcher import TypeAnalyzer
-from icall_solvers.base_solvers.mlta.init_info import InitInfo
+from icall_solvers.base_solvers.mlta.type_confine_analyzer import TypeConfineAnalyzer
 from icall_solvers.base_solvers.mlta.matcher import StructTypeMatcher
+from icall_solvers.base_solvers.kelp.confine_func_analyzer import ConfineFuncAnalyzer
+from icall_solvers.base_solvers.kelp.matcher import Kelp
 
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
 from icall_solvers.llm_solvers.semantic_match.matcher import SemanticMatcher
@@ -265,7 +267,7 @@ class ProjectAnalyzer:
 
         # 收集必要信息，包括：
         # -
-        collector: BaseInfoCollector = BaseInfoCollector(self.icall_dict, refered_func_names,
+        collector: BaseInfoCollector = BaseInfoCollector(func_set, self.icall_dict, refered_func_names,
                                                          func_info_dict, global_visitor,
                                                          func_key_2_declarator,
                                                          self.args.enable_analysis_for_macro)
@@ -316,13 +318,13 @@ class ProjectAnalyzer:
         base_analyzer: BaseStaticMatcher = type_analyzer
 
         # 确定base_analyzer
-        if self.args.base_analyzer == "mlta":
-            init_info = InitInfo(collector, raw_global_addr_sites, raw_local_addr_sites)
-            init_info.analyze()
+        if self.args.base_analyzer in {"mlta", "kelp"}:
+            type_confine_analyzer = TypeConfineAnalyzer(collector, raw_global_addr_sites, raw_local_addr_sites)
+            type_confine_analyzer.analyze()
 
             # 进行escape分析
             escaped_types: DefaultDict[str, Set[str]] = defaultdict(set)
-            for func_key, func_info in tqdm(collector.func_info_dict.items(), desc="type escape analysis"):
+            for func_key, func_info in tqdm(collector.func_info_dict.items(), desc="type escape analysis for mlta"):
                 arg_info: Dict[str, str] = {parameter_type[1]: parameter_type[0]
                                             for parameter_type in func_info.parameter_types}
                 escape_visitor = EscapeTypeVisitor(arg_info, func_info.name_2_declarator_text,
@@ -330,20 +332,31 @@ class ProjectAnalyzer:
                                                    escaped_types)
                 escape_visitor.traverse_node(func_info.func_body)
 
-            base_analyzer = StructTypeMatcher(collector, self.args, type_analyzer,
-                                              init_info, self.callsite_idxs, escaped_types)
-            base_analyzer.process_all()
+            struct_matcher = StructTypeMatcher(collector, self.args, type_analyzer,
+                                              type_confine_analyzer, self.callsite_idxs, escaped_types)
+            struct_matcher.process_all()
+
+            base_analyzer = struct_matcher
+
+            if self.args.base_analyzer == "kelp":
+                confine_func_analyzer = ConfineFuncAnalyzer(collector,
+                                                            raw_global_addr_sites,
+                                                            raw_local_addr_sites)
+                confine_func_analyzer.analyze()
+                kelp_matcher = Kelp(self.args, collector, struct_matcher, confine_func_analyzer, self.callsite_idxs)
+                kelp_matcher.process_all()
+                base_analyzer = kelp_matcher
 
 
         # 筛选icall_solver
         llm_solver: BaseLLMSolver = None
-        if self.args.pipeline == "semantic":
+        if self.args.llm_strategy == "semantic":
             llm_solver = SemanticMatcher(collector, self.args,
                                        base_analyzer, llm_analyzer, self.project, self.callsite_idxs,
                                        func_key_2_name)
             llm_solver.process_all()
 
-        elif self.args.pipeline == "single":
+        elif self.args.llm_strategy == "single":
             llm_solver = SingleStepMatcher(collector, self.args,
                                          type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
                                          self.project, self.callsite_idxs,
@@ -351,7 +364,7 @@ class ProjectAnalyzer:
             llm_solver.process_all()
 
 
-        elif self.args.pipeline == "addr_site_v1":
+        elif self.args.llm_strategy == "addr_site_v1":
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
                                                              raw_local_addr_sites, collector)
             llm_solver = AddrSiteMatcherV1(collector, self.args, type_analyzer,
@@ -359,7 +372,7 @@ class ProjectAnalyzer:
                                          self.project, self.callsite_idxs, func_key_2_name)
             llm_solver.process_all()
 
-        elif self.args.pipeline == "addr_site_v2":
+        elif self.args.llm_strategy == "addr_site_v2":
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
                                                              raw_local_addr_sites, collector)
             addr_taken_site_retriver.group()
@@ -374,7 +387,7 @@ class ProjectAnalyzer:
     def evaluate(self):
         base_analyzer, llm_solver = self.analyze_c_files_sig_match()
         # 只进行类型分析
-        if self.args.pipeline == "none":
+        if self.args.llm_strategy == "none":
             self.evaluate_base_analysis(base_analyzer)
         # 进行语义匹配
         else:
@@ -387,11 +400,11 @@ class ProjectAnalyzer:
 
         P, R, F1 = evaluate(icall_2_targets, self.ground_truths, self.args.enable_analysis_for_macro,
                             base_analyzer.macro_callsites)
+        open("res.txt", 'a', encoding='utf-8'). \
+            write(f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
         logging.getLogger("CodeAnalyzer").info(f"| {self.project} "
                      f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
-        open("res1.txt", 'a', encoding='utf-8'). \
-            write(f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
         line1 = ""
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
@@ -403,6 +416,9 @@ class ProjectAnalyzer:
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
+            if info == "TotalExtra":
+                open("res1.txt", 'a', encoding='utf-8').\
+                    write(f"{self.project},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}\n")
             return line
 
 
