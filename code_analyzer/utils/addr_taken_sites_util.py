@@ -310,7 +310,7 @@ class AddrTakenSiteRetriver:
             init_level_in_need -= pointer_level
             if init_level_in_need <= 0:
                 init_level_in_need = 1
-            init_node = get_init_node(func_node, init_level_in_need)
+            init_node = get_init_node_for_addr_taken(func_node, init_level_in_need)
             return (struct_decl, ori_var_type, init_node.node_text)
 
         # 非结构体initializer
@@ -342,4 +342,15 @@ def get_init_node(func_node: ASTNode, level) -> ASTNode:
 
         if cur_node.node_type == "call_expression":
             return None
+    return cur_node
+
+def get_init_node_for_addr_taken(func_node: ASTNode, level) -> ASTNode:
+    cur_node = func_node
+    count = 0
+    while cur_node.parent.node_type != "init_declarator":
+        if cur_node.node_type == "initializer_list":
+            count += 1
+            if count == level:
+                return cur_node
+        cur_node = cur_node.parent
     return cur_node
