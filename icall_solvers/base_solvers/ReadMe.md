@@ -358,3 +358,5 @@ source code只考虑下面几种confined function case:
 | flta-max | 20.5 | 80.8 | 28.1 |
 | 2lta-min | 35.3 | 75.0 | 41.7 |
 | 2lta-max | 36.5 | 80.4 | 43.7 |
+| kelp-min | 39.0 | 75.0 | 45.3 |
+| kelp-max | 40.3 | 80.4 | 47.4 |

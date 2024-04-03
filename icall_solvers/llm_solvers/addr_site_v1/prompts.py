@@ -6,11 +6,13 @@ User_Match = """The indirect-call expression is: {icall_expr}.
 
 The subsequent text provides the summary of the indirect-call and the corresponding function:
 
+## summary of indirect-call:
+
 {icall_summary}
 
 {icall_additional}
 
-The target function is named: {func_name}, with the following summary:
+## summary of target function {func_name}:
 
 {func_summary}
 

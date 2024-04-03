@@ -173,13 +173,14 @@ class AddrSiteMatcherV2(BaseLLMSolver):
                 os.makedirs(target_analyze_log_dir)
             log_content = "callsite_key: {} \n\n========icall info============\n\n" \
                           "{}\n\n{}\n\n=======icall_summary============\n\n" \
-                          "=======additional_information===========\n\n" \
+                          "{}\n\n=======additional_information===========\n\n" \
                           "{}\n\n{}\n\n" \
                           "=======func pointer summary=============\n\n" \
-                          "{}".format(callsite_key, System_ICall_Summary,
-                                      user_prompt, icall_summary,
-                                      System_func_pointer_Summary, func_pointer_info,
-                                      func_pointer_summary)
+                          "{}".format(callsite_key,
+                                      System_ICall_Summary, user_prompt,
+                                      icall_summary,
+                                      func_pointer_info,
+                                      System_func_pointer_Summary, func_pointer_summary)
 
             with open(f"{cur_log_dir}/callsite_summary.txt", "w", encoding='utf-8') as f:
                 f.write(log_content)
