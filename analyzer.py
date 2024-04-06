@@ -376,8 +376,6 @@ class ProjectAnalyzer:
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
                                                              raw_local_addr_sites, collector)
             addr_taken_site_retriver.group()
-            for func_name in collector.refered_funcs:
-                addr_taken_site_retriver.generate_queries_for_func(func_name)
             llm_solver = AddrSiteMatcherV2(collector, self.args, type_analyzer,
                                          addr_taken_site_retriver, llm_analyzer,
                                          self.project, self.callsite_idxs, func_key_2_name)
