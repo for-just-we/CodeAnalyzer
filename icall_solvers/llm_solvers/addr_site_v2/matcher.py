@@ -5,7 +5,7 @@ from icall_solvers.llm_solvers.base_utils.prompts import System_ICall_Summary, \
 from icall_solvers.llm_solvers.addr_site_v2.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
     System_multi_summary, end_multi_summary
 
-from icall_solvers.llm_solvers.addr_site_v1.prompts import System_Match, User_Match
+from icall_solvers.llm_solvers.addr_site_v1.prompts import System_Match, User_Match, User_Func_Pointer, User_Func_Addr
 from icall_solvers.llm_solvers.base_utils.prompts import supplement_prompts
 from icall_solvers.dir_util import get_parent_directory
 
@@ -264,12 +264,14 @@ class AddrSiteMatcherV2(BaseLLMSolver):
 
         # 进行匹配
         add_suffix = False
+        func_pointer_summary_ = User_Func_Pointer.format(func_pointer_summary)
+        target_addr_summary_ = User_Func_Addr.format(total_addr_summary)
         user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
-                                                   icall_additional=func_pointer_summary,
+                                                   icall_additional=func_pointer_summary_,
                                                    icall_summary=icall_summary,
                                                    func_summary=func_summary,
                                                    func_name=func_name,
-                                                   target_additional_information=total_addr_summary)
+                                                   target_additional_information=target_addr_summary_)
         # 如果不需要二段式，也就是不需要COT
         user_prompt_match += ("\n\n" + supplement_prompts["user_prompt_match"])
 

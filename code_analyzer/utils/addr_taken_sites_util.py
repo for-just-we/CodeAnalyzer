@@ -1,7 +1,7 @@
 from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.schemas.function_info import FuncInfo
 from code_analyzer.visitors.util_visitor import IdentifierExtractor, VarAnalyzer, \
-    get_local_top_level_expr, get_top_level_expr, arg_num_match
+    get_local_top_level_expr, get_top_level_expr, arg_num_match, ConfinedFuncPointerCollector
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.visit_utils.type_util import parsing_type, get_original_type
 
@@ -152,7 +152,7 @@ class AddrTakenSiteRetriver:
         # call expression
         self.call_expr_info: DefaultDict[str, DefaultDict[str, Set[Tuple[str, str]]]] = \
             defaultdict(lambda: defaultdict(set))
-        self.call_expr_arg_idx: DefaultDict[str, List[Tuple[str, int]]] = defaultdict(list)
+        self.call_expr_arg_idx: DefaultDict[str, List[Tuple[str, int, str]]] = defaultdict(list)
         for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions"):
             for call_node, arg_idx in call_nodes:
                 callee_func_name = call_node.children[0].node_text
@@ -171,7 +171,7 @@ class AddrTakenSiteRetriver:
                                                         target_func.raw_declarator_text))
 
                     for target_func_key in target_funcs:
-                        self.call_expr_arg_idx[func_name].append((target_func_key, arg_idx))
+                        self.call_expr_arg_idx[func_name].append((target_func_key, arg_idx, call_node.node_text))
 
     def generate_queries_for_func(self, func_name) -> List[str]:
         queries: List[str] = list()
@@ -193,10 +193,26 @@ class AddrTakenSiteRetriver:
                                               struct_decl_text, var_text, assign_node_text, 1))
 
         # call expression
-        call_expr_info: DefaultDict[str, Set[Tuple[str, str]]] = self.call_expr_info[func_name]
-        for callee_func_name, call_info_texts in call_expr_info.items():
-            call_node_text, func_declarator = random.choice(list(call_info_texts))
-            queries.append(self.generate_text_for_callnode(func_name, call_node_text, func_declarator, 1))
+        call_expr_arg_idxs = self.call_expr_arg_idx[func_name]
+        traversed_func_name_set = set()
+        for func_key, arg_idx, call_node_text in call_expr_arg_idxs:
+            cur_callee_func_name = self.collector.func_info_dict[func_key].func_name
+            if cur_callee_func_name in traversed_func_name_set:
+                continue
+            traversed_func_name_set.add(self.collector.func_info_dict[func_key].func_name)
+            traversed_func_names = set()
+
+            # 根据call chain和ret message构造query
+            call_chain_context: List[Tuple[str, str]] = list()
+            ret_message = self.traverse_call(func_name, func_key, arg_idx, traversed_func_names,
+                                call_chain_context, call_node_text)
+            queries.append(self.generate_text_from_callnode_info(func_name, call_node_text, call_chain_context, ret_message, 1))
+
+        # call_expr_info: DefaultDict[str, Set[Tuple[str, str]]] = self.call_expr_info[func_name]
+        # # 从
+        # for callee_func_name, call_info_texts in call_expr_info.items():
+        #     call_node_text, func_declarator = random.choice(list(call_info_texts))
+        #     queries.append(self.generate_text_for_callnode(func_name, call_node_text, func_declarator, 1))
 
         return queries
 
@@ -255,7 +271,7 @@ class AddrTakenSiteRetriver:
 
         messages.append(end_msgs[stage].format(func_name))
 
-        return "\n".join(messages)
+        return "\n\n".join(messages)
 
     def generate_text_for_assignment(self, func_name, declarator, refered_struct_name, struct_decl_text,
                 var_text, assign_node_text, stage=0) -> str:
@@ -270,7 +286,7 @@ class AddrTakenSiteRetriver:
 
         messages.append(end_msgs[stage].format(func_name))
 
-        return "\n".join(messages)
+        return "\n\n".join(messages)
 
     def generate_text_for_callnode(self, func_name, call_node_text, callee_declarator, stage=0) -> str:
         messages: List[str] = ["The address of target function {} is used as a arguments of "
@@ -280,6 +296,24 @@ class AddrTakenSiteRetriver:
 
         messages.append(end_msgs[stage].format(func_name))
         return "\n".join(messages)
+
+
+    def generate_text_from_callnode_info(self, func_name: List[str], call_node_text: str,
+                                         call_chain_context: List[Tuple[str, str]], ret_message: str,
+                                         stage=0):
+        messages: List[str] = ["The address of target function {} is used as a arguments of "
+                               "call expression: {}.".format(func_name, call_node_text)]
+        if len(call_chain_context) > 0:
+            messages.append("Which involves a call chain as follow: ")
+            for i, call_context in enumerate(call_chain_context):
+                messages.append("expression of callsite-{}: {}\ncorresponding declarator of target function: {}"
+                                .format(i + 1, call_context[0], call_context[1]))
+
+        if ret_message is not None:
+            messages.append(ret_message)
+
+        messages.append(end_msgs[stage].format(func_name))
+        return "\n\n".join(messages)
 
 
     def retrive_info_from_declarator(self, node: ASTNode, func_node: ASTNode, initializer_level: int,
@@ -329,6 +363,71 @@ class AddrTakenSiteRetriver:
             struct_decl_text = self.collector.struct_name2declarator[refered_struct_name]
         return (declarator, refered_struct_name, struct_decl_text,
                 var_text, node.node_text)
+
+    # 如果出现use case，那么生成针对1个use case的query，不为所有的use case生成query
+    def traverse_call(self, func_name: str, func_key: str, idx: int, traversed_func_names: Set[str],
+                      call_chain_context: List[Tuple[str, str]], cur_call_node_text):
+        func_info: FuncInfo = self.collector.func_info_dict[func_key]
+        if len(func_info.parameter_types) <= idx:
+            return
+        # 防止递归
+        if func_info.func_name in traversed_func_names:
+            return
+        traversed_func_names.add(func_info.func_name)
+        # 获取对应参数
+        cur_declarator = func_info.raw_declarator_text
+        call_chain_context.append((cur_call_node_text, cur_declarator))
+        param_name = func_info.parameter_types[idx][1]
+        func_pointer_collector = ConfinedFuncPointerCollector(param_name)
+        func_pointer_collector.traverse_node(func_info.func_body)
+
+        ret_message = None
+        # 如果use case包含assignment
+        if len(func_pointer_collector.assignment_node_infos) > 0:
+            addr_taken_node, initializer_level, top_level_node = random.choice(func_pointer_collector.assignment_node_infos)
+            declarator, refered_struct_name, struct_decl_text, \
+                    var_text, assign_node_text = self.retrive_info_from_assignment(top_level_node, func_key)
+            ret_message = self.generate_text_for_traverse_call(func_name, declarator, refered_struct_name,
+                                                            struct_decl_text, var_text, assign_node_text)
+            return ret_message
+
+        # 如果use case包含直接调用
+        elif len(func_pointer_collector.callsites) > 0:
+            callsite: ASTNode = random.choice(func_pointer_collector.callsites)
+            ret_message = "Through the call-chain, target function {} is used as a callee expression of a call expression." \
+                          "The call expression is: {}".format(func_name, callsite.node_text)
+            return ret_message
+
+        # 遍历call expression
+        # 随机选择一个call node展开分析
+        if len(func_pointer_collector.call_nodes) > 0:
+            call_node, arg_idx = random.choice(func_pointer_collector.call_nodes)
+            caller_func_name = call_node.children[0].node_text
+            # 需要检查是否存在宏调用
+            target_func_keys: List[str] = list(
+                filter(lambda func_key: self.collector.func_info_dict[func_key].func_name == caller_func_name,
+                       self.collector.func_info_dict.keys()))
+            if len(target_func_keys) > 0:
+                cur_func_key = random.choice(target_func_keys)
+                ret_message = self.traverse_call(func_name, cur_func_key, arg_idx, traversed_func_names,
+                                   call_chain_context, call_node.node_text)
+
+        return ret_message
+
+    def generate_text_for_traverse_call(self, func_name, declarator, refered_struct_name, struct_decl_text,
+                var_text, assign_node_text) -> str:
+        messages = ["Through the call-chain, target function {} is used in a assignment expression."
+                    "The text is {}, where the assigned variable is {}.".format(func_name, assign_node_text, var_text)]
+
+        if declarator != "":
+            messages.append("The definition of {} is {}.".format(var_text, declarator))
+            if refered_struct_name != "" and struct_decl_text != "":
+                messages.append("Where it is also a field of struct {}, "
+                                "whose definition is: \n{}.".format(refered_struct_name, struct_decl_text))
+
+        return "\n".join(messages)
+
+
 
 def get_init_node(func_node: ASTNode, level) -> ASTNode:
     cur_node = func_node

@@ -1,5 +1,5 @@
 # prompt大模型分析一个target function和indirect-call的summary并判定它们是否匹配
-System_Match = """You're a code analyzer tasked with assessing whether an indirect call can invoke a target function, given respective contexts."""
+System_Match = """You're a code analyzer tasked with assessing whether an indirect call potentially invoke a target function, given respective contexts."""
 
 # 提供indirect-call text, 相关函数指针或者参数的declarator
 # 如果是uncertain type，需要type matcing
@@ -20,13 +20,13 @@ The target function is named: {target_func_name}, with the following definition:
 
 {target_function_text}
 
-Using this information, ascertain whether the indirect-call {icall_expr} can invoke the target function {target_func_name} in following steps:
+Using this information, ascertain whether the indirect-call {icall_expr} potentially invoke the target function {target_func_name} in following steps:
 
 - 1.Analyze the purpose of indirect-call: Examine the code surrounding the indirect call {icall_expr} and determine its specific use within function {src_func_name}.
 
 - 2.Analyze the functionality of the target function {target_func_name} to understand its purpose.
 
-- 3.Determine whether the indirect-call can invoke the target function based on their functionality. You don't need to consider type match, data-flow, control-flow."""
+- 3.Determine whether the indirect-call potentially invoke the target function based on their functionality. You don't need to consider type match, data-flow, control-flow."""
 
 
 User_Match_macro = """The indirect-call expression is: {icall_expr}.
@@ -41,15 +41,15 @@ The target function is named: {target_func_name}, with the following definition:
 
 {target_function_text}
 
-Using this information, ascertain whether the indirect-call {icall_expr} can invoke the target function {target_func_name} in following steps:
+Using this information, ascertain whether the indirect-call {icall_expr} potentially invoke the target function {target_func_name} in following steps:
 
 - 1.Analyze the purpose of indirect-call: Examine the code surrounding the indirect call {icall_expr} and determine its specific use within function {src_func_name}.
 
 - 2.Analyze the functionality of the target function {target_func_name} to understand its purpose.
 
-- 3.Determine whether the indirect-call can invoke the target function based on their functionality. You don't need to consider type match, data-flow, control-flow.
+- 3.Determine whether the indirect-call potentially invoke the target function based on their functionality. You don't need to consider type match, data-flow, control-flow.
 """
 
 supplement_prompts = {
-"user_prompt_match": "If the indirect-call can invoke the target function, answer 'yes'; otherwise, answer 'no'.",
+"user_prompt_match": "If the indirect-call potentially invoke the target function, answer 'yes'; otherwise, answer 'no'.",
 }

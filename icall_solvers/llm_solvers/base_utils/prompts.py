@@ -43,5 +43,5 @@ To analyze the functionality of the indirect call {icall_expr}, follow these two
 You should only response with a concise summary of the indirect call functionality."""
 
 supplement_prompts = {
-"user_prompt_match": "If the indirect-call can invoke the target function, answer 'yes'; otherwise, answer 'no'.",
+"user_prompt_match": "If the indirect-call potentially invoke the target function, answer 'yes'; otherwise, answer 'no'.",
 }
