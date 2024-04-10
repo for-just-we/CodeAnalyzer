@@ -15,7 +15,10 @@ def build_parser():
                                                            'text-bison-001',
                                                            'chat-bison-001',
                                                            'gemini-pro',
-                                                           'qwen-max'])
+                                                           'qwen-max',
+                                                           'Qwen1.5-14B-Chat',
+                                                           'Qwen1.5-32B-Chat',
+                                                           'Qwen1.5-72B-Chat'])
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
     parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")

@@ -63,6 +63,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
         if callsite_key in self.icall_2_decl_text.keys():
             decl_text = self.icall_2_decl_text[callsite_key]
             messages = ["The declarator of function pointer in {} is {}.".format(icall_text, decl_text)]
+            additional = ""
             if callsite_key in self.icall_2_decl_type_text.keys():
                 messages.append("The alias type definition of the function type is {}."
                                 .format(self.icall_2_decl_type_text[callsite_key]))
@@ -71,8 +72,10 @@ class AddrSiteMatcherV2(BaseLLMSolver):
                 struct_decl = self.collector.struct_name2declarator[struct_name]
                 messages.append("The function pointer is a field of struct {},"
                                 "where its definition is: \n{}.".format(struct_name, struct_decl))
+                additional_template = " You may first analyze the purpose of struct {} then analyze the purpose of the function pointer which may be assigned by {}."
+                additional = additional_template.format(struct_name)
 
-            messages.append("Summarize the function pointer's purpose with information provided before.")
+            messages.append("Summarize the function pointer's purpose with information provided before." + additional)
             return "\n\n".join(messages)
 
         return ""
@@ -144,7 +147,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
                                                              func_name=parent_func_name,
                                                              func_body=parent_func_text)
 
-            self.process_callsite(callsite_key, i, func_keys, user_prompt, callsite_text)
+            self.process_callsite(parent_func_name, callsite_key, i, func_keys, user_prompt, callsite_text)
 
             # 如果log，记录下分析结果
             if self.log_flag:
@@ -155,7 +158,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
 
 
 
-    def process_callsite(self, callsite_key: str, i: int, func_keys: Set[str],
+    def process_callsite(self, parent_func_name: str, callsite_key: str, i: int, func_keys: Set[str],
                          user_prompt: str, callsite_text: str):
         icall_summary: str = self.llm_analyzer.get_response([System_ICall_Summary, user_prompt])
         func_pointer_info = self.generate_icall_additional(callsite_key, callsite_text)
@@ -196,7 +199,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
             pbar.update(1)
 
         def worker(func_key: str, idx: int):
-            flag = self.process_callsite_target(callsite_text, func_pointer_summary,
+            flag = self.process_callsite_target(parent_func_name, callsite_text, func_pointer_summary,
                                                 icall_summary, target_analyze_log_dir, func_key, idx)
             if flag:
                 with lock:
@@ -210,7 +213,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
         for future in as_completed(futures):
             future.result()
 
-    def process_callsite_target(self, callsite_text: str, func_pointer_summary: str,
+    def process_callsite_target(self, parent_func_name: str, callsite_text: str, func_pointer_summary: str,
                                 icall_summary: str, target_analyze_log_dir: str, func_key: str, idx: int) -> bool:
         func_info: FuncInfo = self.collector.func_info_dict[func_key]
         func_name: str = func_info.func_name
@@ -264,10 +267,19 @@ class AddrSiteMatcherV2(BaseLLMSolver):
 
         # 进行匹配
         add_suffix = False
-        func_pointer_summary_ = User_Func_Pointer.format(func_pointer_summary)
-        target_addr_summary_ = User_Func_Addr.format(total_addr_summary)
+        if func_pointer_summary != "":
+            func_pointer_summary_ = User_Func_Pointer.format(func_pointer_summary)
+        else:
+            func_pointer_summary_ = ""
+
+        if total_addr_summary != "":
+            target_addr_summary_ = User_Func_Addr.format(total_addr_summary)
+        else:
+            target_addr_summary_ = ""
+
         user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
                                                    icall_additional=func_pointer_summary_,
+                                                   parent_func_name=parent_func_name,
                                                    icall_summary=icall_summary,
                                                    func_summary=func_summary,
                                                    func_name=func_name,

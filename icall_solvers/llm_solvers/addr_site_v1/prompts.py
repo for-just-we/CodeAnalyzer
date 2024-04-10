@@ -14,7 +14,7 @@ The subsequent text provides the summary of the indirect-call and the correspond
 
 ## 1.summary of indirect-call:
 
-## 1.1.summary of the function containing indirect-call and summary of indirect-call itself:
+## 1.1.summary of function {parent_func_name} containing indirect-call and summary of indirect-call itself:
 {icall_summary}
 
 {icall_additional}
@@ -26,4 +26,5 @@ The subsequent text provides the summary of the indirect-call and the correspond
 
 {target_additional_information}
 
+# Question:
 Assess if the indirect call {icall_expr} potentially invoke {func_name} based solely on their respective functionalities. Please disregard additional context like detailed implementation or control- & data-flow for now; we'll verify that separately."""

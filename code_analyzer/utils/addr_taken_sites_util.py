@@ -53,8 +53,8 @@ def extract_addr_site(refer_sites: DefaultDict[str, List[ASTNode]]):
 
 
 end_msgs = ["\nThe information below can also help you identify the functionlity of function {}",
-            "\nSummarize the purpose of function {} based on the provided information within two sentences."]
-
+            "\nSummarize the purpose of the function pointer assigned by the address of function {} based on the provided information within two sentences."]
+additional_template = " You may first analyze the purpose of the variable of struct {} with the struct definition and the initializer then analyze the purpose of the function pointer which may be assigned by {}."
 
 class AddrTakenSiteRetriver:
     def __init__(self, raw_global_addr_sites: Dict[str, List[ASTNode]],
@@ -112,30 +112,32 @@ class AddrTakenSiteRetriver:
 
     def group(self):
         self.init_addr_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
-                                           Set[Tuple[str, str]]]] = \
+                                           Set[Tuple[str, str, str]]]] = \
                                 defaultdict(lambda: defaultdict(set))
 
         # global init declarator
         for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="grouping global declarators"):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
+                top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
                 struct_decl, ori_var_type, init_node_text = \
                     self.retrive_info_from_declarator(addr_taken_site_top,
                                                           addr_taken_site, init_level,
                                                           self.collector.global_var_info)
                 self.init_addr_infos[func_name][(struct_decl,
-                                    ori_var_type)].add((init_node_text, ""))
+                                    ori_var_type)].add((init_node_text, "", top_level_var_decl))
 
 
         # local init declarator
         for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="grouping local declarators"):
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
+                    top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
                     struct_decl, ori_var_type, init_node_text = \
                         self.retrive_info_from_declarator(addr_taken_site_top,
                                                           addr_taken_site, init_level,
                                                           self.collector.func_info_dict[func_key].local_var)
                     self.init_addr_infos[func_name][(struct_decl,
-                                                     ori_var_type)].add((init_node_text, func_key))
+                                                     ori_var_type)].add((init_node_text, func_key, top_level_var_decl))
 
         # assignment expression
         self.local_assignment_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
@@ -176,12 +178,12 @@ class AddrTakenSiteRetriver:
     def generate_queries_for_func(self, func_name) -> List[str]:
         queries: List[str] = list()
         # init declarator
-        declarator_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str]]] = self.init_addr_infos[func_name]
+        declarator_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str, str]]] = self.init_addr_infos[func_name]
         for decl_info, init_node_decls in declarator_infos.items():
             struct_decl, ori_var_type = decl_info
-            init_node_text, func_key = random.choice(list(init_node_decls))
+            init_node_text, func_key, top_level_var_decl = random.choice(list(init_node_decls))
             queries.append(self.generate_text_for_declarator(func_name, struct_decl,
-                                              ori_var_type, init_node_text, func_key, 1))
+                                              ori_var_type, init_node_text, func_key, top_level_var_decl, 1))
 
         # assignment expression
         assignment_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str, str, str]]] \
@@ -221,23 +223,25 @@ class AddrTakenSiteRetriver:
         # 首先从全局部分筛选
         if len(self.global_addr_sites.get(func_name, [])) > 0:
             addr_taken_site_top, init_level, addr_taken_site = random.choice(self.global_addr_sites[func_name])
+            top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
             struct_decl, ori_var_type, init_node_text = \
                 self.retrive_info_from_declarator(addr_taken_site_top,
                                                   addr_taken_site, init_level,
                                                   self.collector.global_var_info)
             return self.generate_text_for_declarator(func_name,
-                                struct_decl, ori_var_type, init_node_text, "")
+                                struct_decl, ori_var_type, init_node_text, "", top_level_var_decl)
 
         elif len(self.local_declarators[func_name]) > 0:
             func_key: str = random.choice(list(self.local_declarators[func_name].keys()))
             addr_taken_site_top, init_level, addr_taken_site \
                 = random.choice(self.local_declarators[func_name][func_key])
+            top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
             struct_decl, ori_var_type, init_node_text = \
                 self.retrive_info_from_declarator(addr_taken_site_top,
                                                   addr_taken_site, init_level,
                                                   self.collector.func_info_dict[func_key].local_var)
             return self.generate_text_for_declarator(func_name, struct_decl,
-                                                     ori_var_type, init_node_text, func_key)
+                                                     ori_var_type, init_node_text, func_key, top_level_var_decl)
 
         elif len(self.local_assignment_exprs[func_name]) > 0:
             func_key: str = random.choice(list(self.local_assignment_exprs[func_name].keys()))
@@ -258,54 +262,60 @@ class AddrTakenSiteRetriver:
 
         return ""
 
-    def generate_text_for_declarator(self, func_name, struct_decl, ori_var_type, init_node_text, func_key: str, stage=0) -> str:
+    def generate_text_for_declarator(self, func_name, struct_decl, ori_var_type, init_node_text, func_key: str, top_level_var_decl: str, stage=0) -> str:
         messages = ["The target function {func_name} is address-taken in a "
                     "initializer of a variable declaration statement, "
-                    "the initializer is {initializer}.".format(func_name=func_name, initializer = init_node_text)]
+                    "where the declaree statement is: `{decl_stmt}`, "
+                    "the initializer is\n ```c\n{initializer}\n```.".format(func_name=func_name,
+                                  decl_stmt=top_level_var_decl, initializer = init_node_text)]
 
+        additional = ""
         # 如果函数指针为结构体的一个field
         if ori_var_type != "" and struct_decl != "":
             messages.append("where the address of {func_name} is assigned to a field of struct {struct_type},"
-                            " and its struct definition is:\n{struct_decl}"
+                            " and its struct definition is:\n```c\n{struct_decl}\n```"
                             .format(func_name=func_name, struct_type=ori_var_type, struct_decl=struct_decl))
+            additional = additional_template.format(ori_var_type, func_name)
 
         if func_key != "":
             func_info = self.collector.func_info_dict[func_key]
             cur_func_name = func_info.func_name
             func_declarator = func_info.raw_declarator_text
 
-            messages.append("The initializer is located in function {} whose declarator is\n:{}"
+            messages.append("The initializer is located in function {} whose declarator is\n:`{}`"
                         .format(cur_func_name, func_declarator))
 
-        messages.append(end_msgs[stage].format(func_name))
+        messages.append(end_msgs[stage].format(func_name) + additional)
 
         return "\n\n".join(messages)
 
     def generate_text_for_assignment(self, func_name, declarator, refered_struct_name, struct_decl_text,
                 var_text, assign_node_text, func_key, stage=0) -> str:
         messages = ["The target function {} is address-taken in a assignment expression. "
-                    "The text is {}, where the assigned variable is {}.".format(func_name, assign_node_text, var_text)]
+                    "The text is `{}`, where the assigned variable is {}.".format(func_name, assign_node_text, var_text)]
 
+        additional = ""
         if declarator != "":
             messages.append("The definition of {} is {}.".format(var_text, declarator))
             if refered_struct_name != "" and struct_decl_text != "":
                 messages.append("Where it is also a field of struct {}, "
-                                "whose definition is: \n{}.".format(refered_struct_name, struct_decl_text))
+                                "whose definition is: \n```\n{}\n```.".format(refered_struct_name, struct_decl_text))
+                additional = additional_template.format(refered_struct_name, func_name)
 
         func_info = self.collector.func_info_dict[func_key]
         cur_func_name = func_info.func_name
         func_declarator = func_info.raw_declarator_text
 
-        messages.append("The assignment expression is located in function {} whose declarator is\n:{}"
+        messages.append("The assignment expression is located in function {} whose declarator is\n:`{}`"
                         .format(cur_func_name, func_declarator))
 
-        messages.append(end_msgs[stage].format(func_name))
+        messages.append(end_msgs[stage].format(func_name) + additional)
 
         return "\n\n".join(messages)
 
     def generate_text_for_callnode(self, func_name, call_node_text, callee_declarator, stage=0) -> str:
         messages: List[str] = ["The address of target function {} is used as a arguments of "
-                               "call expression: {}.".format(func_name, call_node_text)]
+                               "call expression: `{}`.".format(func_name, call_node_text)]
         if callee_declarator != "":
             messages.append("The declarator of callee function is: {}".format(callee_declarator))
 
@@ -317,11 +327,11 @@ class AddrTakenSiteRetriver:
                                          call_chain_context: List[Tuple[str, str]], ret_message: str,
                                          stage=0):
         messages: List[str] = ["The address of target function {} is used as a arguments of "
-                               "call expression: {}.".format(func_name, call_node_text)]
+                               "call expression: `{}`.".format(func_name, call_node_text)]
         if len(call_chain_context) > 0:
             messages.append("Which involves a call chain as follow: ")
             for i, call_context in enumerate(call_chain_context):
-                messages.append("expression of callsite-{}: {}\ncorresponding declarator of target function: {}"
+                messages.append("expression of callsite-{}: `{}`\ncorresponding declarator of target function: \n```c\n{}\n```"
                                 .format(i + 1, call_context[0], call_context[1]))
 
         if ret_message is not None:
@@ -384,10 +394,10 @@ class AddrTakenSiteRetriver:
                       call_chain_context: List[Tuple[str, str]], cur_call_node_text):
         func_info: FuncInfo = self.collector.func_info_dict[func_key]
         if len(func_info.parameter_types) <= idx:
-            return
+            return None
         # 防止递归
         if func_info.func_name in traversed_func_names:
-            return
+            return None
         traversed_func_names.add(func_info.func_name)
         # 获取对应参数
         cur_declarator = func_info.raw_declarator_text
