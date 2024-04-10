@@ -72,7 +72,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
                 struct_decl = self.collector.struct_name2declarator[struct_name]
                 messages.append("The function pointer is a field of struct {},"
                                 "where its definition is: \n{}.".format(struct_name, struct_decl))
-                additional_template = " You may first analyze the purpose of struct {} then analyze the purpose of the function pointer which may be assigned by {}."
+                additional_template = " You may first analyze the purpose of struct {} then analyze the purpose of the target function pointer."
                 additional = additional_template.format(struct_name)
 
             messages.append("Summarize the function pointer's purpose with information provided before." + additional)
