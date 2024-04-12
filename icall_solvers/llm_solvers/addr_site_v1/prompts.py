@@ -27,4 +27,4 @@ The subsequent text provides the summary of the indirect-call and the correspond
 {target_additional_information}
 
 # Question:
-Assess if {func_name} could be one of the target function that indirect call {icall_expr} potentially invoke based solely on their respective functionalities. Please disregard additional context like detailed implementation or control- & data-flow for now; we'll verify that separately."""
+Assess if {func_name} could be one of the target function that indirect call {icall_expr} potentially invoke based solely on their respective functionalities. Please disregard additional context like detailed implementation, control- & data-flow, or types and class hierarchy for now; we'll verify that separately."""
