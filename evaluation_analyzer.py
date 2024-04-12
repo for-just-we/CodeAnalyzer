@@ -125,7 +125,7 @@ def main():
     else:
         logger.setLevel(level=logging.INFO)
 
-    if args.llm in {"hf", "vllm", "gpt", "google", "zhipu", "tongyi"}:
+    if args.llm in {"hf", "openai_local", "gpt", "google", "zhipu", "tongyi"}:
         model_name = args.model_type
     else:
         model_name = ""
