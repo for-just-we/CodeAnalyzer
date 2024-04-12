@@ -17,7 +17,8 @@ qwen_1_5_template_type = """The text below answer whether argument types of an i
 summarizing_prompt_4_model = {
     "Qwen1.5-14B-Chat": qwen_1_5_template,
     "Qwen1.5-32B-Chat": qwen_1_5_template,
-    "Qwen1.5-72B-Chat": qwen_1_5_template
+    "Qwen1.5-72B-Chat": qwen_1_5_template,
+    "Yi-34B": qwen_1_5_template
 }
 
 summarizing_prompt_4_model_type = {

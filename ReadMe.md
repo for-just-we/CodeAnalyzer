@@ -38,3 +38,25 @@ symbol类型包括：
 
 
 
+
+
+
+# 2.LLM的部署
+
+该项目目前支持调用[openai](https://platform.openai.com/), [智谱](https://www.zhipuai.cn/), [google gemini](https://ai.google.dev/), [阿里通义系列](https://dashscope.console.aliyun.com/)的API。本地部署的模型尝试过用3种方式部署：
+
+- [huggingface text-generation-inference](https://github.com/huggingface/text-generation-inference)
+
+- [vllm](https://github.com/vllm-project/vllm)
+
+- [sglang](https://github.com/sgl-project/sglang/)
+
+目前以上部署方式都支持openai的api访问server。不过使用时发现了一些问题
+
+- vllm部署时通过openai api访问时不需要添加 `max_tokens` 参数，但是sglang部署时需要手动指定这些 `max` 参数，容易降低效率。
+
+- vllm和sglang部署只需要传递context长度参数 (vllm的 `--max-model-len` 以及sglang的 `--context-length`)，但是text-generation-inference需要指定 `--max-total-tokens`、`--max-input-length`，感觉不是很灵活。
+
+- vllm单gpu部署时效率感觉很高，但是多gpu部署时容易出现[同步错误](https://github.com/vllm-project/vllm/issues/3839)，这个错误貌似到0.4.0还没解决。
+
+这里建议大家通过vllm或者sglang部署，如果用vllm，用 `openai_local` 调用本地模型时可以不传入 `max_tokens` 参数，但是sglang得传入，可以传个大点的比如 `3072`。

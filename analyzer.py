@@ -305,10 +305,10 @@ class ProjectAnalyzer:
             llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address,
                                                self.args.temperature, self.args.max_new_tokens)
 
-        elif self.args.llm == "vllm":
+        elif self.args.llm == "openai_local":
             from llm_utils.openai_analyzer import OpenAIAnalyzer
             llm_analyzer = OpenAIAnalyzer(self.model_name, "", self.args.address,
-                                          self.args.temperature)
+                                          self.args.temperature, self.args.max_tokens)
 
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project, self.callsite_idxs)

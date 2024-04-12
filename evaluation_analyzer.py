@@ -39,12 +39,13 @@ def add_subparser(parser: argparse.ArgumentParser):
                            help='specify model name used. Could be codellama or WizardCoder')
     hf_parser.add_argument('--max_new_tokens', type=int, default=20)
 
-    vllm_parser = subparsers.add_parser('vllm', help='using model deployed by vllm')
-    vllm_parser.add_argument('--address', help='vllm server ip:port, default to 127.0.0.1:8080',
+    openai_local_parser = subparsers.add_parser('openai_local', help='using model deployed by framework support openai API')
+    openai_local_parser.add_argument('--address', help='server ip:port, default to 127.0.0.1:8080',
                              default='127.0.0.1:8080')
-    vllm_parser.add_argument('--model_type', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-32B-Chat',
-                                                      'Qwen1.5-72B-Chat'],
+    openai_local_parser.add_argument('--model_type', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-32B-Chat',
+                                                      'Qwen1.5-72B-Chat', 'Yi-34B'],
                              help='specify model name used.')
+    openai_local_parser.add_argument('--max_tokens', type=int, default=0)
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
