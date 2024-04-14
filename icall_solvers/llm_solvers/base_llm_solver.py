@@ -41,6 +41,11 @@ class BaseLLMSolver:
         self.expanded_macros: Dict[str, str] = base_analyzer.expanded_macros
         self.macro_call_exprs: Dict[str, str] = base_analyzer.macro_call_exprs
 
+        if hasattr(base_analyzer, "kelp_cases"):
+            self.kelp_cases = base_analyzer.kelp_cases
+        if hasattr(base_analyzer, "mlta_cases"):
+            self.mlta_cases = base_analyzer.mlta_cases
+
     @abc.abstractmethod
     def process_all(self):
         pass

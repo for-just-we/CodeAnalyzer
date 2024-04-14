@@ -358,7 +358,7 @@ class ProjectAnalyzer:
 
         elif self.args.llm_strategy == "single":
             llm_solver = SingleStepMatcher(collector, self.args,
-                                         type_analyzer, llm_analyzer, set(self.ground_truths.keys()),
+                                         base_analyzer, llm_analyzer, set(self.ground_truths.keys()),
                                          self.project, self.callsite_idxs,
                                          func_key_2_name)
             llm_solver.process_all()
@@ -367,7 +367,7 @@ class ProjectAnalyzer:
         elif self.args.llm_strategy == "addr_site_v1":
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
                                                              raw_local_addr_sites, collector)
-            llm_solver = AddrSiteMatcherV1(collector, self.args, type_analyzer,
+            llm_solver = AddrSiteMatcherV1(collector, self.args, base_analyzer,
                                          addr_taken_site_retriver, llm_analyzer,
                                          self.project, self.callsite_idxs, func_key_2_name)
             llm_solver.process_all()
@@ -376,7 +376,7 @@ class ProjectAnalyzer:
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
                                                              raw_local_addr_sites, collector)
             addr_taken_site_retriver.group()
-            llm_solver = AddrSiteMatcherV2(collector, self.args, type_analyzer,
+            llm_solver = AddrSiteMatcherV2(collector, self.args, base_analyzer,
                                          addr_taken_site_retriver, llm_analyzer,
                                          self.project, self.callsite_idxs, func_key_2_name)
             llm_solver.process_all()

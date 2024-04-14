@@ -84,6 +84,16 @@ class AddrSiteMatcherV2(BaseLLMSolver):
     def process_all(self):
         logging.getLogger("CodeAnalyzer").info("Start address-taken site matching...")
 
+        def preprocess_callsite_key(callsite_key: str) -> bool:
+            if hasattr(self, "kelp_cases") and callsite_key in self.kelp_cases:
+                self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, {})
+                return True
+            if self.args.disable_semantic_for_mlta and hasattr(self, "mlta_cases") \
+                    and callsite_key in self.mlta_cases:
+                self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, {})
+                return True
+            return False
+
         if self.args.load_pre_semantic_analysis_res:
             assert os.path.exists(f"{self.log_dir}/semantic_result.txt")
             logging.getLogger("CodeAnalyzer").info("loading existed semantic matching results.")
@@ -91,9 +101,15 @@ class AddrSiteMatcherV2(BaseLLMSolver):
                 for line in f:
                     tokens: List[str] = line.strip().split('|')
                     callsite_key: str = tokens[0]
+                    if preprocess_callsite_key(callsite_key):
+                        continue
+
                     func_keys: Set[str] = set()
                     if len(tokens) > 1:
                         func_keys.update(tokens[1].split(','))
+                    func_keys = set(filter(lambda func_key:
+                                           func_key in self.type_matched_callsites.get(callsite_key, {}),
+                                           func_keys))
                     func_keys = set(filter(lambda func_key:
                                            self.func_key_2_name.get(func_key, '') in self.collector.refered_funcs,
                                            func_keys))
@@ -106,9 +122,14 @@ class AddrSiteMatcherV2(BaseLLMSolver):
                 for line in f:
                     tokens: List[str] = line.strip().split('|')
                     callsite_key: str = tokens[0]
+                    if preprocess_callsite_key(callsite_key):
+                        continue
                     func_keys: Set[str] = set()
                     if len(tokens) > 1:
                         func_keys.update(tokens[1].split(','))
+                    func_keys = set(filter(lambda func_key:
+                                           func_key in self.type_matched_callsites.get(callsite_key, {}),
+                                           func_keys))
                     self.matched_callsites[callsite_key] = func_keys
                     self.type_matched_callsites.pop(callsite_key)
 
@@ -122,6 +143,9 @@ class AddrSiteMatcherV2(BaseLLMSolver):
             if callsite_key in self.macro_callsites and not self.args.enable_analysis_for_macro:
                 continue
             elif callsite_key not in self.macro_callsites and self.args.disable_analysis_for_normal:
+                continue
+
+            if preprocess_callsite_key(callsite_key):
                 continue
 
             i = self.callsite_idxs[callsite_key]
@@ -248,7 +272,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
         if len(addr_summaries) > 1:
             multi_messages = []
             for i, addr_summary in enumerate(addr_summaries):
-                multi_messages.append("Summary {}:\n{}".format(i+1, addr_summary))
+                multi_messages.append("Summary {}:\n{}".format(i + 1, addr_summary))
             multi_messages.append(end_multi_summary)
             total_addr_query = "\n\n".join(addr_summaries)
             total_addr_summary = self.llm_analyzer.get_response([System_multi_summary,
