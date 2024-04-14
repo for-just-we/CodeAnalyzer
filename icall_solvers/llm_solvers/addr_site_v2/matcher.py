@@ -86,11 +86,11 @@ class AddrSiteMatcherV2(BaseLLMSolver):
 
         def preprocess_callsite_key(callsite_key: str) -> bool:
             if hasattr(self, "kelp_cases") and callsite_key in self.kelp_cases:
-                self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, {})
+                self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, set())
                 return True
             if self.args.disable_semantic_for_mlta and hasattr(self, "mlta_cases") \
                     and callsite_key in self.mlta_cases:
-                self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, {})
+                self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, set())
                 return True
             return False
 
