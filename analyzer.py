@@ -393,6 +393,8 @@ class ProjectAnalyzer:
         else:
             self.evaluate_semantic_analysis(llm_solver)
 
+        items = self.evaluate_(llm_solver, base_analyzer)
+        return items
 
     def evaluate_base_analysis(self, base_analyzer: BaseStaticMatcher):
         logging.getLogger("CodeAnalyzer").info("result of project, Precision, Recall, F1 is:")
@@ -533,3 +535,72 @@ class ProjectAnalyzer:
             with open(f"{llm_solver.log_dir}/evaluation_result.txt", "w", encoding='utf-8') as f:
                 f.write(line)
                 logging.getLogger("CodeAnalyzer").info("writing success")
+
+
+    def evaluate_(self, llm_solver: BaseLLMSolver,
+                  base_analyzer: BaseStaticMatcher) -> Tuple[List[float], List[float], List[float],
+                                                             List[float], List[float], List[float],
+                                                             List[str]]:
+        if llm_solver is None:
+            return ([], [], [], [], [], [], [])
+        assert hasattr(base_analyzer, "flta_cases")
+
+        # 基于类型匹配的结果
+        type_matched_callsites: Dict[str, Set[str]] = base_analyzer.callees.copy()
+        additional_callsite_infos: DefaultDict[str, Set[str]] = defaultdict(set)
+        if self.args.evaluate_uncertain:
+            additional_callsite_infos = base_analyzer.uncertain_callees
+        elif self.args.evaluate_soly_for_llm:
+            additional_callsite_infos = base_analyzer.llm_declarator_analysis
+        for key, values in additional_callsite_infos.items():
+            type_matched_callsites[key] = type_matched_callsites.get(key, set()) | values
+
+        # 基于语义分析的结果
+        matched_callsites: DefaultDict[str, Set[str]] = llm_solver.matched_callsites
+
+        semantic_res_prec: List[float] = []
+        semantic_res_recall: List[float] = []
+        semantic_res_f1: List[float] = []
+
+        flta_res_prec: List[float] = []
+        flta_res_recall: List[float] = []
+        flta_res_f1: List[float] = []
+
+        failed_type_cases: List[str] = []
+
+        def eval(analyzed_targets: Set[str], labeled_funcs: Set[str]):
+            TPs: Set[str] = analyzed_targets & labeled_funcs
+            prec = 0 if len(analyzed_targets) == 0 else len(TPs) / len(analyzed_targets)
+            recall = 0 if len(labeled_funcs) == 0 else len(TPs) / len(labeled_funcs)
+            f1 = 0 if prec + recall == 0 else 2 * prec * recall / (prec + recall)
+            return prec, recall, f1
+
+        for callsite_key, labeled_funcs in tqdm(self.ground_truths.items(),
+                                                desc="evaluating for pure flta cases"):
+            # 不是flta cases
+            if not callsite_key in base_analyzer.flta_cases:
+                continue
+            # flta分析没有成功
+            flta_funcs: Set[str] = type_matched_callsites.get(callsite_key, set())
+            if len(flta_funcs) == 0:
+                failed_type_cases.append(callsite_key)
+                continue
+
+            flta_prec, flta_recall, flta_f1 = eval(flta_funcs, labeled_funcs)
+            if flta_recall == 0:
+                failed_type_cases.append(callsite_key)
+                continue
+            flta_res_prec.append(flta_prec)
+            flta_res_recall.append(flta_recall)
+            flta_res_f1.append(flta_f1)
+
+            semantic_res: Set[str] = matched_callsites.get(callsite_key, set())
+            seman_prec, seman_recall, seman_f1 = eval(semantic_res, labeled_funcs)
+            semantic_res_prec.append(seman_prec)
+            semantic_res_recall.append(seman_recall)
+            semantic_res_f1.append(seman_f1)
+
+
+
+        return (semantic_res_prec, semantic_res_recall, semantic_res_f1,
+                flta_res_prec, flta_res_recall, flta_res_f1, failed_type_cases)

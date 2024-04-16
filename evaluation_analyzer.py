@@ -131,6 +131,16 @@ def main():
     else:
         model_name = ""
 
+    semantic_res_prec: List[float] = []
+    semantic_res_recall: List[float] = []
+    semantic_res_f1: List[float] = []
+
+    flta_res_prec: List[float] = []
+    flta_res_recall: List[float] = []
+    flta_res_f1: List[float] = []
+
+    failed_type_cases: List[str] = []
+
     # 打印项目参数的值
     for project in projects:
         logging.getLogger("CodeAnalyzer").info(f"analyzing project: {project}")
@@ -139,7 +149,28 @@ def main():
         project_root = os.path.join(root_path, "projects", project)
         project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args,
                                            project, model_name)
-        project_analyzer.evaluate()
+        items = project_analyzer.evaluate()
+
+        semantic_res_prec.extend(items[0])
+        semantic_res_recall.extend(items[1])
+        semantic_res_f1.extend(items[2])
+        flta_res_prec.extend(items[3])
+        flta_res_recall.extend(items[4])
+        flta_res_f1.extend(items[5])
+        failed_type_cases.extend(items[6])
+
+    mean = lambda res: sum(res) * 100 / len(res)
+
+    if len(semantic_res_prec) != 0:
+        print("successfully analyze {} icalls with flta".format(len(semantic_res_prec)))
+        print("{} icalls fail to be analyzed by flta".format(len(failed_type_cases)))
+
+        print("semantic res | {:.1f} | {:.1f} | {:.1f} |".format(mean(semantic_res_prec),
+                                                                        mean(semantic_res_recall),
+                                                                        mean(semantic_res_f1)))
+        print("flta res | {:.1f} | {:.1f} | {:.1f} |".format(mean(flta_res_prec),
+                                                                        mean(flta_res_recall),
+                                                                        mean(flta_res_f1)))
 
 if __name__ == '__main__':
     main()
