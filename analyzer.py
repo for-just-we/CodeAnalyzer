@@ -540,9 +540,10 @@ class ProjectAnalyzer:
     def evaluate_(self, llm_solver: BaseLLMSolver,
                   base_analyzer: BaseStaticMatcher) -> Tuple[List[float], List[float], List[float],
                                                              List[float], List[float], List[float],
-                                                             List[str]]:
+                                                             List[str], List[str],
+                                                             List[int], List[int], List[int]]:
         if llm_solver is None:
-            return ([], [], [], [], [], [], [])
+            return ([], [], [], [], [], [], [], [], [], [], [])
         assert hasattr(base_analyzer, "flta_cases")
 
         # 基于类型匹配的结果
@@ -567,6 +568,10 @@ class ProjectAnalyzer:
         flta_res_f1: List[float] = []
 
         failed_type_cases: List[str] = []
+        success_type_cases: List[str] = []
+        label_nums: List[int] = []
+        flta_nums: List[int] = []
+        seman_nums: List[int] = []
 
         def eval(analyzed_targets: Set[str], labeled_funcs: Set[str]):
             TPs: Set[str] = analyzed_targets & labeled_funcs
@@ -600,7 +605,11 @@ class ProjectAnalyzer:
             semantic_res_recall.append(seman_recall)
             semantic_res_f1.append(seman_f1)
 
-
-
+            success_type_cases.append(callsite_key)
+            label_nums.append(len(labeled_funcs))
+            flta_nums.append(len(flta_funcs))
+            seman_nums.append(len(semantic_res))
+            
         return (semantic_res_prec, semantic_res_recall, semantic_res_f1,
-                flta_res_prec, flta_res_recall, flta_res_f1, failed_type_cases)
+                flta_res_prec, flta_res_recall, flta_res_f1, failed_type_cases, success_type_cases,
+                label_nums, flta_nums, seman_nums)

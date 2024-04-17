@@ -140,6 +140,9 @@ def main():
     flta_res_f1: List[float] = []
 
     failed_type_cases: List[str] = []
+    success_type_cases: List[str] = []
+    label_nums: List[int] = []
+    flta_nums: List[int] = []
 
     # 打印项目参数的值
     for project in projects:
@@ -158,6 +161,9 @@ def main():
         flta_res_recall.extend(items[4])
         flta_res_f1.extend(items[5])
         failed_type_cases.extend(items[6])
+        success_type_cases.extend(items[7])
+        label_nums.extend(items[8])
+        flta_nums.extend(items[9])
 
     mean = lambda res: sum(res) * 100 / len(res)
 
