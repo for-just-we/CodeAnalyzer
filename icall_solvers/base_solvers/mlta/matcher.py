@@ -55,12 +55,6 @@ class StructTypeMatcher(BaseStaticMatcher):
 
             self.process_callsite(callsite_key, i)
 
-            if len(self.callees[callsite_key]) == len(self.type_analyzer.callees[callsite_key]) and \
-                len(self.uncertain_callees[callsite_key]) == len(self.type_analyzer.uncertain_callees[callsite_key]):
-                self.flta_cases.add(callsite_key)
-            else:
-                self.mlta_cases.add(callsite_key)
-
 
     def process_callsite(self, callsite_key: str, i: int):
         struct_name = self.icall_2_struct_name.get(callsite_key, "")
@@ -74,6 +68,7 @@ class StructTypeMatcher(BaseStaticMatcher):
             # 是escape type
             if field_name in self.escaped_types[struct_name]:
                 self.update_default_values(callsite_key, strict_type_targets, uncertain_targets, llm_decl_targets)
+                self.flta_cases.add(callsite_key)
                 return
             func_names: Set[str] = self.confine_analyzer.struct_name_2_field_4_type[struct_name][field_name]
 
@@ -88,9 +83,13 @@ class StructTypeMatcher(BaseStaticMatcher):
             # 出现escape type
             if len((self.callees[callsite_key] | self.uncertain_callees[callsite_key])) == 0:
                 self.update_default_values(callsite_key, strict_type_targets, uncertain_targets, llm_decl_targets)
+                self.flta_cases.add(callsite_key)
+            else:
+                self.mlta_cases.add(callsite_key)
 
         else:
             self.update_default_values(callsite_key, strict_type_targets, uncertain_targets, llm_decl_targets)
+            self.flta_cases.add(callsite_key)
 
     # Add a helper method to simplify code further
 
