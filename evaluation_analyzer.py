@@ -143,6 +143,7 @@ def main():
     success_type_cases: List[str] = []
     label_nums: List[int] = []
     flta_nums: List[int] = []
+    seman_nums: List[int] = []
 
     # 打印项目参数的值
     for project in projects:
@@ -164,6 +165,7 @@ def main():
         success_type_cases.extend(items[7])
         label_nums.extend(items[8])
         flta_nums.extend(items[9])
+        seman_nums.extend(items[10])
 
     mean = lambda res: sum(res) * 100 / len(res)
 
