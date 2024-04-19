@@ -542,7 +542,7 @@ class ProjectAnalyzer:
                                                              List[float], List[float], List[float],
                                                              List[str], List[str],
                                                              List[int], List[int], List[int]]:
-        if llm_solver is None:
+        if llm_solver is None or not hasattr(base_analyzer, "flta_cases"):
             return ([], [], [], [], [], [], [], [], [], [], [])
         assert hasattr(base_analyzer, "flta_cases")
 
