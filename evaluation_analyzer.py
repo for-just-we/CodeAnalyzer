@@ -1,7 +1,7 @@
 import os
 import argparse
 
-from typing import List
+from typing import List, Set
 from analyzer import ProjectAnalyzer
 import logging
 
@@ -59,6 +59,9 @@ def build_arg_parser():
                         help="If true, set to debug mode")
     parser.add_argument("--log_llm_output", action="store_true", default=False,
                         help="If true, log llm output to log file")
+    parser.add_argument("--log_total_info", action="store_true", default=False,
+                        help="log total distribution of flta, mlta, kelp cases if set to true")
+
     # 添加--project参数，并设置nargs='+'，以接受一个或多个值
     parser.add_argument("--projects", type=str, help="One or more projects to analyze")
     parser.add_argument("--scope_strategy", type=str, choices=['no', 'base'], default='base',
@@ -144,6 +147,11 @@ def main():
     label_nums: List[int] = []
     flta_nums: List[int] = []
     seman_nums: List[int] = []
+    macro_cases: List[str] = []
+
+    local_failed_cases: List[str] = []
+    global_failed_cases: List[str] = []
+    analyzed_cases: Set[str] = set()
 
     # 打印项目参数的值
     for project in projects:
@@ -163,15 +171,24 @@ def main():
         flta_res_f1.extend(items[5])
         failed_type_cases.extend(items[6])
         success_type_cases.extend(items[7])
-        label_nums.extend(items[8])
-        flta_nums.extend(items[9])
-        seman_nums.extend(items[10])
+        macro_cases.extend(items[8])
+        label_nums.extend(items[9])
+        flta_nums.extend(items[10])
+        seman_nums.extend(items[11])
+        local_failed_cases.extend(items[12])
+        analyzed_cases.update(items[13])
+        for case in items[14]:
+            if case not in macro_cases:
+                global_failed_cases.append(case)
 
     mean = lambda res: sum(res) * 100 / len(res)
 
+
     if len(semantic_res_prec) != 0:
         print("successfully analyze {} icalls with flta".format(len(semantic_res_prec)))
-        print("{} icalls fail to be analyzed by flta".format(len(failed_type_cases)))
+        print("{} icalls fail to be analyzed by flta, among them {} are macro callsites".
+              format(len(failed_type_cases), len(macro_cases)))
+        print("{} icalls are local failed cases, {} are global failed cases.".format(len(local_failed_cases), len(global_failed_cases)))
 
         print("semantic res | {:.1f} | {:.1f} | {:.1f} |".format(mean(semantic_res_prec),
                                                                         mean(semantic_res_recall),
@@ -179,6 +196,7 @@ def main():
         print("flta res | {:.1f} | {:.1f} | {:.1f} |".format(mean(flta_res_prec),
                                                                         mean(flta_res_recall),
                                                                         mean(flta_res_f1)))
+
 
 if __name__ == '__main__':
     main()

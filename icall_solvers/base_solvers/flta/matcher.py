@@ -199,12 +199,15 @@ class TypeAnalyzer(BaseStaticMatcher):
                 continue
 
             logging.getLogger("CodeAnalyzer").info("visiting {}-th icall {}".format(self.callsite_idxs[callsite_key], callsite_key))
+            # 没有被成功分析
             if icall_loc not in func_body_visitor.icall_nodes.keys():
                 self.callees[callsite_key] = set()
+                self.local_failed_callsites.add(callsite_key)
                 continue
             self.icall_nodes[callsite_key] = func_body_visitor.icall_nodes[icall_loc]
             self.icall_2_func[callsite_key] = func_key
             self.process_indirect_call(callsite_key, icall_loc, func_body_visitor)
+            self.analyzed_callsites.add(callsite_key)
 
 
     # 处理一个indirect-call

@@ -9,6 +9,11 @@ from code_analyzer.definition_collector import BaseInfoCollector
 
 class BaseStaticMatcher:
     def __init__(self):
+        # 分析过的callsite
+        self.analyzed_callsites: Set[str] = set()
+        # 在function内没有被成功分析的case
+        self.local_failed_callsites: Set[str] = set()
+
         # 保存匹配上的函数名
         self.callees: DefaultDict[str, Set[str]] = defaultdict(set)
         # 如果uncertain

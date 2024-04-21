@@ -408,12 +408,13 @@ class ProjectAnalyzer:
         line = f"{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
         line1 = ""
 
-        additional = "{},{},{},{}\n"
-        flta_info = len(base_analyzer.flta_cases) if hasattr(base_analyzer, "flta_cases") else ""
-        mlta_info = len(base_analyzer.mlta_cases) if hasattr(base_analyzer, "mlta_cases") else ""
-        kelp_info = len(base_analyzer.kelp_cases) if hasattr(base_analyzer, "kelp_cases") else ""
-        additional_info = additional.format(self.project, flta_info, mlta_info, kelp_info)
-        open("total.txt", 'a', encoding='utf-8').write(additional_info)
+        if self.args.log_total_info:
+            additional = "{},{},{},{}\n"
+            flta_info = len(base_analyzer.flta_cases) if hasattr(base_analyzer, "flta_cases") else ""
+            mlta_info = len(base_analyzer.mlta_cases) if hasattr(base_analyzer, "mlta_cases") else ""
+            kelp_info = len(base_analyzer.kelp_cases) if hasattr(base_analyzer, "kelp_cases") else ""
+            additional_info = additional.format(self.project, flta_info, mlta_info, kelp_info)
+            open("total.txt", 'a', encoding='utf-8').write(additional_info)
 
         def evaluate_icall_target(new_icall_2_target: Dict[str, Set[str]], info: str):
             icall_2_targets1 = icall_2_targets.copy()
@@ -454,7 +455,7 @@ class ProjectAnalyzer:
             line1 = analyze_binary(total_extra_callees, self.ground_truths,
                            dict(), "TotalExtra-no")
 
-        if self.args.evaluate_soly_for_llm:
+        if self.args.evaeluate_soly_for_llm:
             line = evaluate_icall_target(base_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
             line1 = analyze_binary(base_analyzer.uncertain_callees, self.ground_truths,
@@ -540,10 +541,12 @@ class ProjectAnalyzer:
     def evaluate_(self, llm_solver: BaseLLMSolver,
                   base_analyzer: BaseStaticMatcher) -> Tuple[List[float], List[float], List[float],
                                                              List[float], List[float], List[float],
-                                                             List[str], List[str],
-                                                             List[int], List[int], List[int]]:
+                                                             List[str], List[str], List[str],
+                                                             List[int], List[int], List[int],
+                                                             List[str], Set[str], List[str]]:
         if llm_solver is None or not hasattr(base_analyzer, "flta_cases"):
-            return ([], [], [], [], [], [], [], [], [], [], [])
+            return ([], [], [], [], [], [], [], [], [], [], [], [], [],
+                    base_analyzer.analyzed_callsites, [])
         assert hasattr(base_analyzer, "flta_cases")
 
         # 基于类型匹配的结果
@@ -569,9 +572,16 @@ class ProjectAnalyzer:
 
         failed_type_cases: List[str] = []
         success_type_cases: List[str] = []
+        macro_cases: List[str] = []
         label_nums: List[int] = []
         flta_nums: List[int] = []
         seman_nums: List[int] = []
+
+        local_failed_cases: List[str] = []
+        global_failed_cases: List[str] = []
+        for callsite_key in self.ground_truths.keys():
+            if callsite_key not in base_analyzer.analyzed_callsites:
+                global_failed_cases.append(callsite_key)
 
         def eval(analyzed_targets: Set[str], labeled_funcs: Set[str]):
             TPs: Set[str] = analyzed_targets & labeled_funcs
@@ -589,6 +599,10 @@ class ProjectAnalyzer:
             flta_funcs: Set[str] = type_matched_callsites.get(callsite_key, set())
             if len(flta_funcs) == 0:
                 failed_type_cases.append(callsite_key)
+                if callsite_key in base_analyzer.macro_callsites:
+                    macro_cases.append(callsite_key)
+                if callsite_key in base_analyzer.local_failed_callsites:
+                    local_failed_cases.append(callsite_key)
                 continue
 
             flta_prec, flta_recall, flta_f1 = eval(flta_funcs, labeled_funcs)
@@ -612,4 +626,5 @@ class ProjectAnalyzer:
             
         return (semantic_res_prec, semantic_res_recall, semantic_res_f1,
                 flta_res_prec, flta_res_recall, flta_res_f1, failed_type_cases, success_type_cases,
-                label_nums, flta_nums, seman_nums)
+                macro_cases, label_nums, flta_nums, seman_nums, local_failed_cases, base_analyzer.analyzed_callsites,
+                global_failed_cases)
