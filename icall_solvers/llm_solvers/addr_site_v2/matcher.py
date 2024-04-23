@@ -88,7 +88,8 @@ class AddrSiteMatcherV2(BaseLLMSolver):
             if hasattr(self, "kelp_cases") and callsite_key in self.kelp_cases:
                 self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, set())
                 return True
-            if self.args.disable_semantic_for_mlta and hasattr(self, "mlta_cases") \
+            # 如果没有开启mlta用llm分析并且这是个mlta callsite
+            if not self.args.enable_semantic_for_mlta and hasattr(self, "mlta_cases") \
                     and callsite_key in self.mlta_cases:
                 self.matched_callsites[callsite_key] = self.type_matched_callsites.get(callsite_key, set())
                 return True

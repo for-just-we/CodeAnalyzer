@@ -9,6 +9,8 @@ def build_parser():
                                                               'addr_site_v1_analysis',
                                                               'addr_site_v2_analysis',
                                                               'multi_step_analysis'])
+    parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'])
+    parser.add_argument("--enable_semantic_for_mlta", action="store_true", default=False)
     parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
     parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder', 'qwen', 'chatglm',
@@ -26,9 +28,12 @@ def build_parser():
     return parser
 
 
-def analyze(running_epoch, analysis_type, model_type, temperature, project):
+def analyze(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project):
+    info = base_analyzer
+    if enable_semantic_for_mlta:
+        info += "_seman"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
-                f'{model_type}-{temperature}/{project}/evaluation_result.txt'
+                f'{model_type}-{temperature}/{project}/evaluation_result_{info}.txt'
     # assert os.path.exists(file_path)
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))
@@ -41,9 +46,12 @@ def analyze(running_epoch, analysis_type, model_type, temperature, project):
     f1 = float(f1_str) / 100
     return prec, recall, f1
 
-def analyze_token(running_epoch, analysis_type, model_type, temperature, project):
+def analyze_token(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project):
+    info = base_analyzer
+    if enable_semantic_for_mlta:
+        info += "_seman"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
-                f'{model_type}-{temperature}/{project}/evaluation_result.txt'
+                f'{model_type}-{temperature}/{project}/evaluation_result_{info}.txt'
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))
         return 0, 0, 0
@@ -53,9 +61,12 @@ def analyze_token(running_epoch, analysis_type, model_type, temperature, project
     return float(input_token_num_str), float(output_token_num_str)
 
 
-def analyze_binary(running_epoch, analysis_type, model_type, temperature, project):
+def analyze_binary(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project):
+    info = base_analyzer
+    if enable_semantic_for_mlta:
+        info += "_seman"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
-                f'{model_type}-{temperature}/{project}/evaluation_result.txt'
+                f'{model_type}-{temperature}/{project}/evaluation_result_{info}.txt'
     # assert os.path.exists(file_path)
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))
@@ -74,7 +85,7 @@ def analyze_binary(running_epoch, analysis_type, model_type, temperature, projec
     return acc, prec, recall, f1, fpr, fnr
 
 
-def analyze_all_project_binary(running_epoch, analysis_type, model_type, temperature, projects):
+def analyze_all_project_binary(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, projects):
     acc_list = []
     prec_list = []
     recall_list = []
@@ -84,7 +95,7 @@ def analyze_all_project_binary(running_epoch, analysis_type, model_type, tempera
 
     for project in projects:
         acc, prec, recall, f1, fpr, fnr = \
-            analyze_binary(running_epoch, analysis_type, model_type, temperature, project)
+            analyze_binary(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project)
         acc_list.append(acc)
         prec_list.append(prec)
         recall_list.append(recall)
@@ -107,12 +118,12 @@ def analyze_all_project_binary(running_epoch, analysis_type, model_type, tempera
     return avg_prec, avg_recall, avg_f1
 
 
-def analyze_all_project(running_epoch, analysis_type, model_type, temperature, projects):
+def analyze_all_project(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, projects):
     prec_list = []
     recall_list = []
     f1_list = []
     for project in projects:
-        prec, recall, f1 = analyze(running_epoch, analysis_type, model_type, temperature, project)
+        prec, recall, f1 = analyze(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project)
         prec_list.append(prec)
         recall_list.append(recall)
         f1_list.append(f1)
@@ -127,11 +138,11 @@ def analyze_all_project(running_epoch, analysis_type, model_type, temperature, p
     return avg_prec, avg_recall, avg_f1
 
 
-def analyze_all_project_token(running_epoch, analysis_type, model_type, temperature, projects):
+def analyze_all_project_token(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, projects):
     input_token_total_num = 0
     output_token_total_num = 0
     for project in projects:
-        input_token_num, output_token_num = analyze_token(running_epoch, analysis_type,
+        input_token_num, output_token_num = analyze_token(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type,
                                                               model_type, temperature, project)
         input_token_total_num += input_token_num
         output_token_total_num += output_token_num
@@ -151,13 +162,15 @@ def main():
     model_type = args.model_type
     temperature = args.temperature
     projects = args.projects
+    base_analyzer = args.base_analyzer
+    enable_semantic_for_mlta = args.enable_semantic_for_mlta
 
     if args.res_type == 'binary':
-        analyze_all_project_binary(running_epoch, analysis_type, model_type, temperature, projects)
+        analyze_all_project_binary(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, projects)
     elif args.res_type == 'normal':
-        analyze_all_project(running_epoch, analysis_type, model_type, temperature, projects)
+        analyze_all_project(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, projects)
     elif args.res_type == 'token':
-        analyze_all_project_token(running_epoch, analysis_type, model_type, temperature, projects)
+        analyze_all_project_token(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, projects)
 
 
 

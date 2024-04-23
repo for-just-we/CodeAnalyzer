@@ -93,7 +93,7 @@ def build_arg_parser():
     parser.add_argument("--disable_analysis_for_normal", action="store_true", default=False,
                         help="disable analysis for normal callsite")
 
-    parser.add_argument("--disable_semantic_for_mlta", action="store_true", default=False)
+    parser.add_argument("--enable_semantic_for_mlta", action="store_true", default=False)
     parser.add_argument("--disable_llm_for_uncertain", action="store_true", default=False)
     parser.add_argument("--evaluate_uncertain", action="store_true", default=False,
                         help="enable cast between void* or char* with other pointer type")

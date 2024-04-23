@@ -485,7 +485,10 @@ class ProjectAnalyzer:
         if self.args.log_res_to_file and hasattr(base_analyzer, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
             assert hasattr(base_analyzer, "log_dir")
-            with open(f"{base_analyzer.log_dir}/evaluation_result.txt", "w", encoding='utf-8') as f:
+            info = self.args.base_analyzer
+            if self.args.enable_semantic_for_mlta:
+                info += "_seman"
+            with open(f"{base_analyzer.log_dir}/evaluation_result_{info}.txt", "w", encoding='utf-8') as f:
                 f.write(line + "\n" + line1)
                 logging.getLogger("CodeAnalyzer").info("writing success")
 
@@ -532,7 +535,10 @@ class ProjectAnalyzer:
 
         if self.args.log_res_to_file and hasattr(llm_solver, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
-            with open(f"{llm_solver.log_dir}/evaluation_result.txt", "w", encoding='utf-8') as f:
+            info = self.args.base_analyzer
+            if self.args.enable_semantic_for_mlta:
+                info += "_seman"
+            with open(f"{llm_solver.log_dir}/evaluation_result_{info}.txt", "w", encoding='utf-8') as f:
                 f.write(line)
                 logging.getLogger("CodeAnalyzer").info("writing success")
 
