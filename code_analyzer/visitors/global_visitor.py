@@ -134,7 +134,7 @@ class GlobalVisitor(ASTVisitor):
         for dst_declarator in dst_declarators:
             try:
                 # 寻找类型名
-                suffix, _, declarator = process_declarator(dst_declarator, False)
+                suffix, _, declarator, _ = process_declarator(dst_declarator, False)
             except DeclareTypeException as e:
                 logging.getLogger("CodeAnalyzer").debug("traversing node: ", node.node_text,
                     " location: ", node.start_point, " error")
@@ -156,7 +156,9 @@ class GlobalVisitor(ASTVisitor):
                 assert declarator.node_type == "type_identifier"
                 src_type = declarator.node_text
                 cur_dst_type: str = dst_type if suffix == "" else dst_type + " " + suffix
-            if src_type != cur_dst_type:
+            # modification, when detect error in type definition, do not analyze
+            if src_type != cur_dst_type and not hasattr(node, "ERROR") \
+                    and dst_type_node.node_type != "macro_type_specifier":
                 self.type_alias_infos[src_type] = cur_dst_type
         return False
 

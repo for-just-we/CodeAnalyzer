@@ -69,6 +69,11 @@ class DeclaratorExtractor(ASTVisitor):
         self.suffix: str = ""
         # 为True表示寻找变量名identifier、为False表示寻找类型名type_identifier
         self.find_var_name: bool = find_var_name
+        self.detected_error_node: bool = False
+
+    def visit_ERROR(self, node: ASTNode):
+        self.detected_error_node = True
+        return False
 
     def visit_pointer_declarator(self, node: ASTNode):
         self.suffix += "*"
@@ -126,6 +131,10 @@ class CastTypeDescriptorVisitor(ASTVisitor):
         self.pointer_level: int = 0
 
     def visit_type_identifier(self, node: ASTNode):
+        self.type_name = node.node_text
+        return False
+
+    def visit_primitive_type(self, node: ASTNode):
         self.type_name = node.node_text
         return False
 

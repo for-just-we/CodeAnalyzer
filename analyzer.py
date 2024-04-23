@@ -425,7 +425,6 @@ class ProjectAnalyzer:
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
-
             return line
 
 
@@ -455,7 +454,7 @@ class ProjectAnalyzer:
             line1 = analyze_binary(total_extra_callees, self.ground_truths,
                            dict(), "TotalExtra-no")
 
-        if self.args.evaeluate_soly_for_llm:
+        if self.args.evaluate_soly_for_llm:
             line = evaluate_icall_target(base_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
             line1 = analyze_binary(base_analyzer.uncertain_callees, self.ground_truths,
@@ -592,6 +591,8 @@ class ProjectAnalyzer:
 
         for callsite_key, labeled_funcs in tqdm(self.ground_truths.items(),
                                                 desc="evaluating for pure flta cases"):
+            if callsite_key in base_analyzer.macro_callsites:
+                macro_cases.append(callsite_key)
             # 不是flta cases
             if not callsite_key in base_analyzer.flta_cases:
                 continue
@@ -599,8 +600,6 @@ class ProjectAnalyzer:
             flta_funcs: Set[str] = type_matched_callsites.get(callsite_key, set())
             if len(flta_funcs) == 0:
                 failed_type_cases.append(callsite_key)
-                if callsite_key in base_analyzer.macro_callsites:
-                    macro_cases.append(callsite_key)
                 if callsite_key in base_analyzer.local_failed_callsites:
                     local_failed_cases.append(callsite_key)
                 continue

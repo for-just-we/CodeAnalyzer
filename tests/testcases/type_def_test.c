@@ -2,6 +2,15 @@
 size_t const a;
 static const size_t b;
 
+typedef HRESULT (WINAPI*D2D1CreateFactoryFunc)(
+    D2D1_FACTORY_TYPE factoryType,
+    REFIID iid,
+    CONST D2D1_FACTORY_OPTIONS *pFactoryOptions,
+    void **factory
+);
+
+typedef H5PL_type_t(__cdecl *H5PL_get_plugin_type_t)(void);
+
 typedef ngx_int_t (*ngx_shm_zone_init_pt) (ngx_shm_zone_t *zone, void *data);
 
 typedef size_t ZSTD_sequenceProducer_F (

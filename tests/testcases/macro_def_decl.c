@@ -9,3 +9,5 @@
 #else
 # define cpy_default	sudo_strlcpy
 #endif
+
+#define H5FD_SEC2       (H5FDperform_init(H5FD_sec2_init))

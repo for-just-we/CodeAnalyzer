@@ -1,149 +1,31 @@
-lib/dns/dst_api.c:2327:9
-lib/dns/dst_api.c:747:10
-lib/dns/dst_api.c:302:12
-lib/dns/dst_api.c:339:10
-lib/dns/dst_api.c:378:10
-lib/dns/dst_api.c:325:2
-src/cairo.c:458:12
-src/cairo.c:629:14
-src/cairo.c:893:14
-src/cairo.c:1172:14
-src/cairo.c:1242:14
-src/cairo.c:1272:14
-src/cairo.c:1413:14
-src/cairo.c:652:14
-src/cairo.c:528:5
-src/cairo-surface.c:1042:11
-src/cairo-surface.c:2576:12
-src/cairo.c:2965:14
-src/cairo-surface.c:3054:14
-src/cairo.c:2992:14
-src/cairo-paginated-surface.c:562:26
-src/cairo-paginated-surface.c:415:14
-src/cairo-recording-surface.c:2115:15
-src/cairo-analysis-surface.c:897:6
-src/cairo-analysis-surface.c:867:6
-src/cairo-paginated-surface.c:451:11
-src/cairo-paginated-surface.c:478:14
-src/cairo-surface.c:2534:40
-src/cairo-surface.c:2053:14
-src/cairo-surface.c:2094:2
-src/cairo.c:3365:12
-src/cairo-surface.c:1622:6
-src/cairo.c:1021:14
-src/cairo.c:2230:14
-src/ddsrt/src/avl.c:33:16
-src/core/cdr/src/dds_cdrstream.c:4988:19
-src/ddsrt/src/hopscotch.c:187:25
-src/ddsrt/src/hopscotch.c:89:19
-src/ddsrt/src/hopscotch.c:141:27
-src/ddsrt/src/hopscotch.c:221:25
-src/ddsrt/src/hopscotch.c:231:19
-src/core/ddsi/include/dds/ddsi/ddsi_sertype.h:218:3
-src/ddsrt/src/hopscotch.c:417:27
-src/core/cdr/src/dds_cdrstream.c:1511:18
-src/core/cdr/src/dds_cdrstream.c:1496:18
-src/core/cdr/src/dds_cdrstream.c:1810:26
-src/core/cdr/src/dds_cdrstream.c:185:18
-src/core/cdr/src/dds_cdrstream.c:240:5
-src/core/cdr/src/dds_cdrstream.c:3458:7
-src/core/cdr/src/dds_cdrstream.c:3283:5
-src/core/cdr/src/dds_cdrstream.c:1010:9
-src/core/cdr/src/dds_cdrstream.c:3414:7
-src/core/cdr/src/dds_cdrstream.c:1570:7
-src/lib/ioloop.c:693:3
-src/lib/ioloop.c:737:2
-src/lib/ostream-file.c:540:9
-src/lib/iostream-pump.c:72:4
-src/lib-smtp/smtp-server-command.c:348:3
-src/lib-smtp/smtp-server-command.c:349:3
-src/lib-smtp/smtp-server-command.c:350:3
-src/lib-smtp/smtp-server-reply.c:675:2
-src/lib-smtp/smtp-server-reply.c:678:3
-src/lib-smtp/smtp-server-reply.c:680:3
-plugins/ccgx/fu-ccgx-firmware.c:509:2
-plugins/pixart-rf/fu-pxi-firmware.c:275:2
-libfwupdplugin/fu-intel-thunderbolt-firmware.c:73:9
-libfwupdplugin/fu-intel-thunderbolt-firmware.c:98:6
-plugins/redfish/fu-redfish-smbios.c:385:2
-plugins/cros-ec/fu-cros-ec-firmware.c:188:2
-libfwupdplugin/fu-fmap-firmware.c:111:8
-libfwupdplugin/fu-fit-firmware.c:304:7
-plugins/genesys/fu-genesys-usbhub-firmware.c:514:2
-plugins/ccgx-dmc/fu-ccgx-dmc-firmware.c:462:2
-plugins/synaptics-rmi/fu-synaptics-rmi-firmware.c:660:2
-plugins/acpi-phat/fu-acpi-phat.c:328:2
-plugins/acpi-phat/fu-acpi-phat-version-element.c:125:2
-plugins/acpi-phat/fu-acpi-phat-health-record.c:189:2
-gdk-pixbuf/gdk-pixbuf-io.c:785:17
-gdk-pixbuf/gdk-pixbuf-io.c:788:25
-src/H5FDperform.c:55:17
-src/H5T.c:4990:18
-src/H5Eint.c:907:24
-src/core/vector_ptr.c:145:17
-src/lib/gssapi/mechglue/g_mechattr.c:191:14
-src/lib/gssapi/mechglue/g_accept_sec_context.c:249:15
-src/lib/krb5/keytab/ktfns.c:86:12
-src/lib/krb5/keytab/ktfns.c:47:12
-src/util/support/errors.c:85:9
-src/lib/gssapi/mechglue/g_acquire_cred.c:493:11
-rdppm.c:841:7
-jcmainct.c:93:7
-jcprepct.c:153:5
-jcprepct.c:171:7
-jcmainct.c:105:10
-jccoefct.c:284:7
-jccoefct.c:177:13
-jdmainct.c:304:10
-jdmainct.c:317:3
-jdsample.c:79:7
-jdsample.c:100:3
-jcapimin.c:199:14
-rdbmp.c:619:7
-turbojpeg.c:2171:5
-turbojpeg.c:1329:5
-turbojpeg.c:1331:5
-src/file_io.c:221:10
-src/file_io.c:349:10
-src/file_io.c:433:10
-src/packet.c:1518:14
-src/lxc/confile.c:3225:10
-src/md4c-html.c:76:5
-src/core/ngx_conf_file.c:304:18
-src/st.c:468:15
-pjlib/include/pj/pool_i.h:85:12
-pjlib/include/pj/pool_i.h:102:9
-pjlib/src/pj/os_core_unix.c:701:27
-src/rtpp_module_if.c:454:21
-libsepol/src/hashtab.c:117:16
-libsepol/src/hashtab.c:187:24
-libsepol/src/hashtab.c:190:22
-libsepol/src/hashtab.c:122:14
-libsepol/src/hashtab.c:156:24
-libsepol/src/hashtab.c:161:22
-libsepol/src/hashtab.c:89:19
-plugins/sudoers/pwutil.c:307:12
-plugins/sudoers/pwutil.c:1030:12
-lib/util/fatal.c:335:2
-lib/util/fatal.c:341:2
-lib/util/fatal.c:190:2
-lib/util/fatal.c:251:2
-plugins/sudoers/pwutil.c:1088:14
-plugins/sudoers/strvec_join.c:60:6
-lib/util/lbuf.c:455:2
-plugins/sudoers/pwutil.c:891:12
-lib/util/digest.c:169:5
-src/modules/entry.c:492:9
-src/misc/messages.c:370:19
-src/input/demux.c:111:15
-src/misc/objres.c:92:9
-include/vlc_es_out.h:182:5
-src/input/demux.c:213:16
-src/modules/modules.c:305:9
-src/modules/modules.c:275:11
-src/misc/objres.c:115:13
-src/misc/objres.c:118:13
-include/vlc_es_out.h:150:12
-include/vlc_es_out.h:166:12
-include/vlc_es_out.h:161:12
-include/vlc_es_out.h:155:5
+src/packet.c:1518:14, target function declarator为宏展开，匹配失误
+src/lxc/confile.c:3225:10, target为宏展开
+src/md4c-html.c:76:5, target在scope外
+src/core/ngx_conf_file.c:304:18, target在scope外
+src/st.c:468:15, unsigned long和char*, void*类型的类型转换
+pjlib/include/pj/pool_i.h:85:12, target在scope外
+pjlib/include/pj/pool_i.h:102:9, target在scope外
+pjlib/src/pj/os_core_unix.c:701:27, target在scope外
+src/rtpp_module_if.c:454:21, target在scope外
+plugins/sudoers/pwutil.c:307:12, target function declarator为宏，在address-taken时miss掉了
+plugins/sudoers/pwutil.c:1030:12, target function declarator为宏，在address-taken时miss掉了
+lib/util/fatal.c:335:2, target在scope外
+lib/util/fatal.c:341:2, target在scope外
+lib/util/fatal.c:190:2, target在scope外
+lib/util/fatal.c:251:2, target在scope外
+plugins/sudoers/pwutil.c:1088:14, target function declarator为宏，在address-taken时miss掉了
+plugins/sudoers/strvec_join.c:60:6, target在scope外
+lib/util/lbuf.c:455:2, target在scope外
+plugins/sudoers/pwutil.c:891:12, target function declarator为宏，在address-taken时miss掉了
+lib/util/digest.c:169:5, target function的address-taken site被宏替代
+src/modules/entry.c:492:9, target在scope外
+src/misc/messages.c:370:19, target在scope外
+src/input/demux.c:111:15, target在scope外
+include/vlc_es_out.h:182:5, target在scope外
+src/input/demux.c:213:16, target在scope外
+src/modules/modules.c:305:9, target在scope外
+src/modules/modules.c:275:11, target在scope外
+include/vlc_es_out.h:150:12, target在scope外
+include/vlc_es_out.h:166:12, target在scope外
+include/vlc_es_out.h:161:12, target在scope外
+include/vlc_es_out.h:155:5, target在scope外

@@ -18,13 +18,19 @@ summarizing_prompt_4_model = {
     "Qwen1.5-14B-Chat": qwen_1_5_template,
     "Qwen1.5-32B-Chat": qwen_1_5_template,
     "Qwen1.5-72B-Chat": qwen_1_5_template,
-    "Yi-34B": qwen_1_5_template
+    "CodeQwen1.5-7B-Chat": qwen_1_5_template,
+    "Yi-34B": qwen_1_5_template,
+    "llama3-70b-instruct": qwen_1_5_template,
+    "llama3-8b-instruct": qwen_1_5_template
 }
 
 summarizing_prompt_4_model_type = {
     "Qwen1.5-14B-Chat": qwen_1_5_template_type,
     "Qwen1.5-32B-Chat": qwen_1_5_template_type,
-    "Qwen1.5-72B-Chat": qwen_1_5_template_type
+    "Qwen1.5-72B-Chat": qwen_1_5_template_type,
+    "CodeQwen1.5-7B-Chat": qwen_1_5_template_type,
+    "llama3-70b-instruct": qwen_1_5_template_type,
+    "llama3-8b-instruct": qwen_1_5_template_type
 }
 
 # WizardCoder prompt参考 https://github.com/nlpxucan/WizardLM#hiring

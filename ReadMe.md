@@ -60,3 +60,11 @@ symbol类型包括：
 - vllm单gpu部署时效率感觉很高，但是多gpu部署时容易出现[同步错误](https://github.com/vllm-project/vllm/issues/3839)，这个错误貌似到0.4.0还没解决。
 
 这里建议大家通过vllm或者sglang部署，如果用vllm，用 `openai_local` 调用本地模型时可以不传入 `max_tokens` 参数，但是sglang得传入，可以传个大点的比如 `3072`。
+
+chat模板加载方式：
+
+- sglang的chat_template加载方式为硬编码在py文件中，参考[chat_template.py](https://github.com/sgl-project/sglang/blob/1bf1cf195302fdff14a4321eb8a17831f5c2fc11/python/sglang/lang/chat_template.py#L79)，sglang会在把modelpath lower后比对qwen等关键词查找对应模板。
+
+- vllm的模板加载相对灵活，会去model的tokenizer文件中找chat template，比如qwen1.5-14B-Chat的[tokenizer_config.json](https://modelscope.cn/models/qwen/Qwen1.5-14B-Chat/file/view/master?fileName=tokenizer_config.json&status=1)中有 `chat_template` 字段定义了该模型的chat template。
+
+- swift的模型-模板对应表参考[model.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/model.py#L38)，定义的全部模版参考[template.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/template.py#L23)，同义硬编码。不过相比sglang，硬编码的是真多，需要在参数用 `template_type` 手动指定使用的模板

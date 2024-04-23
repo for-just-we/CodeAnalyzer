@@ -9,13 +9,14 @@ class DeclareTypeException(Exception):
     pass
 
 # 在形参定义中以及类型定义中用到，因此&是引用不是取地址运算
-def process_declarator(declarator: ASTNode, find_var_name: bool=True) -> Tuple[str, str, ASTNode]:
+def process_declarator(declarator: ASTNode, find_var_name: bool=True) -> Tuple[str, str, ASTNode, bool]:
     from code_analyzer.visitors.util_visitor import DeclaratorExtractor
     extractor = DeclaratorExtractor(find_var_name)
     extractor.traverse_node(declarator)
+    error_flag = extractor.detected_error_node
     if extractor.key_node is None:
         raise DeclareTypeException("Exception happen when processing declarator: {}".format(declarator.node_text))
-    return extractor.suffix, extractor.key_node.node_text, extractor.key_node
+    return extractor.suffix, extractor.key_node.node_text, extractor.key_node, error_flag
 
 
 # 处理一个declaration语句定义了多个变量的情况

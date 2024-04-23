@@ -19,8 +19,11 @@ class FunctionDeclaratorVisitor(ASTVisitor):
         self.func_body: ASTNode = func_body
         self.raw_declarator_text: str = raw_declarator_text
         self.raw_return_type = raw_return_type
+        # 是否找到function declarator
+        self.find_func_declarator = False
 
     def visit_function_declarator(self, node: ASTNode):
+        self.find_func_declarator = True
         if hasattr(node, "identifier"):
             func_name: str = node.identifier.node_text
         elif hasattr(node, "qualified_identifier"):
@@ -33,6 +36,7 @@ class FunctionDeclaratorVisitor(ASTVisitor):
                 return False
         else:
             logging.getLogger("CodeAnalyzer").debug("parsing error in function: {}, {}".format(node.start_point, node.end_point))
+            self.find_func_declarator = False
             return False
         pointer_level: int = get_pointer_level_for_return_type(node)
         # assert node.children[1].type == "parameter_list"
@@ -105,6 +109,15 @@ class FunctionDefVisitor(ASTVisitor):
         declarator_visitor = FunctionDeclaratorVisitor(self, func_body, raw_declarator_text, prim_type)
         declarator_visitor.traverse_node(node)
 
+        if not declarator_visitor.find_func_declarator:
+            func_key: str = self.current_file + "<" + str(node.start_point[0] + 1)
+            # 创建一个error function，函数名为Error!!
+            func_info: FuncInfo = FuncInfo([], dict(), [],
+                                           False, raw_declarator_text,
+                                           func_body, self.current_file, "Error!!",
+                                           (TypeEnum.UnknownType.value, 0))
+            self.func_info_dict[func_key] = func_info
+
         return False
 
 # 遍历参数列表
@@ -131,7 +144,7 @@ class ParameterListVisitor(ASTVisitor):
     def process_declarator(self, declarator: ASTNode) -> Tuple[str, str, ASTNode]:
         try:
             # 寻找变量名
-            suffix, declarator_text, declarator_node = process_declarator(declarator, True)
+            suffix, declarator_text, declarator_node, _ = process_declarator(declarator, True)
         except DeclareTypeException as e:
             raise DeclareTypeException("The type under parameter declarator should not beyond"
                                        " reference, array, pointer")
@@ -139,6 +152,11 @@ class ParameterListVisitor(ASTVisitor):
 
     # 没有默认参数
     def visit_parameter_declaration(self, node: ASTNode):
+        # 如果parameter_declaration包含ERROR node，保守策略，用uncertain处理
+        if hasattr(node, "ERROR"):
+            self.parameter_types.append((TypeEnum.UnknownType.value, "unknown_var"))
+            self.declarator_texts.append(node.node_text)
+            return False
         # 如果参数类型是va_list，表示支持可变参数
         if node.children[0].node_text == "va_list":
             self.var_arg = True
@@ -157,7 +175,11 @@ class ParameterListVisitor(ASTVisitor):
 
         try:
             # 寻找变量名
-            suffix, param_name, cur_node = process_declarator(declarator, True)
+            suffix, param_name, cur_node, error_flag = process_declarator(declarator, True)
+            if error_flag:
+                self.parameter_types.append((TypeEnum.UnknownType.value, "unknown_var"))
+                self.declarator_texts.append(node.node_text)
+                return False
             if cur_node.node_type == "function_declarator":
                 param_type: str = TypeEnum.FunctionType.value
                 param_name = get_func_pointer_name(cur_node, node)
@@ -190,7 +212,7 @@ class ParameterListVisitor(ASTVisitor):
         declarator: ASTNode = node.children[1]
         try:
             # 寻找变量名
-            suffix, param_name, _ = process_declarator(declarator, True)
+            suffix, param_name, _, _ = process_declarator(declarator, True)
             param_type: str = base_type if suffix == "" else base_type + " " + suffix
             self.parameter_types.append((param_type, param_name))
         except DeclareTypeException as e:

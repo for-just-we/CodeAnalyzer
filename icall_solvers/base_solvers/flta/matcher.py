@@ -31,6 +31,8 @@ base_pointer_type = {"void", "char"}
 idx_text_gen = {1: '2nd', 2: '3rd'}
 idx_2_text = lambda idx: idx_text_gen.get(idx, f'{idx + 1}th')
 
+integer_types = {"unsigned int", "unsigned", "size_t"}
+
 class TypeAnalyzer(BaseStaticMatcher):
     def __init__(self, collector: BaseInfoCollector,
                  args,
@@ -363,6 +365,9 @@ class TypeAnalyzer(BaseStaticMatcher):
         # 如果严格类型匹配成功
         if arg_type[0] == param_type[0] and arg_type[1] == param_type[1]:
             return MatchingResult.YES
+        # 整数类型严格匹配
+        elif arg_type[0] in integer_types and param_type[0] in integer_types and arg_type[1] == param_type[1]:
+            return MatchingResult.YES
 
         # 考虑结构体、联合体之间的的指针类型转换关系
         # 如果都不是指针类型，不予考虑
@@ -592,7 +597,6 @@ class TypeAnalyzer(BaseStaticMatcher):
                             # 纯靠类型匹配
                             if matching_epoch == 0:
                                 self.strict_type_match_res[callsite_key].add(func_key)
-
 
                     # 如果uncertain
                     elif res == MatchingResult.UNCERTAIN:
