@@ -14,9 +14,17 @@ openai_error_messages = {
     AuthenticationError: "Authentication error with OpenAI API: {}",
 }
 
+model_name_map: Dict[str, Dict[str, str]] = {
+    "swift": {
+        "Qwen1.5-72B-Chat": "qwen1half-72b-chat",
+        "Qwen1.5-32B-Chat": "qwen1half-32b-chat",
+        "Qwen1.5-14B-Chat": "qwen1half-14b-chat"
+    }
+}
+
 class OpenAIAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, address: str, temperature: float = 0,
-                 max_tokens: int = 0):
+                 max_tokens: int = 0, server_type = "other"):
         super().__init__(model_type)
         # 必须有一个有效，如果访问远程openai服务器那么api-key不为空，如果访问本地模型那么base_url不为空
         assert not (api_key == "" and address == "")
@@ -26,6 +34,9 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
         # 只是用来记录输入和输出的token数
         self.input_token_num: int = 0
         self.output_token_num: int = 0
+
+        self.request_model_name = model_name_map.get(server_type,
+                                                     dict()).get(model_type, model_type)
 
         # 远程访问openai模型
         if api_key != "":
@@ -47,7 +58,7 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
         """
         try:
             params = {
-                "model": self.model_type,
+                "model": self.request_model_name,
                 "messages": dialog,
                 "temperature": self.temperature
             }

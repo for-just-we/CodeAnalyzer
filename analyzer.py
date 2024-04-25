@@ -307,8 +307,9 @@ class ProjectAnalyzer:
 
         elif self.args.llm == "openai_local":
             from llm_utils.openai_analyzer import OpenAIAnalyzer
+            server_type = self.args.server_type
             llm_analyzer = OpenAIAnalyzer(self.model_name, "", self.args.address,
-                                          self.args.temperature, self.args.max_tokens)
+                                          self.args.temperature, self.args.max_tokens, server_type)
 
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project, self.callsite_idxs)

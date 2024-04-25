@@ -48,6 +48,8 @@ def add_subparser(parser: argparse.ArgumentParser):
                                                       'llama3-70b-instruct',
                                                       'llama3-8b-instruct'],
                              help='specify model name used.')
+    openai_local_parser.add_argument("--server_type", help="deployment framework, "
+            "due to swift's model name is different, we need a map", default="other", choices=["other", "swift"])
     openai_local_parser.add_argument('--max_tokens', type=int, default=0)
 
 def build_arg_parser():
