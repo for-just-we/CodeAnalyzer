@@ -9,7 +9,7 @@ def build_parser():
                                                               'addr_site_v1_analysis',
                                                               'addr_site_v2_analysis',
                                                               'multi_step_analysis'])
-    parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'])
+    parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp', 'none'])
     parser.add_argument("--enable_semantic_for_mlta", action="store_true", default=False)
     parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
@@ -29,11 +29,14 @@ def build_parser():
 
 
 def analyze(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project):
-    info = base_analyzer
-    if enable_semantic_for_mlta:
-        info += "_seman"
+    filename = "evaluation_result.txt"
+    if base_analyzer != "none":
+        info = base_analyzer
+        if enable_semantic_for_mlta:
+            info += "_seman"
+        filename = f"evaluation_result_{info}.txt"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
-                f'{model_type}-{temperature}/{project}/evaluation_result_{info}.txt'
+                f'{model_type}-{temperature}/{project}/{filename}'
     # assert os.path.exists(file_path)
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))
@@ -47,11 +50,14 @@ def analyze(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_typ
     return prec, recall, f1
 
 def analyze_token(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project):
-    info = base_analyzer
-    if enable_semantic_for_mlta:
-        info += "_seman"
+    filename = "evaluation_result.txt"
+    if base_analyzer != "none":
+        info = base_analyzer
+        if enable_semantic_for_mlta:
+            info += "_seman"
+        filename = f"evaluation_result_{info}.txt"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
-                f'{model_type}-{temperature}/{project}/evaluation_result_{info}.txt'
+                f'{model_type}-{temperature}/{project}/{filename}'
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))
         return 0, 0, 0
@@ -62,11 +68,14 @@ def analyze_token(base_analyzer, enable_semantic_for_mlta, running_epoch, analys
 
 
 def analyze_binary(base_analyzer, enable_semantic_for_mlta, running_epoch, analysis_type, model_type, temperature, project):
-    info = base_analyzer
-    if enable_semantic_for_mlta:
-        info += "_seman"
+    filename = "evaluation_result.txt"
+    if base_analyzer != "none":
+        info = base_analyzer
+        if enable_semantic_for_mlta:
+            info += "_seman"
+        filename = f"evaluation_result_{info}.txt"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
-                f'{model_type}-{temperature}/{project}/evaluation_result_{info}.txt'
+                f'{model_type}-{temperature}/{project}/{filename}'
     # assert os.path.exists(file_path)
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))

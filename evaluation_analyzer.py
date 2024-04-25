@@ -102,7 +102,7 @@ def build_arg_parser():
                         help="If true, will log analysis result to file.")
 
     # 投票次数
-    parser.add_argument("--vote_time", type=int, default=1, help="Vote time for llm.")
+    parser.add_argument("--vote_time", type=int, default=5, help="Vote time for llm.")
     # 评估GPT在传统类型分析无法确定的部分的分析效果
     parser.add_argument("--evaluate_soly_for_llm", action="store_true", default=False,
                         help="If true, the tool will analyze How gpt perform when type analysis cannot determine.")
