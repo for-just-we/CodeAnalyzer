@@ -158,6 +158,10 @@ def main():
     global_failed_cases: List[str] = []
     analyzed_cases: Set[str] = set()
 
+    precisions: List[float] = []
+    recalls: List[float] = []
+    f1s: List[float] = []
+
     # 打印项目参数的值
     for project in projects:
         logging.getLogger("CodeAnalyzer").info(f"analyzing project: {project}")
@@ -166,7 +170,11 @@ def main():
         project_root = os.path.join(root_path, "projects", project)
         project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args,
                                            project, model_name)
-        items = project_analyzer.evaluate()
+        items, results = project_analyzer.evaluate()
+
+        precisions.append(results[0])
+        recalls.append(results[1])
+        f1s.append(results[2])
 
         semantic_res_prec.extend(items[0])
         semantic_res_recall.extend(items[1])
@@ -187,7 +195,8 @@ def main():
                 global_failed_cases.append(case)
 
     mean = lambda res: sum(res) * 100 / len(res)
-
+    print("total mean result: {:.1f} | {:.1f} | {:.1f} |".format(mean(precisions),
+                                                                 mean(recalls), mean(f1s)))
 
     if len(semantic_res_prec) != 0:
         print("successfully analyze {} icalls with flta".format(len(semantic_res_prec)))

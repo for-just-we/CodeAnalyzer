@@ -389,13 +389,13 @@ class ProjectAnalyzer:
         base_analyzer, llm_solver = self.analyze_c_files_sig_match()
         # 只进行类型分析
         if self.args.llm_strategy == "none":
-            self.evaluate_base_analysis(base_analyzer)
+            P, R, F1 = self.evaluate_base_analysis(base_analyzer)
         # 进行语义匹配
         else:
-            self.evaluate_semantic_analysis(llm_solver)
+            P, R, F1 = self.evaluate_semantic_analysis(llm_solver)
 
         items = self.evaluate_(llm_solver, base_analyzer)
-        return items
+        return items, (P, R, F1)
 
     def evaluate_base_analysis(self, base_analyzer: BaseStaticMatcher):
         logging.getLogger("CodeAnalyzer").info("result of project, Precision, Recall, F1 is:")
@@ -426,7 +426,7 @@ class ProjectAnalyzer:
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(P * 100):.1f} | {(R * 100):.1f} | {(F1 * 100):.1f} |")
             line = f"{self.project}-{info},{(P * 100):.1f},{(R * 100):.1f},{(F1 * 100):.1f}"
-            return line
+            return P, R, F1
 
 
         def analyze_binary(all_potential_targets: Dict[str, Set[str]],
@@ -449,14 +449,14 @@ class ProjectAnalyzer:
 
         if self.args.evaluate_uncertain:
             total_extra_callees = base_analyzer.uncertain_callees
-            evaluate_icall_target(total_extra_callees, "TotalExtra")
+            P, R, F1 = evaluate_icall_target(total_extra_callees, "TotalExtra")
             line = analyze_binary(total_extra_callees, self.ground_truths,
                            total_extra_callees, "TotalExtra-yes")
             line1 = analyze_binary(total_extra_callees, self.ground_truths,
                            dict(), "TotalExtra-no")
 
         if self.args.evaluate_soly_for_llm:
-            line = evaluate_icall_target(base_analyzer.llm_declarator_analysis,
+            P, R, F1 = evaluate_icall_target(base_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
             line1 = analyze_binary(base_analyzer.uncertain_callees, self.ground_truths,
                            base_analyzer.llm_declarator_analysis,
@@ -493,6 +493,7 @@ class ProjectAnalyzer:
                 f.write(line + "\n" + line1)
                 logging.getLogger("CodeAnalyzer").info("writing success")
 
+        return P, R, F1
 
     def evaluate_semantic_analysis(self, llm_solver: BaseLLMSolver):
         icall_2_targets: Dict[str, Set[str]] = llm_solver.matched_callsites.copy()
@@ -543,6 +544,7 @@ class ProjectAnalyzer:
                 f.write(line)
                 logging.getLogger("CodeAnalyzer").info("writing success")
 
+        return P, R, F
 
     def evaluate_(self, llm_solver: BaseLLMSolver,
                   base_analyzer: BaseStaticMatcher) -> Tuple[List[float], List[float], List[float],
