@@ -59,6 +59,8 @@ def build_arg_parser():
                                                          'addr_site_v1', 'addr_site_v2'],
                         default='none')
     parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'], default='flta')
+    parser.add_argument("--analyze_all", action="store_true", default=False,
+                        help="Analyze all dumped icall in benchmark. Without evaluation")
 
     parser.add_argument("--debug", action="store_true", default=False,
                         help="If true, set to debug mode")
@@ -166,7 +168,8 @@ def main():
     for project in projects:
         logging.getLogger("CodeAnalyzer").info(f"analyzing project: {project}")
         project_included_func_file = os.path.join(root_path, "infos", "funcs", f"{project}.txt")
-        icall_infos_file = os.path.join(root_path, "infos", "icall_infos", f"{project}.txt")
+        target_info_dir = "static_icall_infos" if args.analyze_all else "icall_infos"
+        icall_infos_file = os.path.join(root_path, "infos", target_info_dir, f"{project}.txt")
         project_root = os.path.join(root_path, "projects", project)
         project_analyzer = ProjectAnalyzer(project_included_func_file, icall_infos_file, project_root, args,
                                            project, model_name)

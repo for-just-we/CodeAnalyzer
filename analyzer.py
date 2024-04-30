@@ -53,7 +53,12 @@ def load_icall_infos(path: str) -> Tuple[DefaultDict[str, List[Tuple[int, int]]]
     callsite_idxs: Dict[str, int] = dict()
 
     for idx, line in enumerate(raw_infos):
-        icall_key, funcs = line.split('|')
+        items = line.split('|')
+        if len(items) == 1:
+            icall_key = items[0]
+            funcs = ""
+        else:
+            icall_key, funcs = items
         # process icall_key
         res = icall_key.split(':')
         file = res[0]
