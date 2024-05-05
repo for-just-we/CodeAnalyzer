@@ -419,6 +419,9 @@ macro:
 
 # 3.callsite占比
 
+## 3.1.考虑所有分析过的callsite
+
+ground-truth中callsite占比情况
 
 | project | flta | mlta | kelp |
 | ---- | ---- | ---- | ---- |
@@ -454,3 +457,123 @@ macro:
 | tmux | 1 | 7 | 3 |
 | vlc | 16 | 9 | 2 |
 | total | 391 | 373 | 84 |
+| ratio | 46.1% | 44.0% | 9.99% |
+
+所有编译的二进制中可被source code parser解析的callsite占比情况
+
+| project | flta | mlta | kelp |
+| ---- | ---- | ---- | ---- |
+| bind9 | 287 | 106 | 52 |
+| bluez | 414 | 345 | 30 |
+| cairo | 359 | 247 | 86 |
+| cyclonedds | 400 | 86 | 37 |
+| dovecot | 629 | 1044 | 28 |
+| fwupd | 89 | 4 | 5 |
+| gdbm | 12 | 15 | 7 |
+| gdk-pixbuf | 74 | 15 | 8 |
+| hdf5 | 154 | 504 | 33 |
+| igraph | 573 | 34 | 23 |
+| krb5 | 548 | 162 | 60 |
+| libdwarf | 3 | 17 | 17 |
+| libjpeg-turbo | 333 | 128 | 0 |
+| libpg_query | 44 | 16 | 130 |
+| librabbitmq | 0 | 7 | 0 |
+| libsndfile | 47 | 102 | 1 |
+| libssh | 22 | 29 | 2 |
+| lua | 6 | 5 | 0 |
+| lxc | 14 | 36 | 10 |
+| md4c | 1 | 3 | 21 |
+| mdbtools | 21 | 3 | 3 |
+| nginx | 236 | 125 | 3 |
+| oniguruma | 18 | 2 | 8 |
+| opensips | 175 | 18 | 72 |
+| pjsip | 401 | 189 | 8 |
+| postfix | 235 | 55 | 19 |
+| rtpproxy | 51 | 72 | 15 |
+| selinux | 20 | 0 | 20 |
+| sudo | 240 | 36 | 45 |
+| tmux | 7 | 69 | 11 |
+| vlc | 884 | 141 | 54 |
+| total | 6297 | 3615 | 808 |
+| ratio | 58.7% | 33.7% | 7.5% |
+
+
+## 3.2.考虑分析结果valid的callsite
+
+
+ground-truth中的情况
+
+| project | flta | mlta | kelp |
+| ---- | ---- | ---- | ---- |
+| bind9 | 20 | 24 | 1 |
+| bluez | 0 | 0 | 4 |
+| cairo | 30 | 9 | 2 |
+| cyclonedds | 12 | 19 | 4 |
+| dovecot | 14 | 25 | 0 |
+| fwupd | 25 | 0 | 3 |
+| gdbm | 2 | 10 | 6 |
+| gdk-pixbuf | 0 | 1 | 0 |
+| hdf5 | 4 | 81 | 4 |
+| igraph | 2 | 4 | 0 |
+| krb5 | 3 | 1 | 0 |
+| libdwarf | 1 | 11 | 5 |
+| libjpeg-turbo | 114 | 81 | 0 |
+| libpg_query | 4 | 7 | 0 |
+| librabbitmq | 0 | 6 | 0 |
+| libsndfile | 3 | 5 | 0 |
+| libssh | 1 | 13 | 1 |
+| lua | 0 | 2 | 0 |
+| lxc | 5 | 2 | 0 |
+| md4c | 0 | 2 | 3 |
+| mdbtools | 0 | 1 | 1 |
+| nginx | 3 | 20 | 0 |
+| oniguruma | 16 | 2 | 0 |
+| opensips | 7 | 1 | 0 |
+| pjsip | 11 | 8 | 1 |
+| postfix | 1 | 2 | 0 |
+| rtpproxy | 4 | 3 | 1 |
+| selinux | 11 | 0 | 10 |
+| sudo | 45 | 14 | 32 |
+| tmux | 1 | 7 | 3 |
+| vlc | 10 | 12 | 3 |
+| total | 349 | 373 | 84 |
+| total | 43.3% | 46.3% | 10.4% |
+
+
+编译所有icall情况
+
+| project | flta | mlta | kelp |
+| ---- | ---- | ---- | ---- |
+| bind9 | 211 | 106 | 52 |
+| bluez | 353 | 345 | 30 |
+| cairo | 335 | 237 | 86 |
+| cyclonedds | 220 | 86 | 37 |
+| dovecot | 518 | 1042 | 28 |
+| fwupd | 77 | 4 | 5 |
+| gdbm | 4 | 15 | 7 |
+| gdk-pixbuf | 68 | 15 | 8 |
+| hdf5 | 130 | 504 | 33 |
+| igraph | 178 | 34 | 23 |
+| krb5 | 336 | 162 | 60 |
+| libdwarf | 3 | 17 | 17 |
+| libjpeg-turbo | 279 | 128 | 0 |
+| libpg_query | 15 | 16 | 130 |
+| librabbitmq | 0 | 7 | 0 |
+| libsndfile | 38 | 102 | 1 |
+| libssh | 11 | 29 | 2 |
+| lua | 6 | 5 | 0 |
+| lxc | 14 | 36 | 10 |
+| md4c | 0 | 3 | 21 |
+| mdbtools | 19 | 3 | 3 |
+| nginx | 196 | 125 | 3 |
+| oniguruma | 18 | 2 | 8 |
+| opensips | 84 | 18 | 72 |
+| pjsip | 209 | 189 | 8 |
+| postfix | 128 | 55 | 19 |
+| rtpproxy | 37 | 72 | 15 |
+| selinux | 20 | 0 | 20 |
+| sudo | 160 | 36 | 45 |
+| tmux | 7 | 69 | 11 |
+| vlc | 408 | 141 | 54 |
+| total | 4082 | 3603 | 808 |
+| total | 48.1% | 42.4% | 9.5% |

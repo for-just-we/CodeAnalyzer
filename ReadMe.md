@@ -67,4 +67,6 @@ chat模板加载方式：
 
 - vllm的模板加载相对灵活，会去model的tokenizer文件中找chat template，比如qwen1.5-14B-Chat的[tokenizer_config.json](https://modelscope.cn/models/qwen/Qwen1.5-14B-Chat/file/view/master?fileName=tokenizer_config.json&status=1)中有 `chat_template` 字段定义了该模型的chat template。
 
-- swift的模型-模板对应表参考[model.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/model.py#L38)，定义的全部模版参考[template.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/template.py#L23)，同义硬编码。不过相比sglang，硬编码的是真多，需要在参数用 `template_type` 手动指定使用的模板
+- swift的模型-模板对应表参考[model.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/model.py#L38)，定义的全部模版参考[template.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/template.py#L23)，同义硬编码。不过相比sglang，硬编码的是真多，需要在参数用 `template_type` 手动指定使用的模板。
+
+在我们tool下，当用sglang部署model时，请添加 `max_tokens` 参数，否则sglang会用默认最大生成token数。用swift部署时，记得添加 `server_type` 参数，将 `model_name` 做一次映射。
