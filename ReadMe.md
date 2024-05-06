@@ -43,6 +43,8 @@ symbol类型包括：
 
 # 2.LLM的部署
 
+## 2.1.server
+
 该项目目前支持调用[openai](https://platform.openai.com/), [智谱](https://www.zhipuai.cn/), [google gemini](https://ai.google.dev/), [阿里通义系列](https://dashscope.console.aliyun.com/)的API。本地部署的模型尝试过用3种方式部署：
 
 - [huggingface text-generation-inference](https://github.com/huggingface/text-generation-inference)
@@ -71,5 +73,7 @@ chat模板加载方式：
 
 在我们tool下，当用sglang部署model时，请添加 `max_tokens` 参数，否则sglang会用默认最大生成token数。用swift部署时，记得添加 `server_type` 参数，将 `model_name` 做一次映射。
 
+## 2.2.models
 
-[llama3 end token](https://github.com/huggingface/text-generation-inference/issues/1781)
+llama3存在一个eos token问题，参考[llama3 end token](https://github.com/huggingface/text-generation-inference/issues/1781)，需要user手动设置eos token。
+不过TGI貌似2.0.2版本后修复了这个问题，不需要手动设置eos token。

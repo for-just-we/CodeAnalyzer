@@ -24,7 +24,7 @@ class TypeConfineAnalyzer(BaseInfoAnalyzer):
 
     def analyze(self):
         # global init declarator
-        for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="analyzing global declarators"):
+        for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="analyzing global declarators", ncols=100):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                 self.retrive_info_from_declarator(addr_taken_site_top,
                                                   addr_taken_site, init_level,
@@ -32,7 +32,7 @@ class TypeConfineAnalyzer(BaseInfoAnalyzer):
                                                   addr_taken_site.node_text)
 
         # local init declarator
-        for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="analyzing local declarators"):
+        for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="analyzing local declarators", ncols=100):
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                     self.retrive_info_from_declarator(addr_taken_site_top,
@@ -41,14 +41,14 @@ class TypeConfineAnalyzer(BaseInfoAnalyzer):
                                              addr_taken_site.node_text)
 
         # 处理assignment语句
-        for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="analyzing assignment expressions"):
+        for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="analyzing assignment expressions", ncols=100):
             for func_key, assignment_info in assignment_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
                     self.retrive_info_from_assignment(addr_taken_site_top, func_key, addr_taken_site, addr_taken_site.node_text)
 
         # 处理call语句
         # 首先分析每个address-taken function的参数索引
-        for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions for mlta"):
+        for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions for mlta", ncols=100):
             for call_node, arg_idx in call_nodes:
                 callee_func_name = call_node.children[0].node_text
                 arg_num = call_node.argument_list.child_count
@@ -64,7 +64,7 @@ class TypeConfineAnalyzer(BaseInfoAnalyzer):
 
         # 然后递归进入call-chain进行type confine分析
         for func_name, call_expr_arg_idxs in \
-            tqdm(self.call_expr_arg_idx.items(), desc="type confine for call expr in mlta"):
+            tqdm(self.call_expr_arg_idx.items(), desc="type confine for call expr in mlta", ncols=100):
             for func_key, arg_idx in call_expr_arg_idxs:
                 traversed_func_names = set()
                 self.traverse_call(func_name, func_key, arg_idx, traversed_func_names)

@@ -556,7 +556,7 @@ class TypeAnalyzer(BaseStaticMatcher):
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing type for {}-th icall {}"
-                        .format(self.callsite_idxs[callsite_key], callsite_key))
+                        .format(self.callsite_idxs[callsite_key], callsite_key), ncols=100)
             futures = []
 
             def update_progress(future):
@@ -669,7 +669,7 @@ class TypeAnalyzer(BaseStaticMatcher):
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing declarator for {}-th icall {}"
-                        .format(self.callsite_idxs[callsite_key], callsite_key))
+                        .format(self.callsite_idxs[callsite_key], callsite_key), ncols=100)
             futures = []
 
             def update_progress(future):
@@ -798,7 +798,7 @@ class TypeAnalyzer(BaseStaticMatcher):
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.num_worker)
             pbar = tqdm(total=len(new_func_keys), desc="matcing context for {}-th icall {}"
-                        .format(self.callsite_idxs[callsite_key], callsite_key))
+                        .format(self.callsite_idxs[callsite_key], callsite_key), ncols=100)
             futures = []
 
             def update_progress(future):
