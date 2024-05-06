@@ -70,3 +70,6 @@ chat模板加载方式：
 - swift的模型-模板对应表参考[model.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/model.py#L38)，定义的全部模版参考[template.py](https://github.com/modelscope/swift/blob/37f27e8535cc6c1e3505677443817ea21297eb73/swift/llm/utils/template.py#L23)，同义硬编码。不过相比sglang，硬编码的是真多，需要在参数用 `template_type` 手动指定使用的模板。
 
 在我们tool下，当用sglang部署model时，请添加 `max_tokens` 参数，否则sglang会用默认最大生成token数。用swift部署时，记得添加 `server_type` 参数，将 `model_name` 做一次映射。
+
+
+[llama3 end token](https://github.com/huggingface/text-generation-inference/issues/1781)

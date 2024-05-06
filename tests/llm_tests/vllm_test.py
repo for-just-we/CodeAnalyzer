@@ -38,6 +38,8 @@ def test_icall_decl(client: OpenAI, model_type: str, max_tokens: int = None):
     }
     if max_tokens is not None:
         params["max_tokens"] = max_tokens
+    if "llama" in model_type.lower() and "3" in model_type.lower():
+        params["stop"] = ["<|start_header_id|>", "<|end_header_id|>", "<|eot_id|>", "<|reserved_special_token"]
     response = client.chat.completions.create(**params)
     print(response.choices[0].message.content)
     print(type(response.choices[0].message))
