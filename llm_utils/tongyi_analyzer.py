@@ -9,13 +9,8 @@ from llm_utils.base_analyzer import BaseLLMAnalyzer
 
 class TongyiAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, temperature: float=0):
-        super().__init__(model_type)
+        super().__init__(model_type, temperature)
         self.api_key = api_key
-        self.temperature = temperature
-
-        # 只是用来记录输入和输出的token数
-        self.input_token_num: int = 0
-        self.output_token_num: int = 0
 
     # 向通义千问发送一次请求，返回一个response，可能会触发异常
     def get_tongyi_response(self, dialog: List[Dict[str, str]], times: int) -> Tuple[str, bool, int]:
@@ -46,6 +41,11 @@ class TongyiAnalyzer(BaseLLMAnalyzer):
             output_token_num: int = response["usage"]["output_tokens"]
             self.input_token_num += input_token_num
             self.output_token_num += output_token_num
+
+            self.max_input_token_num = max(self.max_input_token_num, input_token_num)
+            self.max_output_token_num = max(self.max_output_token_num, output_token_num)
+            self.max_total_token_num = max(self.max_total_token_num,
+                                           input_token_num + output_token_num)
             if resp_text.strip() == "":
                 resp = ("empty response", False, times)
             else:

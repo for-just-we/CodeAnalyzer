@@ -7,17 +7,12 @@ from zhipuai.api_resource.chat.completions import Completion
 
 class ZhipuAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, address: str, temperature: float=0):
-        super().__init__(model_type)
+        super().__init__(model_type, temperature)
         if api_key != "":
             self.client = ZhipuAI(api_key=api_key)
         else:
             base_url = "http://" + address + "/v1/"
             self.client = ZhipuAI(api_key="EMP.TY", base_url=base_url)
-        self.temperature = temperature
-
-        # 只是用来记录输入和输出的token数
-        self.input_token_num: int = 0
-        self.output_token_num: int = 0
 
     # 向zhipu发送一次请求，返回一个response，可能会触发异常
     def get_glm_response(self, dialog: List[Dict[str, str]], times: int) -> Tuple[str, bool, int]:
@@ -42,6 +37,15 @@ class ZhipuAnalyzer(BaseLLMAnalyzer):
                 resp = ("empty response", False, times)
             self.input_token_num += response.usage.prompt_tokens
             self.output_token_num += response.usage.completion_tokens
+
+            self.max_input_token_num = max(self.max_input_token_num,
+                                           response.usage.prompt_tokens)
+            self.max_output_token_num = max(self.max_output_token_num,
+                                            response.usage.completion_tokens)
+
+            self.max_total_token_num = max(self.max_total_token_num,
+                                           response.usage.prompt_tokens + response.usage.completion_tokens)
+
 
         except APIReachLimitError as e:
             # 如果达到了rate limit

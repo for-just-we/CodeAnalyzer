@@ -469,9 +469,7 @@ class ProjectAnalyzer:
 
 
         if hasattr(base_analyzer, "llm_analyzer") and \
-                base_analyzer.llm_analyzer is not None and \
-                hasattr(base_analyzer.llm_analyzer, "input_token_num") and \
-                hasattr(base_analyzer.llm_analyzer, "output_token_num"):
+                base_analyzer.llm_analyzer is not None:
             price = prices.get(base_analyzer.llm_analyzer.model_type, [0, 0])
             cost = count_cost(base_analyzer.llm_analyzer.input_token_num,
                               base_analyzer.llm_analyzer.output_token_num,
@@ -487,6 +485,7 @@ class ProjectAnalyzer:
                                                         base_analyzer.llm_analyzer.model_type, cost))
 
             line1 += f"\n{base_analyzer.llm_analyzer.input_token_num / 1000},{base_analyzer.llm_analyzer.output_token_num}"
+            line1 += f"\n{base_analyzer.llm_analyzer.max_input_token_num},{base_analyzer.llm_analyzer.max_output_token_num},{base_analyzer.llm_analyzer.max_total_token_num}"
 
         if self.args.log_res_to_file and hasattr(base_analyzer, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")
@@ -526,8 +525,7 @@ class ProjectAnalyzer:
                         f"{(F1 * 100):.1f},{(fpr * 100):.1f},{(fnr * 100):.1f}"
         line = line1 + "\n" + line2
 
-        if llm_analyzer is not None and hasattr(llm_analyzer, "input_token_num") and \
-                hasattr(llm_analyzer, "output_token_num"):
+        if llm_analyzer is not None:
             price = prices.get(llm_analyzer.model_type, [0, 0])
             cost = count_cost(llm_analyzer.input_token_num, llm_analyzer.output_token_num,
                               price[0], price[1])
@@ -538,7 +536,8 @@ class ProjectAnalyzer:
                 "| {} | {} | {} | {} | {:.2f} |".format(self.project, llm_analyzer.input_token_num,
                                 llm_analyzer.output_token_num, llm_analyzer.model_type, cost))
             line3 = f"{llm_analyzer.input_token_num / 1000},{llm_analyzer.output_token_num / 1000},{llm_analyzer.model_type},{cost}"
-            line = line + "\n" + line3
+            line4 = f"{llm_analyzer.max_input_token_num},{llm_analyzer.max_output_token_num},{llm_analyzer.max_total_token_num}"
+            line = line + "\n" + line3 + "\n" + line4
 
         if self.args.log_res_to_file and hasattr(llm_solver, "log_dir"):
             logging.getLogger("CodeAnalyzer").info("writing result to evaluation_result.txt")

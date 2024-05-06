@@ -3,8 +3,18 @@ import abc
 from typing import List, Dict
 
 class BaseLLMAnalyzer:
-    def __init__(self, model_type: str):
+    def __init__(self, model_type: str, temperature: float):
         self.model_type: str = model_type
+        self.temperature = temperature
+
+        # 只是用来记录输入和输出的token数
+        self.input_token_num: int = 0
+        self.output_token_num: int = 0
+
+        # 记录输入和输出的最大token数
+        self.max_input_token_num: int = 0
+        self.max_output_token_num: int = 0
+        self.max_total_token_num: int = 0
 
     @abc.abstractmethod
     def generate_response(self, diaglog: List[Dict[str, str]]) -> str:

@@ -28,13 +28,14 @@ sftp_channel_default_subsystem_request(UNUSED_PARAM(ssh_session session),
 import sys
 from openai import OpenAI
 
-def test_icall_decl(client: OpenAI, model_type: str):
+def test_icall_decl(client: OpenAI, model_type: str, max_tokens: int = None):
     response = client.chat.completions.create(
         model=model_type,  # 填写需要调用的模型名称
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
-        ]
+        ],
+        max_tokens=max_tokens
     )
     print(response.choices[0].message.content)
     print(type(response.choices[0].message))
@@ -47,8 +48,9 @@ def main():
     model_id = sys.argv[1]
     address = sys.argv[2]
     url = "http://{}/v1".format(address)
+    max_tokens = None if len(sys.argv) <= 3 else int(sys.argv[3])
     client = OpenAI(api_key="EMPTY", base_url=url)
-    test_icall_decl(client, model_id)
+    test_icall_decl(client, model_id, max_tokens)
 
 if __name__ == '__main__':
     main()

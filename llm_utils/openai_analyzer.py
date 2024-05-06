@@ -25,15 +25,10 @@ model_name_map: Dict[str, Dict[str, str]] = {
 class OpenAIAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, address: str, temperature: float = 0,
                  max_tokens: int = 0, server_type = "other"):
-        super().__init__(model_type)
+        super().__init__(model_type, temperature)
         # 必须有一个有效，如果访问远程openai服务器那么api-key不为空，如果访问本地模型那么base_url不为空
         assert not (api_key == "" and address == "")
-        self.temperature = temperature
         self.max_tokens = max_tokens
-
-        # 只是用来记录输入和输出的token数
-        self.input_token_num: int = 0
-        self.output_token_num: int = 0
 
         self.request_model_name = model_name_map.get(server_type,
                                                      dict()).get(model_type, model_type)
@@ -68,9 +63,17 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
             # 调用completions.create()方法
             response = self.client.chat.completions.create(**params)
             self.input_token_num += response.usage.prompt_tokens
+            self.max_input_token_num = max(self.max_input_token_num, response.usage.prompt_tokens)
+
             resp_text = response.choices[0].message.content
             resp = (resp_text, True, times)
+
             self.output_token_num += response.usage.completion_tokens
+            self.max_output_token_num = max(self.max_output_token_num,
+                                            response.usage.completion_tokens)
+
+            self.max_total_token_num = max(self.max_total_token_num,
+                        response.usage.prompt_tokens + response.usage.completion_tokens)
             if resp_text.strip() == "":
                 resp = ("empty response", False, times)
 

@@ -8,9 +8,8 @@ from llm_utils.preprocess_prompt import preprocess_prompt
 
 class HuggingFaceAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, address: str, temperature: float=0, max_new_tokens: int=20):
-        super().__init__(model_type)
+        super().__init__(model_type, temperature)
         self.address = "http://" + address + '/generate'
-        self.temperature = temperature
         self.max_new_tokens = max_new_tokens
 
     def get_hf_response(self, prompt: str, times: int) -> Tuple[str, bool, int]:

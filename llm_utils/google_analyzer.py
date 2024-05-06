@@ -22,16 +22,11 @@ def num_tokens_from_string(string: str) -> int:
 
 class GoogleAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, temperature: float=0):
-        super().__init__(model_type)
+        super().__init__(model_type, temperature)
         genai.configure(api_key=api_key)
-        self.temperature = temperature
         config = GenerationConfig(temperature=temperature)
         if model_type == "gemini-pro":
             self.model: GenerativeModel = GenerativeModel(model_type, generation_config=config)
-
-        # 只是用来记录输入和输出的token数
-        self.input_token_num: int = 0
-        self.output_token_num: int = 0
 
     def send_text_to_llm(self, prompt: str) -> str:
         if self.model_type == "gemini-pro":
@@ -63,11 +58,17 @@ class GoogleAnalyzer(BaseLLMAnalyzer):
             return str(exception), False, times
 
         try:
-            self.input_token_num += num_tokens_from_string(prompt)
+            input_num = num_tokens_from_string(prompt)
+            self.input_token_num += input_num
+            self.max_input_token_num = max(self.max_input_token_num, input_num)
             resp_text: str = self.send_text_to_llm(prompt)
             if resp_text is None or resp_text == "":
                 return "empty response", False, times + 1
-            self.output_token_num += num_tokens_from_string(resp_text)
+            output_num = num_tokens_from_string(resp_text)
+            self.output_token_num += output_num
+            self.max_output_token_num = max(self.max_output_token_num, output_num)
+
+            self.max_total_token_num = max(self.max_total_token_num, input_num + output_num)
             return resp_text, True, times
         # 达到rate limit
         except ResourceExhausted as e:
