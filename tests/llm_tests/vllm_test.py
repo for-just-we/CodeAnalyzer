@@ -29,14 +29,16 @@ import sys
 from openai import OpenAI
 
 def test_icall_decl(client: OpenAI, model_type: str, max_tokens: int = None):
-    response = client.chat.completions.create(
-        model=model_type,  # 填写需要调用的模型名称
-        messages=[
+    params = {
+        "model": model_type,
+        "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
-        ],
-        max_tokens=max_tokens
-    )
+        ]
+    }
+    if max_tokens is not None:
+        params["max_tokens"] = max_tokens
+    response = client.chat.completions.create(**params)
     print(response.choices[0].message.content)
     print(type(response.choices[0].message))
     print("=================")
