@@ -66,7 +66,7 @@ class AddrTakenSiteRetriver:
         # global scope的address-taken site只需要考虑init_declarator
         self.global_addr_sites: Dict[str, List[Tuple[ASTNode, int, ASTNode]]] = dict()
 
-        for func_name, nodes in tqdm(raw_global_addr_sites.items(), desc="collecting raw declarators", ncols=100):
+        for func_name, nodes in tqdm(raw_global_addr_sites.items(), desc="collecting raw declarators", ncols=200):
             decl_nodes: List[Tuple[ASTNode, int, ASTNode]] = list()
             for node in nodes:
                 top_level_node, initializer_level = get_top_level_expr(node)
@@ -89,7 +89,7 @@ class AddrTakenSiteRetriver:
                     DefaultDict[str, List[Tuple[ASTNode, int, ASTNode]]]] = defaultdict(lambda: defaultdict(list))
         self.local_call_expr: DefaultDict[str, List[Tuple[ASTNode, int]]] = defaultdict(list)
 
-        for func_name, node_in_func in tqdm(raw_local_addr_sites.items(), desc="collecting local declarators", ncols=100):
+        for func_name, node_in_func in tqdm(raw_local_addr_sites.items(), desc="collecting local declarators", ncols=200):
             for func_key, nodes in node_in_func.items():
                 for node in nodes:
                     top_level_node, initializer_level = get_local_top_level_expr(node)
@@ -116,7 +116,7 @@ class AddrTakenSiteRetriver:
                                 defaultdict(lambda: defaultdict(set))
 
         # global init declarator
-        for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="grouping global declarators", ncols=100):
+        for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="grouping global declarators", ncols=200):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                 top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
                 struct_decl, ori_var_type, init_node_text = \
@@ -128,7 +128,7 @@ class AddrTakenSiteRetriver:
 
 
         # local init declarator
-        for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="grouping local declarators", ncols=100):
+        for func_name, local_declarator_infos in tqdm(self.local_declarators.items(), desc="grouping local declarators", ncols=200):
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                     top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
@@ -143,7 +143,7 @@ class AddrTakenSiteRetriver:
         self.local_assignment_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
                                                                   Set[Tuple[str, str, str, str]]]] = \
             defaultdict(lambda :defaultdict(set))
-        for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="grouping local assignments", ncols=100):
+        for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="grouping local assignments", ncols=200):
             for func_key, assignment_info in assignment_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
                     declarator, refered_struct_name, struct_decl_text, \
@@ -155,7 +155,7 @@ class AddrTakenSiteRetriver:
         self.call_expr_info: DefaultDict[str, DefaultDict[str, Set[Tuple[str, str]]]] = \
             defaultdict(lambda: defaultdict(set))
         self.call_expr_arg_idx: DefaultDict[str, List[Tuple[str, int, str]]] = defaultdict(list)
-        for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions", ncols=100):
+        for func_name, call_nodes in tqdm(self.local_call_expr.items(), desc="grouping call expressions", ncols=200):
             for call_node, arg_idx in call_nodes:
                 callee_func_name = call_node.children[0].node_text
                 arg_num = call_node.argument_list.child_count

@@ -65,7 +65,7 @@ class BaseInfoAnalyzer:
     def pre_analyze(self, raw_global_addr_sites: Dict[str, List[ASTNode]],
                     raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]]):
         # 全局declarator分析
-        for func_name, nodes in tqdm(raw_global_addr_sites.items(), desc="collecting raw declarators", ncols=100):
+        for func_name, nodes in tqdm(raw_global_addr_sites.items(), desc="collecting raw declarators", ncols=200):
             decl_nodes: List[Tuple[ASTNode, int, ASTNode]] = list()
             for node in nodes:
                 top_level_node, initializer_level = get_top_level_expr(node)
@@ -81,7 +81,7 @@ class BaseInfoAnalyzer:
                 self.global_addr_sites[func_name] = decl_nodes
 
         # local declarator分析
-        for func_name, node_in_func in tqdm(raw_local_addr_sites.items(), desc="collecting local declarators", ncols=100):
+        for func_name, node_in_func in tqdm(raw_local_addr_sites.items(), desc="collecting local declarators", ncols=200):
             for func_key, nodes in node_in_func.items():
                 for node in nodes:
                     top_level_node, initializer_level = get_local_top_level_expr(node)

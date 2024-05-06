@@ -141,7 +141,7 @@ class SingleStepMatcher(BaseLLMSolver):
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
             pbar = tqdm(total=len(matched_func_keys),
-                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}", ncols=100)
+                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}", ncols=200)
             futures = []
 
             def update_progress(future):
@@ -199,7 +199,7 @@ class SingleStepMatcher(BaseLLMSolver):
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
             pbar = tqdm(total=len(matched_func_keys),
-                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}", ncols=100)
+                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}", ncols=200)
             futures = []
 
             def update_progress(future):

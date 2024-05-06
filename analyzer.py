@@ -201,7 +201,7 @@ class ProjectAnalyzer:
         from code_analyzer.config import parser
 
         parsed_trees: List[ASTNode] = list()
-        for file in tqdm(c_h_files, desc="parsing source files into trees", ncols=100):
+        for file in tqdm(c_h_files, desc="parsing source files into trees", ncols=200):
             relative_path = file[len(self.project_root) + 1:]
             logging.getLogger("CodeAnalyzer").debug(relative_path)
             code: bytes = open(file, 'rb').read()
@@ -230,7 +230,7 @@ class ProjectAnalyzer:
             defaultdict(lambda: defaultdict(list))
 
         # 第一次逐函数扫描，统计每个函数的局部变量定义和被引用的函数
-        for func_key, func_info in tqdm(func_info_dict.items(), desc="parsing function infos", ncols=100):
+        for func_key, func_info in tqdm(func_info_dict.items(), desc="parsing function infos", ncols=200):
             local_var_visitor = LocalVarVisitor(global_visitor)
             local_var_visitor.traverse_node(func_info.func_body)
             # 支持可变参数的函数指针局部变量
@@ -332,7 +332,7 @@ class ProjectAnalyzer:
 
             # 进行escape分析
             escaped_types: DefaultDict[str, Set[str]] = defaultdict(set)
-            for func_key, func_info in tqdm(collector.func_info_dict.items(), desc="type escape analysis for mlta", ncols=100):
+            for func_key, func_info in tqdm(collector.func_info_dict.items(), desc="type escape analysis for mlta", ncols=200):
                 arg_info: Dict[str, str] = {parameter_type[1]: parameter_type[0]
                                             for parameter_type in func_info.parameter_types}
                 escape_visitor = EscapeTypeVisitor(arg_info, func_info.name_2_declarator_text,
@@ -605,7 +605,7 @@ class ProjectAnalyzer:
             return prec, recall, f1
 
         for callsite_key, labeled_funcs in tqdm(self.ground_truths.items(),
-                                                desc="evaluating for pure flta cases", ncols=100):
+                                                desc="evaluating for pure flta cases", ncols=200):
             if callsite_key in base_analyzer.macro_callsites:
                 macro_cases.append(callsite_key)
             # 不是flta cases
