@@ -51,6 +51,10 @@ def add_subparser(parser: argparse.ArgumentParser):
     openai_local_parser.add_argument("--server_type", help="deployment framework, "
             "due to swift's model name is different, we need a map", default="other", choices=["other", "swift"])
     openai_local_parser.add_argument('--max_tokens', type=int, default=0)
+    openai_local_parser.add_argument("--add_llama3_stop", action="store_true", default=False,
+                        help="llama3 has some special stop token. Some server(sglang, swift) did not follow."
+                             "So if you use this framework to deploy. You may need to use this argument."
+                             "Or llama3 will continously generate new token until reach max_output_num.")
 
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")

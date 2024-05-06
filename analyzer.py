@@ -291,7 +291,8 @@ class ProjectAnalyzer:
         llm_analyzer: BaseLLMAnalyzer = None
         if self.args.llm == "gpt":
             from llm_utils.openai_analyzer import OpenAIAnalyzer
-            llm_analyzer = OpenAIAnalyzer(self.model_name, self.args.key, "", self.args.temperature)
+            llm_analyzer = OpenAIAnalyzer(self.model_name, self.args.key, "",
+                                          self.args.temperature)
 
         elif self.args.llm == "google":
             from llm_utils.google_analyzer import GoogleAnalyzer
@@ -314,7 +315,8 @@ class ProjectAnalyzer:
             from llm_utils.openai_analyzer import OpenAIAnalyzer
             server_type = self.args.server_type
             llm_analyzer = OpenAIAnalyzer(self.model_name, "", self.args.address,
-                                          self.args.temperature, self.args.max_tokens, server_type)
+                                          self.args.temperature, self.args.max_tokens, server_type,
+                                          add_llama3_stop=self.args.add_llama3_stop)
 
         type_analyzer: TypeAnalyzer = TypeAnalyzer(collector, self.args, scope_strategy,
                                                    llm_analyzer, self.project, self.callsite_idxs)
