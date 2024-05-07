@@ -18,7 +18,10 @@ model_name_map: Dict[str, Dict[str, str]] = {
     "swift": {
         "Qwen1.5-72B-Chat": "qwen1half-72b-chat",
         "Qwen1.5-32B-Chat": "qwen1half-32b-chat",
-        "Qwen1.5-14B-Chat": "qwen1half-14b-chat"
+        "Qwen1.5-14B-Chat": "qwen1half-14b-chat",
+
+        "llama-3-70b-instruct": "llama3-70b-instruct",
+        "llama-3-8b-instruct": "llama3-8b-instruct"
     }
 }
 
