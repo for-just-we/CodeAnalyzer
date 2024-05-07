@@ -14,9 +14,8 @@ class StructTypeMatcher(BaseStaticMatcher):
                  confine_analyzer: TypeConfineAnalyzer,
                  callsite_idxs: Dict[str, int] = None,
                  escaped_types: DefaultDict[str, Set[str]] = None):
-        super().__init__()
+        super().__init__(args)
         self.collector: BaseInfoCollector = collector
-        self.args = args
         self.confine_analyzer: TypeConfineAnalyzer = confine_analyzer
         self.escaped_types = escaped_types
 
@@ -77,7 +76,7 @@ class StructTypeMatcher(BaseStaticMatcher):
             for field_name, target_set in [("callees", strict_type_targets),
                                ("uncertain_callees", uncertain_targets),
                                ("llm_declarator_analysis", llm_decl_targets)]:
-                for func_key in tqdm(target_set, desc=f"match for {field_name} callsite key: {i}"):
+                for func_key in tqdm(target_set, desc=f"match for {field_name} callsite key: {i}", ncols=self.args.ncols):
                     cur_func_name = self.collector.func_info_dict[func_key].func_name
                     if cur_func_name in func_names:
                         getattr(self, field_name)[callsite_key].add(func_key)

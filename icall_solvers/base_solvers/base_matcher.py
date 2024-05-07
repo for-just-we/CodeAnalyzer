@@ -8,7 +8,8 @@ from code_analyzer.schemas.ast_node import ASTNode
 from code_analyzer.definition_collector import BaseInfoCollector
 
 class BaseStaticMatcher:
-    def __init__(self):
+    def __init__(self, args):
+        self.args = args
         # 分析过的callsite
         self.analyzed_callsites: Set[str] = set()
         # 在function内没有被成功分析的case

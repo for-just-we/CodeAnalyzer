@@ -14,9 +14,8 @@ class Kelp(BaseStaticMatcher):
                  struct_type_matcher: StructTypeMatcher,
                  confine_func_analyzer: ConfineFuncAnalyzer,
                  callsite_idxs: Dict[str, int] = None):
-        super().__init__()
+        super().__init__(args)
         self.collector = collector
-        self.args = args
         self.struct_type_matcher = struct_type_matcher
         self.confine_func_analyzer = confine_func_analyzer
         self.callsite_idxs: Dict[str, int] = callsite_idxs
