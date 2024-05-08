@@ -79,7 +79,6 @@ def build_arg_parser():
                         help='scope strategy to use')
     parser.add_argument("--max_try_time", type=int, default=3, help="max trying time for one llm query")
     parser.add_argument("--num_worker", type=int, default=10, help="num worker used in sending request to llm")
-    parser.add_argument("--ncols", type=int, default=15, help="ncols of tqdm, default to 15 if not set")
 
     parser.add_argument("--load_pre_single_step_analysis_res", action="store_true", default=False,
                         help="If true, will load pre-analyzed single step analyzed result.")

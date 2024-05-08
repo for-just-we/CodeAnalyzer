@@ -93,7 +93,7 @@ class BaseInfoCollector:
     def build_basic_info(self):
         self.considered_funcs = set(filter(lambda func_key: self.func_info_dict[func_key].func_name
                                                                     in self.refered_funcs, self.func_info_dict.keys()))
-        for func_key in tqdm(self.considered_funcs, desc="building busic parameter infos", ncols=200):
+        for func_key in tqdm(self.considered_funcs, desc="building busic parameter infos"):
             func_info = self.func_info_dict.get(func_key)
             # 处理可变参数函数
             if func_info.var_arg:
@@ -103,7 +103,7 @@ class BaseInfoCollector:
                 self.param_nums_2_func_keys[len(func_info.parameter_types)].add(func_key)
 
     def build_ori_param_types_4_funcs(self):
-        for func_key, func_info in tqdm(self.func_info_dict.items(), desc="building original parameter infos", ncols=200):
+        for func_key, func_info in tqdm(self.func_info_dict.items(), desc="building original parameter infos"):
             types = []
             ori_types = []
             for param_type in func_info.parameter_types:

@@ -217,7 +217,7 @@ class AddrSiteMatcherV2(BaseLLMSolver):
         executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
         pbar = tqdm(total=len(func_keys),
                         desc="semantic matching for callsite-{}: {}"
-                        .format(i, callsite_key), ncols=self.args.ncols)
+                        .format(i, callsite_key))
         futures = []
 
         def update_progress(future):
