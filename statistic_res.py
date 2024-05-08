@@ -20,7 +20,8 @@ def build_parser():
                                                            'qwen-max',
                                                            'Qwen1.5-14B-Chat',
                                                            'Qwen1.5-32B-Chat',
-                                                           'Qwen1.5-72B-Chat'])
+                                                           'Qwen1.5-72B-Chat',
+                                                           'llama-3-70b-instruct'])
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
     parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")
