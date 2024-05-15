@@ -73,6 +73,7 @@ def build_arg_parser():
                         help="If true, log llm output to log file")
     parser.add_argument("--log_total_info", action="store_true", default=False,
                         help="log total distribution of flta, mlta, kelp cases if set to true")
+    parser.add_argument("--log_flta_case_info", action="store_true", default=False)
 
     # 添加--project参数，并设置nargs='+'，以接受一个或多个值
     parser.add_argument("--projects", type=str, help="One or more projects to analyze")
@@ -219,6 +220,18 @@ def main():
                                                                         mean(flta_res_recall),
                                                                         mean(flta_res_f1)))
 
+        if args.log_flta_case_info:
+            lines = ["callsite_key,label_num,flta_num,seman_num,seman_prec,seman_recall,seman_f1,flta_prec,flta_recall,flta_f1"]
+            assert all(len(lst) == len(success_type_cases) for lst in [semantic_res_prec,
+                semantic_res_recall, semantic_res_f1, flta_res_prec, flta_res_recall, flta_res_f1,
+                flta_nums, label_nums])
+
+            for data in zip(success_type_cases, label_nums, flta_nums, seman_nums, semantic_res_prec,
+                            semantic_res_recall, semantic_res_f1, flta_res_prec, flta_res_recall, flta_res_f1):
+                lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(*data))
+                log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
+                                                                          model_name, args.temperature)
+                open("{}/flta_case_info.csv", 'w', encoding='utf-8'.format(log_dir)).write("\n".join(lines))
 
 if __name__ == '__main__':
     main()
