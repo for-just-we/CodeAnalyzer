@@ -224,7 +224,7 @@ def main():
                 lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(*data))
                 log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
                                                                           model_name, args.temperature)
-                open("{}/flta_case_info.csv", 'w', encoding='utf-8'.format(log_dir)).write("\n".join(lines))
+                open("{}/flta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
 
 if __name__ == '__main__':
     main()
