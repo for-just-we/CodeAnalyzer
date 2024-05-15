@@ -35,8 +35,3 @@ summarizing_prompt_4_model_type = {
     "Phi-3-mini-128k-instruct": qwen_1_5_template_type
 }
 
-# WizardCoder prompt参考 https://github.com/nlpxucan/WizardLM#hiring
-wizardcoder_prompt = "Below is an instruction that describes a task. Write a response that appropriately completes the request.\n\n### Instruction:\n{instruction}\n\n### Response:"
-
-wizardcoder_cot_extra = " Let's think step by step."
-

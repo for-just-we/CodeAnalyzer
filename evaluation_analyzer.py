@@ -32,13 +32,6 @@ def add_subparser(parser: argparse.ArgumentParser):
                                                                   'qwen-turbo', 'qwen-plus'])
     tongyi_parser.add_argument('--key', type=str, help='api key of tongyi qwen')
 
-    hf_parser = subparsers.add_parser('hf', help='using model deployed in huggingface')
-    hf_parser.add_argument('--address', help='huggingface server ip:port, default to 127.0.0.1:8080',
-                           default='127.0.0.1:8080')
-    hf_parser.add_argument('--model_type', choices=['codellama', 'wizardcoder', 'chatglm', 'qwen'],
-                           help='specify model name used. Could be codellama or WizardCoder')
-    hf_parser.add_argument('--max_new_tokens', type=int, default=20)
-
     openai_local_parser = subparsers.add_parser('openai_local', help='using model deployed by framework support openai API')
     openai_local_parser.add_argument('--address', help='server ip:port, default to 127.0.0.1:8080',
                              default='127.0.0.1:8080')
@@ -142,7 +135,7 @@ def main():
     else:
         logger.setLevel(level=logging.INFO)
 
-    if args.llm in {"hf", "openai_local", "gpt", "google", "zhipu", "tongyi"}:
+    if args.llm in {"openai_local", "gpt", "google", "zhipu", "tongyi"}:
         model_name = args.model_type
     else:
         model_name = ""

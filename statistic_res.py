@@ -13,7 +13,7 @@ def build_parser():
     parser.add_argument("--enable_semantic_for_mlta", action="store_true", default=False)
     parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
     parser.add_argument("--running_epoch", type=int, default=1, help="Epoch num for current running")
-    parser.add_argument("--model_type", type=str, choices=['codellama', 'wizardcoder', 'qwen', 'chatglm',
+    parser.add_argument("--model_type", type=str, choices=['qwen', 'chatglm',
                                                            'text-bison-001',
                                                            'chat-bison-001',
                                                            'gemini-pro',
@@ -21,7 +21,8 @@ def build_parser():
                                                            'Qwen1.5-14B-Chat',
                                                            'Qwen1.5-32B-Chat',
                                                            'Qwen1.5-72B-Chat',
-                                                           'llama-3-70b-instruct'])
+                                                           'llama-3-70b-instruct',
+                                                           'Phi-3-mini-128k-instruct'])
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
     parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")

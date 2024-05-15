@@ -305,11 +305,6 @@ class ProjectAnalyzer:
             from llm_utils.tongyi_analyzer import TongyiAnalyzer
             llm_analyzer = TongyiAnalyzer(self.model_name, self.args.key, self.args.temperature)
 
-        elif self.args.llm == "hf":
-            from llm_utils.hf_analyzer import HuggingFaceAnalyzer
-            llm_analyzer = HuggingFaceAnalyzer(self.model_name, self.args.address,
-                                               self.args.temperature, self.args.max_new_tokens)
-
         elif self.args.llm == "openai_local":
             from llm_utils.openai_analyzer import OpenAIAnalyzer
             server_type = self.args.server_type
