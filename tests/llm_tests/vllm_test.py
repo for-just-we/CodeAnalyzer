@@ -29,12 +29,14 @@ import sys
 from openai import OpenAI
 
 def test_icall_decl(client: OpenAI, model_type: str, max_tokens: int = None):
+    if "codegemma" in model_type:
+        dialog =  [{"role": "user", "content": system_prompt + "\n\n" +user_prompt}]
+    else:
+        dialog =  [{"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}]
     params = {
         "model": model_type,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        "messages": dialog
     }
     if max_tokens is not None:
         params["max_tokens"] = max_tokens

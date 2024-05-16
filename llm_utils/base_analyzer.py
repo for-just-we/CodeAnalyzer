@@ -25,8 +25,12 @@ class BaseLLMAnalyzer:
         if len(contents) == 1:
             return [{"role": "user", "content": contents[0]}]
         else:
-            return [{"role": "system", "content": contents[0]},
-                    {"role": "user", "content": contents[1]}]
+            # codegemma chat template refer to https://huggingface.co/google/codegemma-7b-it
+            if "codegemma" in self.model_type:
+                return [{"role": "user", "content": "\n\n".join(contents)}]
+            else:
+                return [{"role": "system", "content": contents[0]},
+                        {"role": "user", "content": contents[1]}]
 
     @abc.abstractmethod
     def get_response(self, contents: List[str], add_suffix: bool=False) -> str:
