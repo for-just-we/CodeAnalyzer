@@ -40,7 +40,8 @@ def add_subparser(parser: argparse.ArgumentParser):
                                                       'CodeQwen1.5-7B-Chat',
                                                       'llama-3-70b-instruct',
                                                       'llama-3-8b-instruct',
-                                                      'Phi-3-mini-128k-instruct'],
+                                                      'Phi-3-mini-128k-instruct',
+                                                      'codegemma-1.1-7b-it'],
                              help='specify model name used.')
     openai_local_parser.add_argument("--server_type", help="deployment framework, "
             "due to swift's model name is different, we need a map", default="other", choices=["other", "swift"])
