@@ -219,9 +219,13 @@ def main():
                 semantic_res_recall, semantic_res_f1, flta_res_prec, flta_res_recall, flta_res_f1,
                 flta_nums, label_nums])
 
-            for data in zip(success_type_cases, label_nums, flta_nums, seman_nums, semantic_res_prec,
+            for callsite_key, label_num, flta_num, seman_num, semantic_prec, semantic_recall, semantic_f1,\
+                    flta_prec, flta_recall, flta_f1 in \
+                    zip(success_type_cases, label_nums, flta_nums, seman_nums, semantic_res_prec,
                             semantic_res_recall, semantic_res_f1, flta_res_prec, flta_res_recall, flta_res_f1):
-                lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(*data))
+                lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(callsite_key, label_num, flta_num, seman_num,
+                                   semantic_prec * 100, semantic_recall * 100, semantic_f1 * 100,
+                                   flta_prec * 100, flta_recall * 100, flta_f1 * 100))
                 log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
                                                                           model_name, args.temperature)
                 open("{}/flta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
