@@ -2,12 +2,13 @@ import time
 
 from code_analyzer.definition_collector import BaseInfoCollector
 from code_analyzer.schemas.function_info import FuncInfo
+from code_analyzer.utils.addr_taken_sites_util import AddrTakenSiteRetriver
 
 from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_model
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
-from icall_solvers.llm_solvers.single_step_match.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
+from icall_solvers.llm_solvers.single.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
 from icall_solvers.dir_util import get_parent_directory
 
 from tqdm import tqdm
@@ -21,6 +22,7 @@ class SingleStepMatcher(BaseLLMSolver):
     def __init__(self, collector: BaseInfoCollector,
                  args,
                  base_analyzer: BaseStaticMatcher,
+                 addr_taken_site_retriver: AddrTakenSiteRetriver,
                  llm_analyzer: BaseLLMAnalyzer = None,
                  callsite_keys: Set[str] = None,
                  project="",
@@ -31,6 +33,8 @@ class SingleStepMatcher(BaseLLMSolver):
         # 是否采用二段式prompt
         self.double_prompt: bool = args.double_prompt
         self.callsite_keys: Set[str] = callsite_keys.copy()
+        self.addr_taken_site_retriver: AddrTakenSiteRetriver \
+            = addr_taken_site_retriver
 
         # 严格类型匹配成功的callsite
         self.strict_type_matched_callsites: Dict[str, Set[str]] = base_analyzer.callees
@@ -47,6 +51,13 @@ class SingleStepMatcher(BaseLLMSolver):
             func_keys.update(self.uncertain_type_matched_callsites.get(callsite_key, set()))
             self.type_matched_callsites[callsite_key] = func_keys
 
+        # 每一个indirect-call对应的函数指针声明的文本
+        self.icall_2_decl_text: Dict[str, str] = base_analyzer.icall_2_decl_text
+        # 每一个indirect-call对应的函数指针声明文本，保留原始类型
+        self.icall_2_decl_type_text: Dict[str, str] = base_analyzer.icall_2_decl_type_text
+        # 如果icall引用了结构体的field，找到对应的结构体名称
+        self.icall_2_struct_name: Dict[str, str] = base_analyzer.icall_2_struct_name
+
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
@@ -56,7 +67,7 @@ class SingleStepMatcher(BaseLLMSolver):
                 epoch_sig += "-double"
             self.log_dir = f"{root_path}/experimental_logs/single_step_analysis/{epoch_sig}/{self.llm_analyzer.model_name}/" \
                            f"{project}"
-            self.res_log_file = f"{self.log_dir}/single_step_result.txt"
+            self.res_log_file = f"{self.log_dir}/semantic_result.txt"
             if not os.path.exists(self.log_dir):
                 os.makedirs(self.log_dir)
 
@@ -125,6 +136,7 @@ class SingleStepMatcher(BaseLLMSolver):
         src_func_name: str = parent_func_info.func_name
         src_func_text: str = parent_func_info.func_def_text
         callsite_text: str = self.icall_nodes[callsite_key].node_text
+        icall_additional: str = self.generate_icall_additional(callsite_key, callsite_text)
 
         cur_log_dir = f"{self.log_dir}/callsite-{i}"
         target_analyze_log_dir = f"{cur_log_dir}/single"
@@ -134,22 +146,25 @@ class SingleStepMatcher(BaseLLMSolver):
                 os.makedirs(target_analyze_log_dir)
 
         def analyze_callsite_type_matching(callsite_key, callsite_text, src_func_name, src_func_text,
-                                           target_analyze_log_dir, match_type):
-            matched_func_keys: Set[str] = getattr(self, f"{match_type}_type_matched_callsites", {}).get(
-                callsite_key, set())
+                                           target_analyze_log_dir):
+            matched_func_keys: Set[str] = set()
+            for match_type in ["strict", "cast", "uncertain"]:
+                func_keys: Set[str] = getattr(self, f"{match_type}_type_matched_callsites", {}).get(
+                    callsite_key, set())
+                matched_func_keys.update(func_keys)
 
             lock = threading.Lock()
             executor = ThreadPoolExecutor(max_workers=self.args.num_worker)
             pbar = tqdm(total=len(matched_func_keys),
-                        desc=f"single step matching for {match_type} type matched callsite-{i}: {callsite_key}")
+                        desc=f"single step matching for matched callsite-{i}: {callsite_key}")
             futures = []
 
             def update_progress(future):
                 pbar.update(1)
 
             def worker(func_key: str, idx: int):
-                flag = self.process_callsite_target(callsite_text, src_func_name, src_func_text,
-                                                    target_analyze_log_dir, func_key, idx, match_type)
+                flag = self.process_callsite_target(callsite_text, src_func_name, src_func_text, icall_additional,
+                                                    target_analyze_log_dir, func_key, idx)
                 if flag:
                     with lock:
                         self.matched_callsites[callsite_key].add(func_key)
@@ -162,17 +177,8 @@ class SingleStepMatcher(BaseLLMSolver):
             for future in as_completed(futures):
                 future.result()
 
-        # 严格类型匹配
         analyze_callsite_type_matching(callsite_key, callsite_text, src_func_name, src_func_text,
-                                       target_analyze_log_dir, "strict")
-
-        # Cast类型匹配
-        analyze_callsite_type_matching(callsite_key, callsite_text, src_func_name, src_func_text,
-                                       target_analyze_log_dir, "cast")
-
-        # Uncertain类型匹配
-        analyze_callsite_type_matching(callsite_key, callsite_text, src_func_name, src_func_text,
-                                       target_analyze_log_dir, "uncertain")
+                                       target_analyze_log_dir)
 
 
     def process_macro_callsite(self, callsite_key: str, i: int):
@@ -231,21 +237,27 @@ class SingleStepMatcher(BaseLLMSolver):
 
 
     def process_callsite_target(self, callsite_text: str,
-                                src_func_name: str, src_func_text: str,
-                                target_analyze_log_dir: str, func_key: str, idx: int, typ: str) -> bool:
+                                src_func_name: str, src_func_text: str, icall_additional: str,
+                                target_analyze_log_dir: str, func_key: str, idx: int) -> bool:
         func_info: FuncInfo = self.collector.func_info_dict[func_key]
         target_func_name: str = func_info.func_name
         target_func_text: str = func_info.func_def_text
+
+        queries: List[str] = self.addr_taken_site_retriver.generate_queries_for_func(target_func_name, False)
+        target_additional_information = "\n\n".join(queries)
+
         user_prompt = User_Match.format(icall_expr=callsite_text,
                                         src_func_name=src_func_name,
                                         source_function_text=src_func_text,
+                                        icall_additional=icall_additional,
                                         target_func_name=target_func_name,
-                                        target_function_text=target_func_text)
+                                        target_function_text=target_func_text,
+                                        target_additional_information=target_additional_information)
         if not self.double_prompt:
             user_prompt += ("\n\n" + supplement_prompts["user_prompt_match"])
 
         contents: List[str] = [System_Match, user_prompt]
-        return self.query_llm(contents, target_analyze_log_dir, f"{typ}-{idx}.txt")
+        return self.query_llm(contents, target_analyze_log_dir, f"{idx}.txt")
 
 
     def process_macro_callsite_target(self, callsite_text: str, expanded_macro: str, macro_call_expr: str,
@@ -303,3 +315,23 @@ class SingleStepMatcher(BaseLLMSolver):
                 .write(prompt_log)
 
         return flag
+
+
+    def generate_icall_additional(self, callsite_key, icall_text) -> str:
+        if callsite_key in self.icall_2_decl_text.keys():
+            decl_text = self.icall_2_decl_text[callsite_key]
+            messages = ["## 1.2.global context of indirect-call",
+                "The declarator of function pointer in {} is {}.".format(icall_text, decl_text)]
+
+            if callsite_key in self.icall_2_decl_type_text.keys():
+                messages.append("The alias type definition of the function type is {}."
+                                .format(self.icall_2_decl_type_text[callsite_key]))
+            if callsite_key in self.icall_2_struct_name.keys():
+                struct_name = self.icall_2_struct_name[callsite_key]
+                struct_decl = self.collector.struct_name2declarator[struct_name]
+                messages.append("The function pointer is a field of struct {},"
+                                "where its definition is: \n{}.".format(struct_name, struct_decl))
+
+            return "\n\n".join(messages)
+
+        return ""

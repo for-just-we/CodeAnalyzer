@@ -25,7 +25,7 @@ from icall_solvers.base_solvers.kelp.confine_func_analyzer import ConfineFuncAna
 from icall_solvers.base_solvers.kelp.matcher import Kelp
 
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
-from icall_solvers.llm_solvers.single_step_match.matcher import SingleStepMatcher
+from icall_solvers.llm_solvers.single.matcher import SingleStepMatcher
 from icall_solvers.llm_solvers.sea.matcher import SeaMatcher
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
@@ -350,10 +350,13 @@ class ProjectAnalyzer:
         # 筛选icall_solver
         llm_solver: BaseLLMSolver = None
         if self.args.llm_strategy == "single":
-            llm_solver = SingleStepMatcher(collector, self.args,
-                                         base_analyzer, llm_analyzer, set(self.ground_truths.keys()),
-                                         self.project, self.callsite_idxs,
-                                         func_key_2_name)
+            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
+                                                             raw_local_addr_sites, collector)
+            addr_taken_site_retriver.group()
+            llm_solver = SingleStepMatcher(collector, self.args, base_analyzer,
+                                        addr_taken_site_retriver, llm_analyzer, set(self.ground_truths.keys()),
+                                        self.project, self.callsite_idxs,
+                                        func_key_2_name)
             llm_solver.process_all()
 
         elif self.args.llm_strategy == "sea":

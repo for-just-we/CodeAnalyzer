@@ -175,7 +175,7 @@ class AddrTakenSiteRetriver:
                     for target_func_key in target_funcs:
                         self.call_expr_arg_idx[func_name].append((target_func_key, arg_idx, call_node.node_text))
 
-    def generate_queries_for_func(self, func_name) -> List[str]:
+    def generate_queries_for_func(self, func_name, add_end: bool=True) -> List[str]:
         queries: List[str] = list()
         # init declarator
         declarator_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str, str]]] = self.init_addr_infos[func_name]
@@ -183,7 +183,8 @@ class AddrTakenSiteRetriver:
             struct_decl, ori_var_type = decl_info
             init_node_text, func_key, top_level_var_decl = random.choice(list(init_node_decls))
             queries.append(self.generate_text_for_declarator(func_name, struct_decl,
-                                              ori_var_type, init_node_text, func_key, top_level_var_decl, 1))
+                                              ori_var_type, init_node_text, func_key, top_level_var_decl, 1,
+                                                add_end))
 
         # assignment expression
         assignment_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str, str, str]]] \
@@ -192,7 +193,7 @@ class AddrTakenSiteRetriver:
             refered_struct_name, struct_decl_text = struct_info
             declarator, var_text, assign_node_text, func_key = random.choice(list(decl_infos))
             queries.append(self.generate_text_for_assignment(func_name, declarator, refered_struct_name,
-                                              struct_decl_text, var_text, assign_node_text, func_key, 1))
+                                              struct_decl_text, var_text, assign_node_text, func_key, 1, add_end))
 
         # call expression
         call_expr_arg_idxs = self.call_expr_arg_idx[func_name]
@@ -208,7 +209,7 @@ class AddrTakenSiteRetriver:
             call_chain_context: List[Tuple[str, str]] = list()
             ret_message = self.traverse_call(func_name, func_key, arg_idx, traversed_func_names,
                                 call_chain_context, call_node_text)
-            queries.append(self.generate_text_from_callnode_info(func_name, call_node_text, call_chain_context, ret_message, 1))
+            queries.append(self.generate_text_from_callnode_info(func_name, call_node_text, call_chain_context, ret_message, 1, add_end))
 
         # call_expr_info: DefaultDict[str, Set[Tuple[str, str]]] = self.call_expr_info[func_name]
         # # 从
@@ -262,7 +263,8 @@ class AddrTakenSiteRetriver:
 
         return ""
 
-    def generate_text_for_declarator(self, func_name, struct_decl, ori_var_type, init_node_text, func_key: str, top_level_var_decl: str, stage=0) -> str:
+    def generate_text_for_declarator(self, func_name, struct_decl, ori_var_type, init_node_text, func_key: str, top_level_var_decl: str, stage = 0,
+                                     add_end: bool=True) -> str:
         messages = ["The target function {func_name} is address-taken in a "
                     "initializer of a variable declaration statement, "
                     "where the declaree statement is: `{decl_stmt}`, "
@@ -285,12 +287,13 @@ class AddrTakenSiteRetriver:
             messages.append("The initializer is located in function {} whose declarator is\n:`{}`"
                         .format(cur_func_name, func_declarator))
 
-        messages.append(end_msgs[stage].format(func_name) + additional)
+        if add_end:
+            messages.append(end_msgs[stage].format(func_name) + additional)
 
         return "\n\n".join(messages)
 
     def generate_text_for_assignment(self, func_name, declarator, refered_struct_name, struct_decl_text,
-                var_text, assign_node_text, func_key, stage=0) -> str:
+                var_text, assign_node_text, func_key, stage = 0, add_end:bool = True) -> str:
         messages = ["The target function {} is address-taken in a assignment expression. "
                     "The text is `{}`, where the assigned variable is {}.".format(func_name, assign_node_text, var_text)]
 
@@ -309,7 +312,8 @@ class AddrTakenSiteRetriver:
         messages.append("The assignment expression is located in function {} whose declarator is\n:`{}`"
                         .format(cur_func_name, func_declarator))
 
-        messages.append(end_msgs[stage].format(func_name) + additional)
+        if add_end:
+            messages.append(end_msgs[stage].format(func_name) + additional)
 
         return "\n\n".join(messages)
 
@@ -325,7 +329,7 @@ class AddrTakenSiteRetriver:
 
     def generate_text_from_callnode_info(self, func_name: List[str], call_node_text: str,
                                          call_chain_context: List[Tuple[str, str]], ret_message: str,
-                                         stage=0):
+                                         stage = 0, add_end: bool = True):
         messages: List[str] = ["The address of target function {} is used as a arguments of "
                                "call expression: `{}`.".format(func_name, call_node_text)]
         if len(call_chain_context) > 0:
@@ -337,7 +341,8 @@ class AddrTakenSiteRetriver:
         if ret_message is not None:
             messages.append(ret_message)
 
-        messages.append(end_msgs[stage].format(func_name))
+        if add_end:
+            messages.append(end_msgs[stage].format(func_name))
         return "\n\n".join(messages)
 
 
