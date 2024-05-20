@@ -37,7 +37,7 @@ Assess if {target_func_name} could be one of the target function that indirect c
 
 - 1.Analyze the purpose of indirect-call:
 
-    * 1.1.Summarize the functionality of the source function {func_name} to understand the function's purpose.
+    * 1.1.Summarize the functionality of the source function {src_func_name} to understand the function's purpose.
     
     * 1.2.Examine the code in source function surrounding the indirect call `{icall_expr}` and determine the specific use of the indirect call within the context.
     
