@@ -54,10 +54,13 @@ def add_subparser(parser: argparse.ArgumentParser):
 def build_arg_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to analyze projects.")
     parser.add_argument("--root_path", type=str, required=True, help="root path of all benchmarks.")
-    parser.add_argument("--llm_strategy", type=str, choices=['none', 'semantic', 'single',
-                                                         'addr_site_v1', 'addr_site_v2'],
+    parser.add_argument("--llm_strategy", type=str, choices=['none', 'single', 'sea'],
                         default='none')
     parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'], default='flta')
+    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(5)),
+                        help="ablation type: 0 -> no ablation, "
+                          "1 -> w/o caller local, 2 -> w/o caller global, "
+                          "3 -> w/o callee local, 4 -> w/o callee global")
     parser.add_argument("--analyze_all", action="store_true", default=False,
                         help="Analyze all dumped icall in benchmark. Without evaluation")
 

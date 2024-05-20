@@ -25,10 +25,8 @@ from icall_solvers.base_solvers.kelp.confine_func_analyzer import ConfineFuncAna
 from icall_solvers.base_solvers.kelp.matcher import Kelp
 
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
-from icall_solvers.llm_solvers.semantic_match.matcher import SemanticMatcher
 from icall_solvers.llm_solvers.single_step_match.matcher import SingleStepMatcher
-from icall_solvers.llm_solvers.addr_site_v1.matcher import AddrSiteMatcherV1
-from icall_solvers.llm_solvers.addr_site_v2.matcher import AddrSiteMatcherV2
+from icall_solvers.llm_solvers.sea.matcher import SeaMatcher
 
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 
@@ -349,38 +347,22 @@ class ProjectAnalyzer:
                 kelp_matcher.process_all()
                 base_analyzer = kelp_matcher
 
-
         # 筛选icall_solver
         llm_solver: BaseLLMSolver = None
-        if self.args.llm_strategy == "semantic":
-            llm_solver = SemanticMatcher(collector, self.args,
-                                       base_analyzer, llm_analyzer, self.project, self.callsite_idxs,
-                                       func_key_2_name)
-            llm_solver.process_all()
-
-        elif self.args.llm_strategy == "single":
+        if self.args.llm_strategy == "single":
             llm_solver = SingleStepMatcher(collector, self.args,
                                          base_analyzer, llm_analyzer, set(self.ground_truths.keys()),
                                          self.project, self.callsite_idxs,
                                          func_key_2_name)
             llm_solver.process_all()
 
-
-        elif self.args.llm_strategy == "addr_site_v1":
-            addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
-                                                             raw_local_addr_sites, collector)
-            llm_solver = AddrSiteMatcherV1(collector, self.args, base_analyzer,
-                                         addr_taken_site_retriver, llm_analyzer,
-                                         self.project, self.callsite_idxs, func_key_2_name)
-            llm_solver.process_all()
-
-        elif self.args.llm_strategy == "addr_site_v2":
+        elif self.args.llm_strategy == "sea":
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
                                                              raw_local_addr_sites, collector)
             addr_taken_site_retriver.group()
-            llm_solver = AddrSiteMatcherV2(collector, self.args, base_analyzer,
-                                         addr_taken_site_retriver, llm_analyzer,
-                                         self.project, self.callsite_idxs, func_key_2_name)
+            llm_solver = SeaMatcher(collector, self.args, base_analyzer,
+                                    addr_taken_site_retriver, llm_analyzer,
+                                    self.project, self.callsite_idxs, func_key_2_name)
             llm_solver.process_all()
 
         return base_analyzer, llm_solver

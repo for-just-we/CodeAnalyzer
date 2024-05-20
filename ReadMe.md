@@ -65,7 +65,7 @@ symbol类型包括：
 
 chat模板加载方式：
 
-- sglang的chat_template加载方式为硬编码在py文件中，参考[chat_template.py](https://github.com/sgl-project/sglang/blob/1bf1cf195302fdff14a4321eb8a17831f5c2fc11/python/sglang/lang/chat_template.py#L79)，sglang会在把modelpath lower后比对qwen等关键词查找对应模板。
+- sglang的chat_template加载方式为硬编码在py文件中，参考[chat_template.py](https://github.com/sgl-project/sglang/blob/1bf1cf195302fdff14a4321eb8a17831f5c2fc11/python/sglang/lang/chat_template.py#L79)，sglang会在把modelpath lower后比对qwen等关键词查找对应模板。如果手动指定模版参数，其处理过程参考[load_chat_template_for_openai_api](https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/openai_api_adapter.py#L38)，模版文件必须为json格式。
 
 - vllm的模板加载相对灵活，会去model的tokenizer文件中找chat template，比如qwen1.5-14B-Chat的[tokenizer_config.json](https://modelscope.cn/models/qwen/Qwen1.5-14B-Chat/file/view/master?fileName=tokenizer_config.json&status=1)中有 `chat_template` 字段定义了该模型的chat template。
 

@@ -1,14 +1,16 @@
 import argparse
 import os
 
+suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_"]
+
 def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
-    parser.add_argument("--analysis_type", type=str, choices=['single_step_analysis',
-                                                              'single_step_complex_analysis',
-                                                              'semantic_analysis',
-                                                              'addr_site_v1_analysis',
-                                                              'addr_site_v2_analysis',
-                                                              'multi_step_analysis'])
+    parser.add_argument("--analysis_type", type=str, choices=['single_step_{}analysis',
+                                                              'addr_site_v2_{}analysis'])
+    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(5)),
+                        help="ablation type: 0 -> no ablation, "
+                             "1 -> w/o caller local, 2 -> w/o caller global, "
+                             "3 -> w/o callee local, 4 -> w/o callee global")
     parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp', 'none'])
     parser.add_argument("--enable_semantic_for_mlta", action="store_true", default=False)
     parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
@@ -80,7 +82,7 @@ def analyze_binary(base_analyzer, enable_semantic_for_mlta, running_epoch, analy
         filename = f"evaluation_result_{info}.txt"
     file_path = f'experimental_logs/{analysis_type}/{running_epoch}/' \
                 f'{model_type}-{temperature}/{project}/{filename}'
-    # assert os.path.exists(file_path)
+
     if not os.path.exists(file_path):
         print("missing project: {}".format(project))
         return 0, 0, 0, 0, 0, 0
@@ -171,7 +173,7 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
     running_epoch = args.running_epoch
-    analysis_type = args.analysis_type
+    analysis_type = args.analysis_type.format(suffix[args.ablation_type])
     model_type = args.model_type
     temperature = args.temperature
     projects = args.projects
