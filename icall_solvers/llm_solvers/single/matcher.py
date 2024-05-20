@@ -244,7 +244,7 @@ class SingleStepMatcher(BaseLLMSolver):
         target_func_text: str = func_info.func_def_text
 
         queries: List[str] = self.addr_taken_site_retriver.generate_queries_for_func(target_func_name, False)
-        target_additional_information = "\n\n".join(queries)
+        target_additional_information = "# 2.2.context of the target function's address-taken site\n" + "\n\n".join(queries)
 
         user_prompt = User_Match.format(icall_expr=callsite_text,
                                         src_func_name=src_func_name,
