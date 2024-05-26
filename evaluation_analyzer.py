@@ -167,6 +167,17 @@ def main():
     recalls: List[float] = []
     f1s: List[float] = []
 
+    mlta_successful_cases: List[str] = list()
+    mlta_nums: List[int] = list()
+    mlta_seman_nums: List[int] = list()
+    mlta_label_nums: List[int] = list()
+    mlta_res_prec: List[float] = list()
+    mlta_res_recall: List[float] = list()
+    mlta_res_f1: List[float] = list()
+    mlta_seman_res_prec: List[float] = list()
+    mlta_seman_res_recall: List[float] = list()
+    mlta_seman_res_f1: List[float] = list()
+
     # 打印项目参数的值
     for project in projects:
         logging.getLogger("CodeAnalyzer").info(f"analyzing project: {project}")
@@ -200,10 +211,21 @@ def main():
             if case not in macro_cases:
                 global_failed_cases.append(case)
 
+        mlta_successful_cases.extend(items[15])
+        mlta_nums.extend(items[16])
+        mlta_seman_nums.extend(items[17])
+        mlta_label_nums.extend(items[18])
+        mlta_res_prec.extend(items[19])
+        mlta_res_recall.extend(items[20])
+        mlta_res_f1.extend(items[21])
+        mlta_seman_res_prec.extend(items[22])
+        mlta_seman_res_recall.extend(items[23])
+        mlta_seman_res_f1.extend(items[24])
+
+
     mean = lambda res: sum(res) * 100 / len(res)
     print("total mean result: {:.1f} | {:.1f} | {:.1f} |".format(mean(precisions),
                                                                  mean(recalls), mean(f1s)))
-
     if len(semantic_res_prec) != 0:
         print("successfully analyze {} icalls with flta".format(len(semantic_res_prec)))
         print("{} icalls fail to be analyzed by flta, among them {} are macro callsites".
@@ -233,6 +255,33 @@ def main():
                 log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
                                                                           model_name, args.temperature)
                 open("{}/flta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
+
+
+    if len(mlta_successful_cases) > 0:
+        print("successfully analyze {} icalls with mlta".format(len(mlta_successful_cases)))
+        print("mlta semantic res | {:.1f} | {:.1f} | {:.1f} |".format(mean(mlta_seman_res_prec),
+                                                                 mean(mlta_seman_res_recall),
+                                                                 mean(mlta_seman_res_f1)))
+        print("mlta res | {:.1f} | {:.1f} | {:.1f} |".format(mean(mlta_res_prec),
+                                                             mean(mlta_res_recall),
+                                                             mean(mlta_res_f1)))
+
+        if args.log_flta_case_info:
+            lines = ["callsite_key,label_num,mlta_num,seman_num,seman_prec,seman_recall,seman_f1,mlta_prec,mlta_recall,mlta_f1"]
+            assert all(len(lst) == len(mlta_successful_cases) for lst in [mlta_seman_res_prec,
+                mlta_seman_res_recall, mlta_seman_res_f1, mlta_res_prec, mlta_res_recall, mlta_res_f1,
+                mlta_nums, mlta_label_nums])
+
+            for callsite_key, label_num, mlta_num, seman_num, semantic_prec, semantic_recall, semantic_f1,\
+                    mlta_prec, mlta_recall, mlta_f1 in \
+                    zip(mlta_successful_cases, mlta_label_nums, mlta_nums, mlta_seman_nums, mlta_seman_res_prec,
+                            mlta_seman_res_recall, mlta_seman_res_f1, mlta_res_prec, mlta_res_recall, mlta_res_f1):
+                lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(callsite_key, label_num, mlta_num, seman_num,
+                                   semantic_prec * 100, semantic_recall * 100, semantic_f1 * 100,
+                                   mlta_prec * 100, mlta_recall * 100, mlta_f1 * 100))
+                log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
+                                                                          model_name, args.temperature)
+                open("{}/mlta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
 
 if __name__ == '__main__':
     main()

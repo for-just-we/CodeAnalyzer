@@ -536,10 +536,14 @@ class ProjectAnalyzer:
                                                              List[float], List[float], List[float],
                                                              List[str], List[str], List[str],
                                                              List[int], List[int], List[int],
-                                                             List[str], Set[str], List[str]]:
+                                                             List[str], Set[str], List[str],
+                                                             List[str], List[int], List[int], List[int],
+                                                             List[float], List[float], List[float],
+                                                             List[float], List[float], List[float]]:
         if llm_solver is None or not hasattr(base_analyzer, "flta_cases"):
             return ([], [], [], [], [], [], [], [], [], [], [], [], [],
-                    base_analyzer.analyzed_callsites, [])
+                    base_analyzer.analyzed_callsites, [],
+                    [], [], [], [], [], [], [], [], [], [])
         assert hasattr(base_analyzer, "flta_cases")
 
         # 基于类型匹配的结果
@@ -616,8 +620,48 @@ class ProjectAnalyzer:
             label_nums.append(len(labeled_funcs))
             flta_nums.append(len(flta_funcs))
             seman_nums.append(len(semantic_res))
-            
+
+        mlta_successful_cases: List[str] = list()
+        mlta_nums: List[int] = list()
+        mlta_seman_nums: List[int] = list()
+        mlta_label_nums: List[int] = list()
+        mlta_res_prec: List[float] = list()
+        mlta_res_recall: List[float] = list()
+        mlta_res_f1: List[float] = list()
+        mlta_seman_res_prec: List[float] = list()
+        mlta_seman_res_recall: List[float] = list()
+        mlta_seman_res_f1: List[float] = list()
+
+        for callsite_key, labeled_funcs in tqdm(self.ground_truths.items(),
+                                                desc="evaluating for pure mlta cases"):
+            if callsite_key in base_analyzer.macro_callsites:
+                macro_cases.append(callsite_key)
+            # 不是flta cases
+            if not callsite_key in base_analyzer.mlta_cases:
+                continue
+            # mlta分析没有成功
+            mlta_funcs: Set[str] = type_matched_callsites.get(callsite_key, set())
+            if len(mlta_funcs) == 0:
+                continue
+            mlta_prec, mlta_recall, mlta_f1 = eval(mlta_funcs, labeled_funcs)
+            if mlta_recall == 0:
+                continue
+            mlta_res_prec.append(mlta_prec)
+            mlta_res_recall.append(mlta_recall)
+            mlta_res_f1.append(mlta_f1)
+
+            semantic_res: Set[str] = matched_callsites.get(callsite_key, set())
+            seman_prec, seman_recall, seman_f1 = eval(semantic_res, labeled_funcs)
+            mlta_seman_res_prec.append(seman_prec)
+            mlta_seman_res_recall.append(seman_recall)
+            mlta_seman_res_f1.append(seman_f1)
+            mlta_successful_cases.append(callsite_key)
+            mlta_label_nums.append(len(labeled_funcs))
+            mlta_nums.append(len(mlta_funcs))
+            mlta_seman_nums.append(len(semantic_res))
+
         return (semantic_res_prec, semantic_res_recall, semantic_res_f1,
                 flta_res_prec, flta_res_recall, flta_res_f1, failed_type_cases, success_type_cases,
                 macro_cases, label_nums, flta_nums, seman_nums, local_failed_cases, base_analyzer.analyzed_callsites,
-                global_failed_cases)
+                global_failed_cases, mlta_successful_cases, mlta_nums, mlta_seman_nums, mlta_label_nums,
+                mlta_res_prec, mlta_res_recall, mlta_res_f1, mlta_seman_res_prec, mlta_seman_res_recall, mlta_seman_res_f1)
