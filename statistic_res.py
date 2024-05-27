@@ -1,7 +1,8 @@
 import argparse
 import os
 
-suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_"]
+suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_",
+          "wo_local_", "wo_global_"]
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
