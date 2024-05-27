@@ -57,7 +57,7 @@ def build_arg_parser():
     parser.add_argument("--llm_strategy", type=str, choices=['none', 'single', 'sea'],
                         default='none')
     parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'], default='flta')
-    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(5)),
+    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(7)),
                         help="ablation type: 0 -> no ablation, "
                           "1 -> w/o caller local, 2 -> w/o caller global, "
                           "3 -> w/o callee local, 4 -> w/o callee global, "
