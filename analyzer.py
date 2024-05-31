@@ -539,11 +539,12 @@ class ProjectAnalyzer:
                                                              List[str], Set[str], List[str],
                                                              List[str], List[int], List[int], List[int],
                                                              List[float], List[float], List[float],
-                                                             List[float], List[float], List[float]]:
+                                                             List[float], List[float], List[float],
+                                                            List[str]]:
         if llm_solver is None or not hasattr(base_analyzer, "flta_cases"):
             return ([], [], [], [], [], [], [], [], [], [], [], [], [],
                     base_analyzer.analyzed_callsites, [],
-                    [], [], [], [], [], [], [], [], [], [])
+                    [], [], [], [], [], [], [], [], [], [], [])
         assert hasattr(base_analyzer, "flta_cases")
 
         # 基于类型匹配的结果
@@ -660,8 +661,16 @@ class ProjectAnalyzer:
             mlta_nums.append(len(mlta_funcs))
             mlta_seman_nums.append(len(semantic_res))
 
+        kelp_cases = []
+        if hasattr(base_analyzer, "kelp_cases"):
+            for callsite_key, labeled_funcs in tqdm(self.ground_truths.items(),
+                                                    desc="evaluating for pure kelp cases"):
+                if callsite_key in base_analyzer.kelp_cases:
+                    kelp_cases.append(callsite_key)
+
         return (semantic_res_prec, semantic_res_recall, semantic_res_f1,
                 flta_res_prec, flta_res_recall, flta_res_f1, failed_type_cases, success_type_cases,
                 macro_cases, label_nums, flta_nums, seman_nums, local_failed_cases, base_analyzer.analyzed_callsites,
                 global_failed_cases, mlta_successful_cases, mlta_nums, mlta_seman_nums, mlta_label_nums,
-                mlta_res_prec, mlta_res_recall, mlta_res_f1, mlta_seman_res_prec, mlta_seman_res_recall, mlta_seman_res_f1)
+                mlta_res_prec, mlta_res_recall, mlta_res_f1, mlta_seman_res_prec, mlta_seman_res_recall, mlta_seman_res_f1,
+                kelp_cases)

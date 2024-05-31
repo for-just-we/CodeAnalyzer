@@ -179,6 +179,7 @@ def main():
     mlta_seman_res_prec: List[float] = list()
     mlta_seman_res_recall: List[float] = list()
     mlta_seman_res_f1: List[float] = list()
+    kelp_cases: List[str] = list()
 
     # 打印项目参数的值
     for project in projects:
@@ -224,6 +225,8 @@ def main():
         mlta_seman_res_recall.extend(items[23])
         mlta_seman_res_f1.extend(items[24])
 
+        kelp_cases.extend(items[25])
+
 
     mean = lambda res: sum(res) * 100 / len(res)
     print("total mean result: {:.1f} | {:.1f} | {:.1f} |".format(mean(precisions),
@@ -258,6 +261,7 @@ def main():
                                                                           model_name, args.temperature)
                 open("{}/flta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
 
+    print("successfully analyze {} icalls with kelp".format(len(kelp_cases)))
 
     if len(mlta_successful_cases) > 0:
         print("successfully analyze {} icalls with mlta".format(len(mlta_successful_cases)))
