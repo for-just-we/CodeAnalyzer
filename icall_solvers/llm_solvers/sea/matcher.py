@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_",
-          "wo_local_", "wo_global_"]
+          "wo_local_", "wo_global_", "wo_all_"]
 
 class SeaMatcher(BaseLLMSolver):
     def __init__(self, collector: BaseInfoCollector,
