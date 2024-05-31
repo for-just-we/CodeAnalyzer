@@ -57,11 +57,12 @@ def build_arg_parser():
     parser.add_argument("--llm_strategy", type=str, choices=['none', 'single', 'sea'],
                         default='none')
     parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp'], default='flta')
-    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(7)),
+    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(8)),
                         help="ablation type: 0 -> no ablation, "
                           "1 -> w/o caller local, 2 -> w/o caller global, "
                           "3 -> w/o callee local, 4 -> w/o callee global, "
-                          "5 -> w/o local, 6 -> w/o global")
+                          "5 -> w/o local, 6 -> w/o global,"
+                          "7 -> w/o all")
     parser.add_argument("--analyze_all", action="store_true", default=False,
                         help="Analyze all dumped icall in benchmark. Without evaluation")
 

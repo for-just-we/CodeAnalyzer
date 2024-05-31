@@ -3,7 +3,7 @@ from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
 from icall_solvers.llm_solvers.base_utils.prompts import System_ICall_Summary, \
     User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary
 from icall_solvers.llm_solvers.sea.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
-    System_multi_summary, end_multi_summary, System_Match, User_Match, User_Func_Pointer, User_Func_Addr, \
+    System_multi_summary, end_multi_summary, System_Match, User_Match, User_Match_, User_Func_Pointer, User_Func_Addr, \
     User_ICall_local, User_Func_Local
 
 from icall_solvers.llm_solvers.base_utils.prompts import supplement_prompts
@@ -189,16 +189,16 @@ class SeaMatcher(BaseLLMSolver):
 
     def process_callsite(self, parent_func_name: str, callsite_key: str, i: int, func_keys: Set[str],
                          user_prompt: str, callsite_text: str):
-        # 是否消融caller local context或者所有local context
-        if self.ablation_type not in {1, 5}:
+        # 是否消融caller local context或者所有local context, 或者消融所有的contex
+        if self.ablation_type not in {1, 5, 7}:
             icall_summary: str = self.llm_analyzer.get_response([System_ICall_Summary, user_prompt])
         else:
             icall_summary: str = ""
 
-        # 是否消融caller global context或者global context
+        # 是否消融caller global context或者global context或者全部context
         func_pointer_info = self.generate_icall_additional(callsite_key, callsite_text)
         # 能获取global context并且没有消融
-        if func_pointer_info != "" and self.ablation_type not in {2, 6}:
+        if func_pointer_info != "" and self.ablation_type not in {2, 6, 7}:
             func_pointer_summary: str = self.llm_analyzer.get_response([System_func_pointer_Summary, func_pointer_info])
         else:
             func_pointer_summary = ""
@@ -262,8 +262,8 @@ class SeaMatcher(BaseLLMSolver):
         prompt_log += "{}\n\n{}\n\n======================\n".format(system_prompt_func, user_prompt_func)
 
         # 生成target function summary
-        # 没有消融callee local context或者所有local context
-        if self.ablation_type not in {3, 5}:
+        # 没有消融callee local context或者所有local context，或者消融所有context
+        if self.ablation_type not in {3, 5, 7}:
             func_summary: str = self.llm_analyzer.get_response([system_prompt_func,
                                                             user_prompt_func])
             prompt_log += "{}:\n{}\n=========================\n".format(self.llm_analyzer.model_name,
@@ -272,8 +272,8 @@ class SeaMatcher(BaseLLMSolver):
             func_summary: str = ""
 
         # 没有消融callee global context
-        # target function address-taken site summary：
-        if self.ablation_type not in {4, 6}:
+        # target function address-taken site summary，或者消融所有context：
+        if self.ablation_type not in {4, 6, 7}:
             queries: List[str] = self.addr_taken_site_retriver.generate_queries_for_func(func_name)
             addr_summaries: List[str] = list()
             for i, query in enumerate(queries):
@@ -346,7 +346,13 @@ class SeaMatcher(BaseLLMSolver):
         else:
             func_title = ""
 
-        user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
+
+        if icall_summary_ == "" and func_pointer_summary_ == "" \
+            and func_summary_ == "" and target_addr_summary_ == "":
+            user_prompt_match: str = User_Match_.format(icall_expr=callsite_text,
+                                                        func_name=func_name)
+        else:
+            user_prompt_match: str = User_Match.format(icall_expr=callsite_text,
                                                    icall_title=icall_title,
                                                    icall_additional=func_pointer_summary_,
                                                    parent_func_name=parent_func_name,

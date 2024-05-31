@@ -45,3 +45,10 @@ The subsequent text provides the summary of the indirect-call and the correspond
 
 # Question:
 Assess if {func_name} could be one of the target function that indirect call {icall_expr} potentially invoke based solely on their respective functionalities. Please disregard additional context like detailed implementation, control- & data-flow, or types and class hierarchy for now; we'll verify that separately."""
+
+User_Match_ = """The indirect-call expression is: {icall_expr}
+
+The name of target function is: {func_name}
+
+# Question:
+Assess if {func_name} could be one of the target function that indirect call {icall_expr} potentially invoke based solely on their respective functionalities, you may guess their functionalities with information given above. Please disregard additional context like detailed implementation, control- & data-flow, or types and class hierarchy for now; we'll verify that separately."""
