@@ -8,10 +8,12 @@ def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
     parser.add_argument("--analysis_type", type=str, choices=['single_step_{}analysis',
                                                               'addr_site_v2_{}analysis'])
-    parser.add_argument("--ablation_type", type=int, default=8, choices=list(range(7)),
+    parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(8)),
                         help="ablation type: 0 -> no ablation, "
                              "1 -> w/o caller local, 2 -> w/o caller global, "
-                             "3 -> w/o callee local, 4 -> w/o callee global")
+                             "3 -> w/o callee local, 4 -> w/o callee global, "
+                             "5 -> w/o local, 6 -> w/o global,"
+                             "7 -> w/o all")
     parser.add_argument("--base_analyzer", type=str, choices=['flta', 'mlta', 'kelp', 'none'])
     parser.add_argument("--enable_semantic_for_mlta", action="store_true", default=False)
     parser.add_argument("--res_type", type=str, default='normal', choices=['normal', 'binary', 'token'])
