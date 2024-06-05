@@ -5,6 +5,13 @@ from typing import List, Set
 from analyzer import ProjectAnalyzer
 import logging
 
+suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_",
+          "wo_local_", "wo_global_", "wo_all_"]
+mapping = {
+    "sea": "addr_site_v2",
+    "single": "single_step"
+}
+
 def add_subparser(parser: argparse.ArgumentParser):
     parser.add_argument("--temperature", type=float, default=1,
                             help="temperature for llm")
@@ -257,7 +264,7 @@ def main():
                 lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(callsite_key, label_num, flta_num, seman_num,
                                    semantic_prec * 100, semantic_recall * 100, semantic_f1 * 100,
                                    flta_prec * 100, flta_recall * 100, flta_f1 * 100))
-                log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
+                log_dir = "experimental_logs/{}_{}analysis/{}/{}-{}".format(mapping[args.llm_strategy], suffix[args.ablation_type], args.running_epoch,
                                                                           model_name, args.temperature)
                 open("{}/flta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
 
@@ -285,7 +292,7 @@ def main():
                 lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(callsite_key, label_num, mlta_num, seman_num,
                                    semantic_prec * 100, semantic_recall * 100, semantic_f1 * 100,
                                    mlta_prec * 100, mlta_recall * 100, mlta_f1 * 100))
-                log_dir = "experimental_logs/{}_analysis/{}/{}-{}".format(args.llm_strategy, args.running_epoch,
+                log_dir = "experimental_logs/{}_{}analysis/{}/{}-{}".format(mapping[args.llm_strategy], suffix[args.ablation_type], args.running_epoch,
                                                                           model_name, args.temperature)
                 open("{}/mlta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
 
