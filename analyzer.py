@@ -415,15 +415,13 @@ class ProjectAnalyzer:
             return P, R, F1
 
 
-        def analyze_binary(all_potential_targets: Dict[str, Set[str]],
-                           all_ground_truths: Dict[str, Set[str]],
-                           analyzed_res: Dict[str, Set[str]], info: str):
-            partial_ground_truth: Dict[str, Set[str]] = {key: all_ground_truths[key] &
-                                                              all_potential_targets.get(key, set()) for key in
-                                                         all_ground_truths.keys()}
+        def analyze_binary(new_icall_2_target: Dict[str, Set[str]], info: str):
+            icall_2_targets1 = icall_2_targets.copy()
+            for key, values in new_icall_2_target.items():
+                icall_2_targets1[key] = icall_2_targets1.get(key, set()) | values
             acc, prec, recall, F1, fpr, fnr = \
-                evaluate_binary(partial_ground_truth, analyzed_res,
-                                all_potential_targets, self.args.enable_analysis_for_macro,
+                evaluate_binary(self.ground_truths, icall_2_targets1,
+                                icall_2_targets1, self.args.enable_analysis_for_macro,
                                 base_analyzer.macro_callsites)
             logging.getLogger("CodeAnalyzer").info(f"| {self.project}-{info} "
                          f"| {(acc * 100):.1f} | {(prec * 100):.1f} | {(recall * 100):.1f} "
@@ -436,17 +434,15 @@ class ProjectAnalyzer:
         if self.args.evaluate_uncertain:
             total_extra_callees = base_analyzer.uncertain_callees
             P, R, F1 = evaluate_icall_target(total_extra_callees, "TotalExtra")
-            line = analyze_binary(total_extra_callees, self.ground_truths,
-                           total_extra_callees, "TotalExtra-yes")
-            line1 = analyze_binary(total_extra_callees, self.ground_truths,
-                           dict(), "TotalExtra-no")
+            line = analyze_binary(total_extra_callees, "TotalExtra-yes")
+            # line1 = analyze_binary(total_extra_callees, self.ground_truths,
+            #                dict(), "TotalExtra-no")
 
         if self.args.evaluate_soly_for_llm:
             P, R, F1 = evaluate_icall_target(base_analyzer.llm_declarator_analysis,
                                   self.args.model_type + '-' + str(self.args.temperature))
-            line1 = analyze_binary(base_analyzer.uncertain_callees, self.ground_truths,
-                           base_analyzer.llm_declarator_analysis,
-                           self.args.model_type + '-' + str(self.args.temperature))
+            line1 = analyze_binary(base_analyzer.uncertain_callees,
+                                   self.args.model_type + '-' + str(self.args.temperature))
 
 
         if hasattr(base_analyzer, "llm_analyzer") and \
