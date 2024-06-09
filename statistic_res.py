@@ -26,7 +26,7 @@ def build_parser():
                                                            'Qwen1.5-14B-Chat',
                                                            'Qwen1.5-32B-Chat',
                                                            'Qwen1.5-72B-Chat',
-                                                           'Qwen2-72B-Chat',
+                                                           'Qwen2-72B-Instruct',
                                                            'llama-3-70b-instruct',
                                                            'Phi-3-mini-128k-instruct',
                                                            'Phi-3-medium-128k-instruct',
