@@ -26,8 +26,10 @@ def build_parser():
                                                            'Qwen1.5-14B-Chat',
                                                            'Qwen1.5-32B-Chat',
                                                            'Qwen1.5-72B-Chat',
+                                                           'Qwen2-72B-Chat',
                                                            'llama-3-70b-instruct',
                                                            'Phi-3-mini-128k-instruct',
+                                                           'Phi-3-medium-128k-instruct',
                                                            'codegemma-1.1-7b-it',
                                                            'Yi-1.5-34B-Chat'])
     parser.add_argument("--temperature", type=float, default=0,

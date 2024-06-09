@@ -43,11 +43,12 @@ def add_subparser(parser: argparse.ArgumentParser):
     openai_local_parser.add_argument('--address', help='server ip:port, default to 127.0.0.1:8080',
                              default='127.0.0.1:8080')
     openai_local_parser.add_argument('--model_type', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-32B-Chat',
-                                                      'Qwen1.5-72B-Chat', 'Yi-1.5-34B-Chat',
+                                                      'Qwen1.5-72B-Chat', 'Qwen2-72B-Chat', 'Yi-1.5-34B-Chat',
                                                       'CodeQwen1.5-7B-Chat',
                                                       'llama-3-70b-instruct',
                                                       'llama-3-8b-instruct',
                                                       'Phi-3-mini-128k-instruct',
+                                                      'Phi-3-medium-128k-instruct',
                                                       'codegemma-1.1-7b-it'],
                              help='specify model name used.')
     openai_local_parser.add_argument("--server_type", help="deployment framework, "

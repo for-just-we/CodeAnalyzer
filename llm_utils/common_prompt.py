@@ -18,11 +18,13 @@ summarizing_prompt_4_model = {
     "Qwen1.5-14B-Chat": qwen_1_5_template,
     "Qwen1.5-32B-Chat": qwen_1_5_template,
     "Qwen1.5-72B-Chat": qwen_1_5_template,
+    "Qwen2-72B-Chat": qwen_1_5_template,
     "CodeQwen1.5-7B-Chat": qwen_1_5_template,
     "Yi-1.5-34B-Chat": qwen_1_5_template,
     "llama-3-70b-instruct": qwen_1_5_template,
     "llama-3-8b-instruct": qwen_1_5_template,
     "Phi-3-mini-128k-instruct": qwen_1_5_template,
+    "Phi-3-medium-128k-instruct'": qwen_1_5_template,
     "codegemma-1.1-7b-it": qwen_1_5_template
 }
 
@@ -30,11 +32,13 @@ summarizing_prompt_4_model_type = {
     "Qwen1.5-14B-Chat": qwen_1_5_template_type,
     "Qwen1.5-32B-Chat": qwen_1_5_template_type,
     "Qwen1.5-72B-Chat": qwen_1_5_template_type,
+    "Qwen2-72B-Chat": qwen_1_5_template_type,
     "CodeQwen1.5-7B-Chat": qwen_1_5_template_type,
     "Yi-1.5-34B-Chat": qwen_1_5_template_type,
     "llama-3-70b-instruct": qwen_1_5_template_type,
     "llama-3-8b-instruct": qwen_1_5_template_type,
     "Phi-3-mini-128k-instruct": qwen_1_5_template_type,
+    "Phi-3-medium-128k-instruct'": qwen_1_5_template_type,
     "codegemma-1.1-7b-it": qwen_1_5_template_type
 }
 
