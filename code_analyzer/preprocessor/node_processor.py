@@ -14,6 +14,7 @@ class NodeProcessor:
     def __init__(self, unwanted_node_type: Set[str] = {}, max_depth: int = 500):
         self.unwanted_node_type: Set[str] = unwanted_node_type
         self.max_depth = max_depth
+        self.cur_file = ""
 
     # 处理类型定义
     def visit(self, node: Node, depth: int = 0) -> ASTNode:
@@ -24,7 +25,12 @@ class NodeProcessor:
             return None
         ast_node: ASTNode = ASTNode(node.type,
                                     get_node_text(node),
-                                    node.start_point, node.end_point)
+                                    node.start_point, node.end_point,
+                                    file=self.cur_file)
+        # if node.type == "function_definition":
+        #     if node.prev_sibling is not None and node.prev_sibling.type == "comment":
+        #         comment = get_node_text(node.prev_sibling)
+        #         print(node.type)
         for child in node.children:
             child_type: str = child.type
             if child_type in self.unwanted_node_type:

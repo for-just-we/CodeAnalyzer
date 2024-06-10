@@ -1,7 +1,9 @@
 
-symbol类型包括：
 
-- EnumConstant
+case studies refer to [case_studies](case_studies)
+
+
+symbol类型包括：
 
 - Struct 
 

@@ -204,6 +204,7 @@ class ProjectAnalyzer:
             code: bytes = open(file, 'rb').read()
             tree: Tree = parser.parse(code)
             root_node: ASTNode = processor.visit(tree.root_node)
+            processor.cur_file = relative_path
             funcdef_visitor.current_file = relative_path
             funcdef_visitor.traverse_node(root_node)
             global_visitor.current_file = relative_path
