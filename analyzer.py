@@ -206,7 +206,11 @@ class ProjectAnalyzer:
             root_node: ASTNode = processor.visit(tree.root_node)
             processor.cur_file = relative_path
             funcdef_visitor.current_file = relative_path
+            funcdef_visitor.set_comment_dict(processor.comment_func_dict)
             funcdef_visitor.traverse_node(root_node)
+
+            global_visitor.set_comment_struct_type(processor.comment_struct_dict,
+                                                   processor.comment_type_dict)
             global_visitor.current_file = relative_path
             global_visitor.traverse_node(root_node)
             parsed_trees.append(root_node)
@@ -280,7 +284,6 @@ class ProjectAnalyzer:
                                   raw_local_addr_sites, func_key_2_name)
 
 
-
     def analyze_infos(self, collector: BaseInfoCollector, scope_strategy,
                       raw_global_addr_sites: Dict[str, List[ASTNode]],
                       raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]],
@@ -352,7 +355,8 @@ class ProjectAnalyzer:
         llm_solver: BaseLLMSolver = None
         if self.args.llm_strategy == "single":
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
-                                                             raw_local_addr_sites, collector)
+                                                             raw_local_addr_sites, collector,
+                                                             self.args.add_comment)
             addr_taken_site_retriver.group()
             llm_solver = SingleStepMatcher(collector, self.args, base_analyzer,
                                         addr_taken_site_retriver, llm_analyzer, set(self.ground_truths.keys()),
@@ -362,7 +366,8 @@ class ProjectAnalyzer:
 
         elif self.args.llm_strategy == "sea":
             addr_taken_site_retriver = AddrTakenSiteRetriver(raw_global_addr_sites,
-                                                             raw_local_addr_sites, collector)
+                                                             raw_local_addr_sites, collector,
+                                                             self.args.add_comment)
             addr_taken_site_retriver.group()
             llm_solver = SeaMatcher(collector, self.args, base_analyzer,
                                     addr_taken_site_retriver, llm_analyzer,

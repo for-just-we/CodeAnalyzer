@@ -18,3 +18,6 @@ class ASTNode:
     def __hash__(self):
         # Custom hash function that includes the relevant fields
         return hash((self.file, self.start_point, self.end_point))
+
+    def __str__(self):
+        return self.node_text

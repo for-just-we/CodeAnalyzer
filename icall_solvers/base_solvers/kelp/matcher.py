@@ -29,6 +29,9 @@ class Kelp(BaseStaticMatcher):
         self.analyzed_callsites.update(struct_type_matcher.analyzed_callsites)
         self.local_failed_callsites.update(struct_type_matcher.local_failed_callsites)
 
+        self.icall_2_struct_comment = struct_type_matcher.icall_2_struct_comment
+        self.icall_2_type_comment = struct_type_matcher.icall_2_type_comment
+
         if hasattr(struct_type_matcher, "log_dir"):
             self.log_dir = struct_type_matcher.log_dir
 

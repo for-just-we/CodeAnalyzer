@@ -14,13 +14,15 @@ import logging
 
 # 遍历函数名称和参数列表部分
 class FunctionDeclaratorVisitor(ASTVisitor):
-    def __init__(self, parentVisitor: 'FunctionDefVisitor', func_body: ASTNode, raw_declarator_text: str, raw_return_type: str):
+    def __init__(self, parentVisitor: 'FunctionDefVisitor', func_body: ASTNode, raw_declarator_text: str, raw_return_type: str,
+                 comment: str = ""):
         self.parentVisitor: 'FunctionDefVisitor' = parentVisitor
         self.func_body: ASTNode = func_body
         self.raw_declarator_text: str = raw_declarator_text
         self.raw_return_type = raw_return_type
         # 是否找到function declarator
         self.find_func_declarator = False
+        self.comment = comment
 
     def visit_function_declarator(self, node: ASTNode):
         self.find_func_declarator = True
@@ -50,7 +52,8 @@ class FunctionDeclaratorVisitor(ASTVisitor):
                                        parameter_visitor.declarator_texts.copy(),
                                        parameter_visitor.var_arg, self.raw_declarator_text,
                                        self.func_body, self.parentVisitor.current_file, func_name,
-                                       (self.raw_return_type, pointer_level))
+                                       (self.raw_return_type, pointer_level),
+                                       self.comment)
         self.parentVisitor.func_info_dict[func_key] = func_info
         # 添加支持可变参数的函数指针形参
         if len(parameter_visitor.var_arg_var_params) > 0:
@@ -74,6 +77,9 @@ class FunctionDefVisitor(ASTVisitor):
         self.error_funcs: Dict[str, str] = dict()
         self.current_file: str = ""
         self.func_name_sets: Set[str] = set()
+
+    def set_comment_dict(self, comment_dict: Dict[ASTNode, str]):
+        self.comment_dict: Dict[ASTNode, str] = comment_dict
 
     def visit_function_definition(self, node: ASTNode):
         assert hasattr(node, "compound_statement")
@@ -105,8 +111,9 @@ class FunctionDefVisitor(ASTVisitor):
         func_body_text: str = func_body.node_text
         idx = full_text.find(func_body_text)
         raw_declarator_text: str = full_text[: idx]
+        comment = self.comment_dict.get(node, "")
         # 考虑到error_node存在
-        declarator_visitor = FunctionDeclaratorVisitor(self, func_body, raw_declarator_text, prim_type)
+        declarator_visitor = FunctionDeclaratorVisitor(self, func_body, raw_declarator_text, prim_type, comment)
         declarator_visitor.traverse_node(node)
 
         if not declarator_visitor.find_func_declarator:

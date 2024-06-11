@@ -31,6 +31,9 @@ class BaseStaticMatcher:
         self.icall_2_decl_type_text: Dict[str, str] = dict()
         self.icall_2_struct_name: Dict[str, str] = dict()
 
+        self.icall_2_type_comment: Dict[str, str] = dict()
+        self.icall_2_struct_comment: Dict[str, str] = dict()
+
         self.macro_callsites: Set[str] = set()
         # 保存每个indirect-callsite所在的function
         self.icall_2_func: Dict[str, str] = dict()

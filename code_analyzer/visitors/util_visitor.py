@@ -152,7 +152,7 @@ class VarAnalyzer(ASTVisitor):
         self.collector: BaseInfoCollector = collector
 
     # return value  [struct name, var declarator], if no struct, then ""
-    def analyze_var(self, node: ASTNode, func_key) -> Tuple[str, str, str, str]:
+    def analyze_var(self, node: ASTNode, func_key) -> Tuple[str, str, str, str, str]:
         local_var_infos: Dict[str, str] = self.collector.func_info_dict[func_key].local_var
         local_var2declarator: Dict[str, str] = self.collector.func_info_dict[func_key].local_var2declarator
         arg_infos: Dict[str, str] = {parameter_type[1]: parameter_type[0]
@@ -160,16 +160,16 @@ class VarAnalyzer(ASTVisitor):
         arg_declarators: Dict[str, str] = self.collector.func_info_dict[func_key] \
             .name_2_declarator_text
 
-        base_type, pointer_level, declarator, refered_struct_name, field_name = self.process_variable(
-            node, 0, local_var_infos, local_var2declarator, arg_infos, arg_declarators)
+        base_type, pointer_level, declarator, refered_struct_name, field_name, struct_comment = \
+            self.process_variable(node, 0, local_var_infos, local_var2declarator, arg_infos, arg_declarators)
 
-        return (declarator, refered_struct_name, base_type, field_name)
+        return (declarator, refered_struct_name, base_type, field_name, struct_comment)
 
 
     def process_variable(self, node: ASTNode, pointer_level: int, local_var_infos: Dict[str, str],
                          local_var2declarator: Dict[str, str], arg_infos: Dict[str, str],
-                         arg_declarators: Dict[str, str]) -> Tuple[str, int, str, str, str]:
-        # 1: base_type name, 2.pointer level 3: declarator text, 4: struct name 5: field name
+                         arg_declarators: Dict[str, str]) -> Tuple[str, int, str, str, str, str]:
+        # 1: base_type name, 2.pointer level 3: declarator text, 4: struct name 5: field name 6: struct comment
         if node.node_type == "identifier":
             def get_base_type(var_name: str, source_dict: Dict[str, str],
                               local_var2declarator: Dict[str, str] = None) -> Tuple[str, str]:
@@ -193,14 +193,14 @@ class VarAnalyzer(ASTVisitor):
             else:
                 base_type_name = TypeEnum.UnknownType.value
                 base_declarator = ""
-            return (base_type_name, pointer_level, base_declarator, "", "")
+            return (base_type_name, pointer_level, base_declarator, "", "", "")
 
         elif node.node_type == "char_literal":
-            return ("char", 0, "", "", "")
+            return ("char", 0, "", "", "", "")
         elif node.node_type == "string_literal":
-            return ("char", 1, "", "", "")
+            return ("char", 1, "", "", "", "")
         elif node.node_type == "concatenated_string":
-            return ("char", 1, "", "", "")
+            return ("char", 1, "", "", "", "")
 
         # 数组访问
         elif node.node_type == "subscript_expression":
@@ -226,26 +226,29 @@ class VarAnalyzer(ASTVisitor):
         # 结构体访问
         elif node.node_type == "field_expression":
             if node.child_count != 3:
-                return (TypeEnum.UnknownType.value, 0, "", "", "")
-            base_type: Tuple[str, int, str, str, str] = self.process_variable(node.children[0], 0, local_var_infos,
+                return (TypeEnum.UnknownType.value, 0, "", "", "", "")
+            base_type: Tuple[str, int, str, str, str, str] = self.process_variable(node.children[0], 0, local_var_infos,
                                          local_var2declarator, arg_infos, arg_declarators)
             # 如果解不出base的类型，那么返回未知
             if base_type[0] == TypeEnum.UnknownType.value:
-                return (TypeEnum.UnknownType.value, 0, "", "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "", "")
             # 假定src_type一定指向一个结构体类型
             src_type: Tuple[str, int] = parsing_type((base_type[0], base_type[1]))
+            struct_comment = self.collector.struct_name2comment.get(src_type[0], "")
             original_src_type, _ = get_original_type(src_type,
                                                      self.collector.type_alias_infos)
             # 如果其类型不在已知结构体类型中，直接返回未知
             if original_src_type not in self.collector.struct_infos.keys():
-                return (TypeEnum.UnknownType.value, 0, "", "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "", "")
+            if struct_comment == "":
+                struct_comment = self.collector.struct_name2comment.get(original_src_type, "")
             field_name_2_type: Dict[str, str] = self.collector.struct_infos[original_src_type]
             field_declarators: Dict[str, str] = self.collector.struct_field_declarators[original_src_type]
             # 如果找不到当前field信息，返回未知
             assert node.children[2].node_type == "field_identifier"
             field_name: str = node.children[2].node_text
             if field_name not in field_name_2_type.keys():
-                return (TypeEnum.UnknownType.value, 0, "", "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "", "")
             field_type_name: str = field_name_2_type.get(field_name)
             field_declarator: str = field_declarators.get(field_name, "")
 
@@ -255,7 +258,7 @@ class VarAnalyzer(ASTVisitor):
             f_type = field_type[0]
             if f_type == TypeEnum.FunctionType.value and f_type != field_type_name:
                 f_type = field_type_name
-            return (f_type, field_type[1] + pointer_level, field_declarator, original_src_type, field_name)
+            return (f_type, field_type[1] + pointer_level, field_declarator, original_src_type, field_name, struct_comment)
 
         # call expression
         elif node.node_type == "call_expression":
@@ -285,11 +288,11 @@ class VarAnalyzer(ASTVisitor):
                     return self.process_variable(expand_root_node, 0, local_var_infos,
                                          local_var2declarator, arg_infos, arg_declarators)
                 else:
-                    return (TypeEnum.UnknownType.value, 0, "", "", "")
+                    return (TypeEnum.UnknownType.value, 0, "", "", "", "")
             else:
                 assert len(return_type_set) == 1
                 original_src_type, ori_pointer_level = return_type_set.pop()
-                return (original_src_type, ori_pointer_level, "", "", "")
+                return (original_src_type, ori_pointer_level, "", "", "", "")
 
         # 其它复杂表达式
         else:
@@ -297,7 +300,7 @@ class VarAnalyzer(ASTVisitor):
                 return self.process_variable(node.children[0], 0, local_var_infos,
                                          local_var2declarator, arg_infos, arg_declarators)
             else:
-                return (TypeEnum.UnknownType.value, 0, "", "", "")
+                return (TypeEnum.UnknownType.value, 0, "", "", "", "")
 
 # 分析一个函数指针的变量
 class ExprAnalyzer(ASTVisitor):

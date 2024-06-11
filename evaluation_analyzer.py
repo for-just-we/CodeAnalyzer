@@ -101,6 +101,9 @@ def build_arg_parser():
                                                                      "used only in experimental setting."
                                                                      "Require --log_llm_output or --load_pre_type_analysis_res option")
 
+    # prompt时添加注释信息
+    parser.add_argument("--add_comment", action="store_true", default=False)
+
     # double_prompt表示是否采用二段式prompt策略
     parser.add_argument("--double_prompt", action="store_true", default=False)
     parser.add_argument("--only_count_scope", action="store_true", default=False, help="only count ground_truth in scope")

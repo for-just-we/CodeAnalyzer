@@ -230,6 +230,11 @@ class TypeAnalyzer(BaseStaticMatcher):
         if icall_loc in func_body_visitor.icall_2_field_name.keys():
             self.icall_2_field_name[callsite_key] = func_body_visitor.icall_2_field_name[icall_loc]
 
+        if icall_loc in func_body_visitor.icall_2_type_comment_text.keys():
+            self.icall_2_type_comment[callsite_key] = func_body_visitor.icall_2_type_comment_text[icall_loc]
+        if icall_loc in func_body_visitor.icall_2_struct_comment_text.keys():
+            self.icall_2_struct_comment[callsite_key] = func_body_visitor.icall_2_struct_comment_text[icall_loc]
+
         arg_num = 0
         var_arg = False
         arg_type: List[Tuple[str, int]] = \

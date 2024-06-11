@@ -59,9 +59,11 @@ additional_template = " You may first analyze the purpose of the variable of str
 class AddrTakenSiteRetriver:
     def __init__(self, raw_global_addr_sites: Dict[str, List[ASTNode]],
                  raw_local_addr_sites: Dict[str, Dict[str, List[ASTNode]]],
-                 collector: BaseInfoCollector):
+                 collector: BaseInfoCollector,
+                 add_comment: bool=False):
         self.collector: BaseInfoCollector = collector
         self.var_analyzer: VarAnalyzer = VarAnalyzer(collector)
+        self.add_comment = add_comment
 
         # global scope的address-taken site只需要考虑init_declarator
         self.global_addr_sites: Dict[str, List[Tuple[ASTNode, int, ASTNode]]] = dict()
@@ -111,7 +113,7 @@ class AddrTakenSiteRetriver:
 
 
     def group(self):
-        self.init_addr_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
+        self.init_addr_infos: DefaultDict[str, DefaultDict[Tuple[str, str, str],
                                            Set[Tuple[str, str, str]]]] = \
                                 defaultdict(lambda: defaultdict(set))
 
@@ -119,12 +121,12 @@ class AddrTakenSiteRetriver:
         for func_name, declarator_infos in tqdm(self.global_addr_sites.items(), desc="grouping global declarators"):
             for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                 top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
-                struct_decl, ori_var_type, init_node_text = \
+                struct_decl, ori_var_type, init_node_text, struct_comment = \
                     self.retrive_info_from_declarator(addr_taken_site_top,
                                                           addr_taken_site, init_level,
                                                           self.collector.global_var_info)
-                self.init_addr_infos[func_name][(struct_decl,
-                                    ori_var_type)].add((init_node_text, "", top_level_var_decl))
+                self.init_addr_infos[func_name][(struct_decl, ori_var_type, struct_comment)]\
+                            .add((init_node_text, "", top_level_var_decl))
 
 
         # local init declarator
@@ -132,23 +134,24 @@ class AddrTakenSiteRetriver:
             for func_key, declarator_infos in local_declarator_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in declarator_infos:
                     top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
-                    struct_decl, ori_var_type, init_node_text = \
+                    struct_decl, ori_var_type, init_node_text, struct_comment = \
                         self.retrive_info_from_declarator(addr_taken_site_top,
                                                           addr_taken_site, init_level,
                                                           self.collector.func_info_dict[func_key].local_var)
-                    self.init_addr_infos[func_name][(struct_decl,
-                                                     ori_var_type)].add((init_node_text, func_key, top_level_var_decl))
+                    self.init_addr_infos[func_name][(struct_decl, ori_var_type, struct_comment)]\
+                                .add((init_node_text, func_key, top_level_var_decl))
 
         # assignment expression
-        self.local_assignment_infos: DefaultDict[str, DefaultDict[Tuple[str, str],
+        self.local_assignment_infos: DefaultDict[str, DefaultDict[Tuple[str, str, str, str],
                                                                   Set[Tuple[str, str, str, str]]]] = \
             defaultdict(lambda :defaultdict(set))
         for func_name, assignment_infos in tqdm(self.local_assignment_exprs.items(), desc="grouping local assignments"):
             for func_key, assignment_info in assignment_infos.items():
                 for addr_taken_site_top, init_level, addr_taken_site in assignment_info:
                     declarator, refered_struct_name, struct_decl_text, \
-                    var_text, assign_node_text = self.retrive_info_from_assignment(addr_taken_site_top, func_key)
-                    self.local_assignment_infos[func_name][(refered_struct_name, struct_decl_text)]\
+                    var_text, assign_node_text, struct_comment, type_def = \
+                        self.retrive_info_from_assignment(addr_taken_site_top, func_key)
+                    self.local_assignment_infos[func_name][(refered_struct_name, struct_decl_text, struct_comment, type_def)]\
                         .add((declarator, var_text, assign_node_text, func_key))
 
         # call expression
@@ -178,22 +181,23 @@ class AddrTakenSiteRetriver:
     def generate_queries_for_func(self, func_name, add_end: bool=True) -> List[str]:
         queries: List[str] = list()
         # init declarator
-        declarator_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str, str]]] = self.init_addr_infos[func_name]
+        declarator_infos: DefaultDict[Tuple[str, str, str], Set[Tuple[str, str, str]]] = self.init_addr_infos[func_name]
         for decl_info, init_node_decls in declarator_infos.items():
-            struct_decl, ori_var_type = decl_info
+            struct_decl, ori_var_type, struct_comment = decl_info
             init_node_text, func_key, top_level_var_decl = random.choice(list(init_node_decls))
             queries.append(self.generate_text_for_declarator(func_name, struct_decl,
                                               ori_var_type, init_node_text, func_key, top_level_var_decl, 1,
-                                                add_end))
+                                                add_end, struct_comment))
 
         # assignment expression
-        assignment_infos: DefaultDict[Tuple[str, str], Set[Tuple[str, str, str, str]]] \
+        assignment_infos: DefaultDict[Tuple[str, str, str, str], Set[Tuple[str, str, str, str]]] \
                         = self.local_assignment_infos[func_name]
         for struct_info, decl_infos in assignment_infos.items():
-            refered_struct_name, struct_decl_text = struct_info
+            refered_struct_name, struct_decl_text, struct_comment, type_def = struct_info
             declarator, var_text, assign_node_text, func_key = random.choice(list(decl_infos))
             queries.append(self.generate_text_for_assignment(func_name, declarator, refered_struct_name,
-                                              struct_decl_text, var_text, assign_node_text, func_key, 1, add_end))
+                                              struct_decl_text, var_text, assign_node_text, func_key, 1, add_end,
+                                                             struct_comment=struct_comment, type_def=type_def))
 
         # call expression
         call_expr_arg_idxs = self.call_expr_arg_idx[func_name]
@@ -219,52 +223,54 @@ class AddrTakenSiteRetriver:
 
         return queries
 
-    def random_select_one(self, func_name) -> str:
-        # 第3个表示作用域是否是global，否则就是local
-        # 首先从全局部分筛选
-        if len(self.global_addr_sites.get(func_name, [])) > 0:
-            addr_taken_site_top, init_level, addr_taken_site = random.choice(self.global_addr_sites[func_name])
-            top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
-            struct_decl, ori_var_type, init_node_text = \
-                self.retrive_info_from_declarator(addr_taken_site_top,
-                                                  addr_taken_site, init_level,
-                                                  self.collector.global_var_info)
-            return self.generate_text_for_declarator(func_name,
-                                struct_decl, ori_var_type, init_node_text, "", top_level_var_decl)
-
-        elif len(self.local_declarators[func_name]) > 0:
-            func_key: str = random.choice(list(self.local_declarators[func_name].keys()))
-            addr_taken_site_top, init_level, addr_taken_site \
-                = random.choice(self.local_declarators[func_name][func_key])
-            top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
-            struct_decl, ori_var_type, init_node_text = \
-                self.retrive_info_from_declarator(addr_taken_site_top,
-                                                  addr_taken_site, init_level,
-                                                  self.collector.func_info_dict[func_key].local_var)
-            return self.generate_text_for_declarator(func_name, struct_decl,
-                                                     ori_var_type, init_node_text, func_key, top_level_var_decl)
-
-        elif len(self.local_assignment_exprs[func_name]) > 0:
-            func_key: str = random.choice(list(self.local_assignment_exprs[func_name].keys()))
-            addr_taken_site_top, init_level, addr_taken_site \
-                = random.choice(self.local_assignment_exprs[func_name][func_key])
-            declarator, refered_struct_name, struct_decl_text, \
-                var_text, assign_node_text = self.retrive_info_from_assignment(addr_taken_site_top, func_key)
-
-            return self.generate_text_for_assignment(func_name, declarator, refered_struct_name, struct_decl_text,
-                var_text, assign_node_text, func_key)
-
-        elif len(self.local_call_expr[func_name]) > 0:
-            call_nodes: List[Tuple[ASTNode, int]] = self.local_call_expr[func_name]
-            addr_taken_site: Tuple[ASTNode, int] = random.choice(call_nodes)
-            return "The address of target function {func_name} is used as a arguments of call expression: {call_expr}, " \
-                   "which can also help you analyze the functionality of function {func_name}."\
-                .format(func_name=func_name, call_expr=addr_taken_site[0].node_text)
-
-        return ""
+    # def random_select_one(self, func_name) -> str:
+    #     # 第3个表示作用域是否是global，否则就是local
+    #     # 首先从全局部分筛选
+    #     if len(self.global_addr_sites.get(func_name, [])) > 0:
+    #         addr_taken_site_top, init_level, addr_taken_site = random.choice(self.global_addr_sites[func_name])
+    #         top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
+    #         struct_decl, ori_var_type, init_node_text, struct_comment = \
+    #             self.retrive_info_from_declarator(addr_taken_site_top,
+    #                                               addr_taken_site, init_level,
+    #                                               self.collector.global_var_info)
+    #         return self.generate_text_for_declarator(func_name,
+    #                             struct_decl, ori_var_type, init_node_text, "", top_level_var_decl, struct_comment=struct_comment)
+    #
+    #     elif len(self.local_declarators[func_name]) > 0:
+    #         func_key: str = random.choice(list(self.local_declarators[func_name].keys()))
+    #         addr_taken_site_top, init_level, addr_taken_site \
+    #             = random.choice(self.local_declarators[func_name][func_key])
+    #         top_level_var_decl = addr_taken_site_top.parent.node_text.split('=')[0]
+    #         struct_decl, ori_var_type, init_node_text, struct_comment = \
+    #             self.retrive_info_from_declarator(addr_taken_site_top,
+    #                                               addr_taken_site, init_level,
+    #                                               self.collector.func_info_dict[func_key].local_var)
+    #         return self.generate_text_for_declarator(func_name, struct_decl,
+    #                                                  ori_var_type, init_node_text, func_key, top_level_var_decl,
+    #                                                  struct_comment=struct_comment)
+    #
+    #     elif len(self.local_assignment_exprs[func_name]) > 0:
+    #         func_key: str = random.choice(list(self.local_assignment_exprs[func_name].keys()))
+    #         addr_taken_site_top, init_level, addr_taken_site \
+    #             = random.choice(self.local_assignment_exprs[func_name][func_key])
+    #         declarator, refered_struct_name, struct_decl_text, \
+    #             var_text, assign_node_text, struct_comment, type_def = \
+    #             self.retrive_info_from_assignment(addr_taken_site_top, func_key)
+    #
+    #         return self.generate_text_for_assignment(func_name, declarator, refered_struct_name, struct_decl_text,
+    #             var_text, assign_node_text, func_key, type_def=type_def)
+    #
+    #     elif len(self.local_call_expr[func_name]) > 0:
+    #         call_nodes: List[Tuple[ASTNode, int]] = self.local_call_expr[func_name]
+    #         addr_taken_site: Tuple[ASTNode, int] = random.choice(call_nodes)
+    #         return "The address of target function {func_name} is used as a arguments of call expression: {call_expr}, " \
+    #                "which can also help you analyze the functionality of function {func_name}."\
+    #             .format(func_name=func_name, call_expr=addr_taken_site[0].node_text)
+    #
+    #     return ""
 
     def generate_text_for_declarator(self, func_name, struct_decl, ori_var_type, init_node_text, func_key: str, top_level_var_decl: str, stage = 0,
-                                     add_end: bool=True) -> str:
+                                     add_end: bool=True, struct_comment: str="") -> str:
         messages = ["The target function {func_name} is address-taken in a "
                     "initializer of a variable declaration statement, "
                     "where the declaree statement is: `{decl_stmt}`, "
@@ -278,6 +284,8 @@ class AddrTakenSiteRetriver:
                             " and its struct definition is:\n```c\n{struct_decl}\n```"
                             .format(func_name=func_name, struct_type=ori_var_type, struct_decl=struct_decl))
             additional = additional_template.format(ori_var_type, func_name)
+            if self.add_comment and struct_comment != "":
+                messages.append("The comment for struct {} is: \n{}".format(ori_var_type, struct_comment))
 
         if func_key != "":
             func_info = self.collector.func_info_dict[func_key]
@@ -293,9 +301,14 @@ class AddrTakenSiteRetriver:
         return "\n\n".join(messages)
 
     def generate_text_for_assignment(self, func_name, declarator, refered_struct_name, struct_decl_text,
-                var_text, assign_node_text, func_key, stage = 0, add_end:bool = True) -> str:
+                var_text, assign_node_text, func_key, stage = 0, add_end: bool = True, struct_comment = "",
+                                     type_def = "") -> str:
         messages = ["The target function {} is address-taken in a assignment expression. "
                     "The text is `{}`, where the assigned variable is {}.".format(func_name, assign_node_text, var_text)]
+
+        if type_def != "":
+            messages.append("The type of variable taking function {}'s address is a function type. It's type definition is: {}".
+                        format(func_name, type_def))
 
         additional = ""
         if declarator != "":
@@ -304,6 +317,8 @@ class AddrTakenSiteRetriver:
                 messages.append("Where it is also a field of struct {}, "
                                 "whose definition is: \n```\n{}\n```.".format(refered_struct_name, struct_decl_text))
                 additional = additional_template.format(refered_struct_name, func_name)
+                if self.add_comment and struct_comment != "":
+                    messages.append("The comment for struct {} is: \n{}".format(refered_struct_name, struct_comment))
 
         func_info = self.collector.func_info_dict[func_key]
         cur_func_name = func_info.func_name
@@ -348,6 +363,7 @@ class AddrTakenSiteRetriver:
 
     def retrive_info_from_declarator(self, node: ASTNode, func_node: ASTNode, initializer_level: int,
                                      var_info: Dict[str, str]):
+        # 第4个item是struct comment
         assert node.node_type == "init_declarator"
         # 默认取整个initializer
         init_level_in_need = initializer_level
@@ -357,42 +373,50 @@ class AddrTakenSiteRetriver:
 
         if identifier_extractor.is_function_type \
             or identifier_extractor.is_function:
-            return ("", "", node.parent.node_text)
+            return ("", "", node.parent.node_text, "")
 
         var_name = identifier_extractor.var_name
 
         if var_name not in var_info.keys():
-            return ("", "", node.parent.node_text)
+            return ("", "", node.parent.node_text, "")
 
         var_type = var_info[var_name]
         var_type, pointer_level = parsing_type((var_type, 0))
+        struct_comment = self.collector.struct_name2comment.get(var_type, "")
+
         ori_var_type, pointer_level = get_original_type((var_type, pointer_level),
                                                         self.collector.type_alias_infos)
         # 结构体initializer
         if ori_var_type in self.collector.struct_name2declarator.keys():
             struct_decl = self.collector.struct_name2declarator[ori_var_type]
+            if struct_comment == "":
+                struct_comment = self.collector.struct_name2comment.get(ori_var_type, "")
             init_level_in_need -= pointer_level
             if init_level_in_need <= 0:
                 init_level_in_need = 1
             init_node = get_init_node_for_addr_taken(func_node, init_level_in_need)
-            return (struct_decl, ori_var_type, init_node.node_text)
+            return (struct_decl, ori_var_type, init_node.node_text, struct_comment)
 
         # 非结构体initializer
-        return ("", ori_var_type, node.parent.node_text)
+        return ("", ori_var_type, node.parent.node_text, "")
 
 
     def retrive_info_from_assignment(self, node: ASTNode, func_key: str):
         # c++语法可能导致错误
         if not (node.node_type == "assignment_expression" and node.child_count == 3):
-            return ("", "", "", node.children[0].node_text, node.node_text)
+            return ("", "", "", node.children[0].node_text, node.node_text, "", "")
         assert node.node_type == "assignment_expression" and node.child_count == 3
-        declarator, refered_struct_name, base_type, field_name = self.var_analyzer.analyze_var(node.children[0], func_key)
+        declarator, refered_struct_name, base_type, field_name, struct_comment = \
+            self.var_analyzer.analyze_var(node.children[0], func_key)
+
+        type_def = self.collector.func_type2raw_declarator.get(base_type, "")
+
         var_text = node.children[0].node_text
         struct_decl_text = ""
         if refered_struct_name != "":
             struct_decl_text = self.collector.struct_name2declarator[refered_struct_name]
         return (declarator, refered_struct_name, struct_decl_text,
-                var_text, node.node_text)
+                var_text, node.node_text, struct_comment, type_def)
 
     # 如果出现use case，那么生成针对1个use case的query，不为所有的use case生成query
     def traverse_call(self, func_name: str, func_key: str, idx: int, traversed_func_names: Set[str],
@@ -416,9 +440,11 @@ class AddrTakenSiteRetriver:
         if len(func_pointer_collector.assignment_node_infos) > 0:
             addr_taken_node, initializer_level, top_level_node = random.choice(func_pointer_collector.assignment_node_infos)
             declarator, refered_struct_name, struct_decl_text, \
-                    var_text, assign_node_text = self.retrive_info_from_assignment(top_level_node, func_key)
+                    var_text, assign_node_text, struct_comment, type_def = \
+                self.retrive_info_from_assignment(top_level_node, func_key)
             ret_message = self.generate_text_for_traverse_call(func_name, declarator, refered_struct_name,
-                                                            struct_decl_text, var_text, assign_node_text)
+                                                            struct_decl_text, var_text, assign_node_text,
+                                                               struct_comment=struct_comment, type_def=type_def)
             return ret_message
 
         # 如果use case包含直接调用
@@ -445,15 +471,22 @@ class AddrTakenSiteRetriver:
         return ret_message
 
     def generate_text_for_traverse_call(self, func_name, declarator, refered_struct_name, struct_decl_text,
-                var_text, assign_node_text) -> str:
+                var_text, assign_node_text, struct_comment, type_def) -> str:
         messages = ["Through the call-chain, target function {} is used in a assignment expression. "
                     "The text is {}, where the assigned variable is {}.".format(func_name, assign_node_text, var_text)]
+
+        if type_def != "":
+            messages.append("The type of variable taking function {}'s address is a function type. It's type definition is: {}".
+                        format(func_name, type_def))
 
         if declarator != "":
             messages.append("The definition of {} is {}.".format(var_text, declarator))
             if refered_struct_name != "" and struct_decl_text != "":
                 messages.append("Where it is also a field of struct {}, "
                                 "whose definition is: \n{}.".format(refered_struct_name, struct_decl_text))
+                if self.add_comment and struct_comment != "":
+                    messages.append("The comment for struct {} is: \n{}".format(refered_struct_name, struct_comment))
+
 
         return "\n".join(messages)
 

@@ -21,7 +21,10 @@ class BaseInfoCollector:
                  func_info_dict: Dict[str, FuncInfo],
                  global_visitor,
                  func_key_2_declarator: Dict[str, str],
-                 enable_analysis_for_macro: bool = False):
+                 enable_analysis_for_macro: bool = False
+                 ):
+        self.type_name2comment: Dict[str, str] = global_visitor.type_name2comment
+        self.struct_name2comment: Dict[str, str] = global_visitor.struct_name2comment
         self.func_names = func_names
         self.enable_analysis_for_macro = enable_analysis_for_macro
         self.icall_dict: DefaultDict[str, List[Tuple[int, int]]] = icall_dict

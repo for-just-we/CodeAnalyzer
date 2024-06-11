@@ -67,6 +67,16 @@ class GlobalVisitor(ASTVisitor):
         # 结构体第一个field的类型，用来作cast分析时候用, struct_name --> first field type name
         self.struct_first_field_types: Dict[str, str] = dict()
 
+        # 结构体名字到comment
+        self.struct_name2comment: Dict[str, str] = dict()
+        # 类型名到comment
+        self.type_name2comment: Dict[str, str] = dict()
+
+    def set_comment_struct_type(self, comment_struct_dict: Dict[ASTNode, str],
+                                    comment_type_dict: Dict[ASTNode, str]):
+        self.comment_struct_dict: Dict[ASTNode, str] = comment_struct_dict
+        self.comment_type_dict: Dict[ASTNode, str] = comment_type_dict
+
 
     # 全局信息获取，不访问函数定义
     def visit_function_definition(self, node: ASTNode):
@@ -112,6 +122,7 @@ class GlobalVisitor(ASTVisitor):
         # 可能会有一个类型定义定义多个类型
         assert node.child_count >= 2
         dst_type_node: ASTNode = node.children[0]
+        comment: str = self.comment_type_dict.get(node, "")
         # 先计算dst类型
         # 同等对待struct和union
         if dst_type_node.node_type in {"struct_specifier", "union_specifier"}:
@@ -160,6 +171,8 @@ class GlobalVisitor(ASTVisitor):
             if src_type != cur_dst_type and not hasattr(node, "ERROR") \
                     and dst_type_node.node_type != "macro_type_specifier":
                 self.type_alias_infos[src_type] = cur_dst_type
+                if comment != "":
+                    self.type_name2comment[src_type] = comment
         return False
 
     def process_complex_specifier(self, dst_type_node: ASTNode, type_value: str, anno_num: int):
@@ -197,10 +210,13 @@ class GlobalVisitor(ASTVisitor):
     # 结构体类型声明，不在declaration以及typedef中
     def visit_struct_specifier(self, node: ASTNode):
         # node.child_count >= 3确保不是匿名结构体以及有field_declaration_list
+        comment = self.comment_struct_dict.get(node, "")
         if node.child_count >= 3 and hasattr(node, "type_identifier"):
             type_name = node.type_identifier.node_text
             self.process_struct_specifier(node, type_name)
             self.struct_names.add(type_name)
+            if comment != "":
+                self.struct_name2comment[type_name] = comment
         return False
 
     # 联合体类型声明，不在declaration以及typedef中
@@ -284,7 +300,7 @@ class StructFieldVisitor(ASTVisitor):
 
 # 在全局范围内搜索函数引用
 class GlobalFunctionRefVisitor(ASTVisitor):
-    def __init__(self, func_set: Set[str], macro_dict: Dict[str, str] = {}):
+    def __init__(self, func_set: Set[str], macro_dict: Dict[str, str] = dict({})):
         self.func_name_set: Set[str] = func_set
         self.refered_func: Set[str] = set()
         self.macro_dict: Dict[str, str] = macro_dict

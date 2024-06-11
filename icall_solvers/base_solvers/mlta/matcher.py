@@ -25,6 +25,8 @@ class StructTypeMatcher(BaseStaticMatcher):
         self.uncertain_idxs.update(type_analyzer.uncertain_idxs)
         self.analyzed_callsites.update(type_analyzer.analyzed_callsites)
         self.local_failed_callsites.update(type_analyzer.local_failed_callsites)
+        self.icall_2_struct_comment = type_analyzer.icall_2_struct_comment
+        self.icall_2_type_comment = type_analyzer.icall_2_type_comment
 
         self.icall_2_field_name: Dict[str, str] = type_analyzer.icall_2_field_name
         self.callsite_idxs: Dict[str, int] = callsite_idxs

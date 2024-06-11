@@ -1,7 +1,7 @@
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
 from icall_solvers.llm_solvers.base_utils.prompts import System_ICall_Summary, \
-    User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary
+    User_ICall_Summary_Macro, User_ICall_Summary, System_Func_Summary, User_Func_Summary, User_Func_Summary_With_Comment
 from icall_solvers.llm_solvers.sea.prompts import System_func_pointer_Summary, System_addr_taken_site_Summary, \
     System_multi_summary, end_multi_summary, System_Match, User_Match, User_Match_, User_Func_Pointer, User_Func_Addr, \
     User_ICall_local, User_Func_Local
@@ -40,6 +40,7 @@ class SeaMatcher(BaseLLMSolver):
                  func_name_2_key: Dict[str, str] = None):
         super().__init__(collector, args, base_analyzer, llm_analyzer,
                          callsite_idxs, func_name_2_key)
+        self.add_comment: bool = args.add_comment
         self.addr_taken_site_retriver: AddrTakenSiteRetriver \
             = addr_taken_site_retriver
 
@@ -49,6 +50,10 @@ class SeaMatcher(BaseLLMSolver):
         self.icall_2_decl_type_text: Dict[str, str] = base_analyzer.icall_2_decl_type_text
         # 如果icall引用了结构体的field，找到对应的结构体名称
         self.icall_2_struct_name: Dict[str, str] = base_analyzer.icall_2_struct_name
+
+        # comment存储
+        self.icall_2_struct_comment: Dict[str, str] = base_analyzer.icall_2_struct_comment
+        self.icall_2_type_comment: Dict[str, str] = base_analyzer.icall_2_type_comment
 
         self.ablation_type: int = args.ablation_type
 
@@ -71,11 +76,24 @@ class SeaMatcher(BaseLLMSolver):
             if callsite_key in self.icall_2_decl_type_text.keys():
                 messages.append("The alias type definition of the function type is {}."
                                 .format(self.icall_2_decl_type_text[callsite_key]))
+                # 暂时不添加注释，因为可能收集到错误的注释
+                # type_comment = self.icall_2_type_comment.get(callsite_key, "")
+                # # 添加type注释
+                # if self.add_comment and type_comment != "":
+                #     messages.append("The comment for the definition of the function type is: \n{}"
+                #                     .format(type_comment))
+
             if callsite_key in self.icall_2_struct_name.keys():
                 struct_name = self.icall_2_struct_name[callsite_key]
                 struct_decl = self.collector.struct_name2declarator[struct_name]
                 messages.append("The function pointer is a field of struct {},"
                                 "where its definition is: \n{}.".format(struct_name, struct_decl))
+                # 添加struct注释
+                struct_comment = self.icall_2_struct_comment.get(callsite_key, "")
+                if self.add_comment and struct_comment != "":
+                    messages.append("The comment for struct {} is: \n{}".format(struct_name, struct_comment))
+
+                # 添加instruct
                 additional_template = " You may first analyze the purpose of struct {} then analyze the purpose of the target function pointer."
                 additional = additional_template.format(struct_name)
 
@@ -161,6 +179,7 @@ class SeaMatcher(BaseLLMSolver):
             parent_func_text: str = parent_func_info.func_def_text
             callsite_node: ASTNode = self.icall_nodes[callsite_key]
             callsite_text: str = callsite_node.node_text
+            comment: str = parent_func_info.comment
 
             # 首先找出该callsite所在function
             if callsite_key in self.macro_callsites:
@@ -172,9 +191,16 @@ class SeaMatcher(BaseLLMSolver):
                                                                    func_name=parent_func_name,
                                                                    func_body=parent_func_text)
             else:
+                if comment != "" and self.add_comment:
+                    from icall_solvers.llm_solvers.base_utils.prompts import Comment_Text
+                    comment_placeholder = Comment_Text.format(func_name=parent_func_name,
+                                                              comment_text=comment)
+                else:
+                    comment_placeholder = ""
                 user_prompt: str = User_ICall_Summary.format(icall_expr=callsite_text,
                                                              func_name=parent_func_name,
-                                                             func_body=parent_func_text)
+                                                             func_body=parent_func_text,
+                                                             comment_placeholder=comment_placeholder)
 
             self.process_callsite(parent_func_name, callsite_key, i, func_keys, user_prompt, callsite_text)
 
@@ -255,9 +281,14 @@ class SeaMatcher(BaseLLMSolver):
         func_name: str = func_info.func_name
         func_def_text: str = func_info.func_def_text
         prompt_log: str = ""
+        comment: str = func_info.comment
 
         system_prompt_func: str = System_Func_Summary.format(func_name=func_name)
-        user_prompt_func: str = User_Func_Summary.format(func_name=func_name,
+        if comment != "" and self.add_comment:
+            user_prompt_func: str = User_Func_Summary_With_Comment.format(func_name=func_name,
+                                                         func_body=func_def_text, comment=comment)
+        else:
+            user_prompt_func: str = User_Func_Summary.format(func_name=func_name,
                                                          func_body=func_def_text)
         prompt_log += "{}\n\n{}\n\n======================\n".format(system_prompt_func, user_prompt_func)
 
