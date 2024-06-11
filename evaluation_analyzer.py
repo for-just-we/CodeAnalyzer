@@ -268,7 +268,8 @@ def main():
                 lines.append("{},{},{},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(callsite_key, label_num, flta_num, seman_num,
                                    semantic_prec * 100, semantic_recall * 100, semantic_f1 * 100,
                                    flta_prec * 100, flta_recall * 100, flta_f1 * 100))
-                log_dir = "experimental_logs/{}_{}analysis/{}/{}-{}".format(mapping[args.llm_strategy], suffix[args.ablation_type], args.running_epoch,
+                suffix_ = suffix[args.ablation_type] + "wc_" if args.add_comment else suffix[args.ablation_type]
+                log_dir = "experimental_logs/{}_{}analysis/{}/{}-{}".format(mapping[args.llm_strategy], suffix_, args.running_epoch,
                                                                           model_name, args.temperature)
                 open("{}/flta_case_info.csv".format(log_dir), 'w', encoding='utf-8').write("\n".join(lines))
 

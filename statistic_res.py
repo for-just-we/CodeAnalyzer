@@ -8,6 +8,7 @@ def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
     parser.add_argument("--analysis_type", type=str, choices=['single_step_{}analysis',
                                                               'addr_site_v2_{}analysis'])
+    parser.add_argument("--add_comment", action="store_true", default=False)
     parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(8)),
                         help="ablation type: 0 -> no ablation, "
                              "1 -> w/o caller local, 2 -> w/o caller global, "
@@ -178,7 +179,8 @@ def main():
     parser = build_parser()
     args = parser.parse_args()
     running_epoch = args.running_epoch
-    analysis_type = args.analysis_type.format(suffix[args.ablation_type])
+    suffix_ = suffix[args.ablation_type] + "wc_" if args.add_comment else suffix[args.ablation_type]
+    analysis_type = args.analysis_type.format(suffix_)
     model_type = args.model_type
     temperature = args.temperature
     projects = args.projects

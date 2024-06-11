@@ -61,7 +61,8 @@ class SeaMatcher(BaseLLMSolver):
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
             root_path = get_parent_directory(os.path.realpath(__file__), 4)
-            self.log_dir = f"{root_path}/experimental_logs/addr_site_v2_{suffix[self.ablation_type]}analysis/" \
+            suffix_ = suffix[self.ablation_type] + "wc_" if self.add_comment else suffix[self.ablation_type]
+            self.log_dir = f"{root_path}/experimental_logs/addr_site_v2_{suffix_}analysis/" \
                            f"{self.args.running_epoch}/{self.llm_analyzer.model_name}/" \
                            f"{project}"
             if not os.path.exists(self.log_dir):
