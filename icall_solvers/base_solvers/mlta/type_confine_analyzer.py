@@ -117,7 +117,7 @@ class TypeConfineAnalyzer(BaseInfoAnalyzer):
         if not (cur_node.node_type == "assignment_expression" and cur_node.child_count == 3):
             return ("", "", "", cur_node.children[0].node_text, cur_node.node_text)
         assert cur_node.node_type == "assignment_expression" and cur_node.child_count == 3
-        declarator, refered_struct_name, base_type, field_name = \
+        declarator, refered_struct_name, base_type, field_name, struct_comment = \
             self.var_analyzer.analyze_var(cur_node.children[0], func_key)
 
         # 如果是struct的赋值，直接给struct用initializer_list赋初值
