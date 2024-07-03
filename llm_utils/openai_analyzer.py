@@ -96,6 +96,13 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
                 logging.getLogger("CodeAnalyzer").debug("{}, sleeping 60s".format(error_message.format(e)))
                 time.sleep(60)
             resp = (error_message.format(e), False, times)
+
+        except Exception as e:
+            times += 1
+            time.sleep(10)
+            logging.getLogger("CodeAnalyzer").debug("{}, sleeping 10s".format("An unknown error occurred: {}".format(e)))
+            resp = ("An unknown error occurred: {}".format(e), False, times)
+
         return resp
 
     def generate_response(self, diaglog: List[Dict[str, str]]) -> str:
