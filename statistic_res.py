@@ -32,7 +32,8 @@ def build_parser():
                                                            'Phi-3-mini-128k-instruct',
                                                            'Phi-3-medium-128k-instruct',
                                                            'codegemma-1.1-7b-it',
-                                                           'Yi-1.5-34B-Chat'])
+                                                           'Yi-1.5-34B-Chat',
+                                                           'Mixtral-8x7B-Instruct-v0.1'])
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
     parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")
