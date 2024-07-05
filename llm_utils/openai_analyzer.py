@@ -27,7 +27,8 @@ model_name_map: Dict[str, Dict[str, str]] = {
 
 class OpenAIAnalyzer(BaseLLMAnalyzer):
     def __init__(self, model_type: str, api_key: str, address: str, temperature: float = 0,
-                 max_tokens: int = 0, server_type = "other", add_llama3_stop: bool = False):
+                 max_tokens: int = 0, server_type = "other", add_llama3_stop: bool = False,
+                 disable_system_prompt: bool = False):
         super().__init__(model_type, temperature)
         # 必须有一个有效，如果访问远程openai服务器那么api-key不为空，如果访问本地模型那么base_url不为空
         assert not (api_key == "" and address == "")
@@ -36,6 +37,7 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
 
         self.request_model_name = model_name_map.get(server_type,
                                                      dict()).get(model_type, model_type)
+        self.disable_system_prompt = disable_system_prompt
 
         # 远程访问openai模型
         if api_key != "":
@@ -116,6 +118,8 @@ class OpenAIAnalyzer(BaseLLMAnalyzer):
         return content
 
     def get_response(self, contents: List[str], add_suffix: bool=False) -> str:
+        if len(contents) == 2 and self.disable_system_prompt:
+            contents = ["\n\n".join(contents)]
         dialog: List[Dict[str, str]] = self.generate_diaglog(contents)
         return self.generate_response(dialog)
 

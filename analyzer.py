@@ -293,7 +293,8 @@ class ProjectAnalyzer:
         if self.args.llm == "gpt":
             from llm_utils.openai_analyzer import OpenAIAnalyzer
             llm_analyzer = OpenAIAnalyzer(self.model_name, self.args.key, "",
-                                          self.args.temperature)
+                                          self.args.temperature,
+                                          disable_system_prompt=self.args.disable_system_prompt)
 
         elif self.args.llm == "google":
             from llm_utils.google_analyzer import GoogleAnalyzer

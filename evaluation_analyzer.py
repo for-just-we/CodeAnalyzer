@@ -121,6 +121,7 @@ def build_arg_parser():
 
     parser.add_argument("--log_res_to_file", action="store_true", default=False,
                         help="If true, will log analysis result to file.")
+    parser.add_argument("--disable_system_prompt", action="store_true", default=False)
 
     # 投票次数
     parser.add_argument("--vote_time", type=int, default=5, help="Vote time for llm.")
