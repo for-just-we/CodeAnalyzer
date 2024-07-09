@@ -39,8 +39,19 @@ symbol类型包括：
 - 如果调用通义千问的API，请运行 `pip install dashscope`。
 
 
+使用：
 
+- 纯类型分析，不用LLM:
 
+```
+python evaluation_analyzer.py --only_count_scope --disable_llm_for_uncertain --llm_strategy=none --base_analyzer=kelp --evaluate_uncertain --root_path=$PATH_TO_PROJECT --scope_strategy=base --num_worker=1 --projects=$PROJECT_NAME
+```
+
+- 用LLM分析:
+
+```
+python evaluation_analyzer.py --only_count_scope --log_llm_output --log_res_to_file --disable_llm_for_uncertain  --llm_strategy=sea --base_analyzer=flta --evaluate_uncertain --root_path=$PATH_TO_PROJECT --projects=$PROJECT --num_worker=12 --temperature=$TEMPERATURE --running_epoch=$EPOCH openai_local --model_type=$SELECTED_MODEL --address=$LOCAL_ADDRESS
+```
 
 
 # 2.LLM的部署
