@@ -4,9 +4,8 @@ import argparse
 from typing import List, Set
 from analyzer import ProjectAnalyzer
 import logging
+from config import supported_model_list, suffix
 
-suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_",
-          "wo_local_", "wo_global_", "wo_all_"]
 mapping = {
     "sea": "addr_site_v2",
     "single": "single_step"
@@ -42,15 +41,7 @@ def add_subparser(parser: argparse.ArgumentParser):
     openai_local_parser = subparsers.add_parser('openai_local', help='using model deployed by framework support openai API')
     openai_local_parser.add_argument('--address', help='server ip:port, default to 127.0.0.1:8080',
                              default='127.0.0.1:8080')
-    openai_local_parser.add_argument('--model_type', choices=['Qwen1.5-14B-Chat', 'Qwen1.5-32B-Chat',
-                                                      'Qwen1.5-72B-Chat', 'Qwen2-72B-Instruct', 'Yi-1.5-34B-Chat',
-                                                      'CodeQwen1.5-7B-Chat',
-                                                      'llama-3-70b-instruct',
-                                                      'llama-3-8b-instruct',
-                                                      'Phi-3-mini-128k-instruct',
-                                                      'Phi-3-medium-128k-instruct',
-                                                      'codegemma-1.1-7b-it',
-                                                      'Mixtral-8x7B-Instruct-v0.1'],
+    openai_local_parser.add_argument('--model_type', choices=supported_model_list,
                              help='specify model name used.')
     openai_local_parser.add_argument("--server_type", help="deployment framework, "
             "due to swift's model name is different, we need a map", default="other", choices=["other", "swift"])

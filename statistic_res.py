@@ -1,8 +1,6 @@
 import argparse
 import os
-
-suffix = ["", "wo_caller_local_", "wo_caller_global_", "wo_callee_local_", "wo_callee_global_",
-          "wo_local_", "wo_global_", "wo_all_"]
+from config import supported_model_list, suffix
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
@@ -23,17 +21,7 @@ def build_parser():
                                                            'text-bison-001',
                                                            'chat-bison-001',
                                                            'gemini-pro',
-                                                           'qwen-max',
-                                                           'Qwen1.5-14B-Chat',
-                                                           'Qwen1.5-32B-Chat',
-                                                           'Qwen1.5-72B-Chat',
-                                                           'Qwen2-72B-Instruct',
-                                                           'llama-3-70b-instruct',
-                                                           'Phi-3-mini-128k-instruct',
-                                                           'Phi-3-medium-128k-instruct',
-                                                           'codegemma-1.1-7b-it',
-                                                           'Yi-1.5-34B-Chat',
-                                                           'Mixtral-8x7B-Instruct-v0.1'])
+                                                           'qwen-max'] + supported_model_list)
     parser.add_argument("--temperature", type=float, default=0,
                         help="temperature for llm")
     parser.add_argument("--projects", type=lambda s: s.split(','), help="One or more projects to analyze")

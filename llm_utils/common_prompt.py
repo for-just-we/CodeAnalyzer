@@ -26,7 +26,9 @@ summarizing_prompt_4_model = {
     "Phi-3-mini-128k-instruct": qwen_1_5_template,
     "Phi-3-medium-128k-instruct'": qwen_1_5_template,
     "codegemma-1.1-7b-it": qwen_1_5_template,
-    "Mixtral-8x7B-Instruct-v0.1": qwen_1_5_template
+    "Mixtral-8x7B-Instruct-v0.1": qwen_1_5_template,
+    "DeepSeek-Coder-V2-Lite-Instruct": qwen_1_5_template,
+    "DeepSeek-Coder-V2-Instruct": qwen_1_5_template
 }
 
 summarizing_prompt_4_model_type = {
@@ -41,6 +43,8 @@ summarizing_prompt_4_model_type = {
     "Phi-3-mini-128k-instruct": qwen_1_5_template_type,
     "Phi-3-medium-128k-instruct'": qwen_1_5_template_type,
     "codegemma-1.1-7b-it": qwen_1_5_template_type,
-    "Mixtral-8x7B-Instruct-v0.1": qwen_1_5_template_type
+    "Mixtral-8x7B-Instruct-v0.1": qwen_1_5_template_type,
+    "DeepSeek-Coder-V2-Lite-Instruct": qwen_1_5_template_type,
+    "DeepSeek-Coder-V2-Instruct": qwen_1_5_template_type
 }
 
