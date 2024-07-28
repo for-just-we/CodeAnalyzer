@@ -3,6 +3,7 @@ We supplement: 1.coverage report 2.manual analysis of results here
 # 1.coverage report
 
 | project | line coverage(%) | function coverage(%) | region coverage(%) |
+
 | ---- | ---- | ---- | ---- |
 | bind9 | 16.88 | 20.70 | 16.88 |
 | bluez | 39.86 | 10.80 | 32.62 |
@@ -12,6 +13,7 @@ We supplement: 1.coverage report 2.manual analysis of results here
 | gdbm |  35.38 | 50.19 | 25.08 |
 | gdk-pixbuf | 4.75 | 6.79 | 4.98 |
 | hdf5 | 13.78 | 19.93 | 6.66 |
+| igraph | 62.43 | 60.44 | 51.17 |
 | krb5 | 9.50 | 14.32 | 6.18 |
 | libpg_query | 7.39 | 4.81 | 4.55 |
 | libsndfile |  6.77 | 11.25 | 7.28 |
