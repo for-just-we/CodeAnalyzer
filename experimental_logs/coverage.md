@@ -3,7 +3,6 @@ We supplement: 1.coverage report 2.manual analysis of results here
 # 1.coverage report
 
 | project | line coverage(%) | function coverage(%) | region coverage(%) |
-
 | ---- | ---- | ---- | ---- |
 | bind9 | 16.88 | 20.70 | 16.88 |
 | bluez | 39.86 | 10.80 | 32.62 |
