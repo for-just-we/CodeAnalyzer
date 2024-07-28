@@ -14,6 +14,7 @@ We supplement: 1.coverage report 2.manual analysis of results here
 | hdf5 | 13.78 | 19.93 | 6.66 |
 | igraph | 62.43 | 60.44 | 51.17 |
 | krb5 | 9.50 | 14.32 | 6.18 |
+| libjpeg-turbo | 61.64 | 72.23 | 52.03 |
 | libpg_query | 7.39 | 4.81 | 4.55 |
 | libsndfile |  6.77 | 11.25 | 7.28 |
 | libssh | 30.66 | 41.00 | 29.94 |
