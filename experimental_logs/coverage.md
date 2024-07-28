@@ -1,35 +1,128 @@
+We supplement: 1.coverage report 2.manual analysis of results here
+
+# 1.coverage report
+
+| project | line coverage(%) | function coverage(%) | region coverage(%) |
+| ---- | ---- | ---- | ---- |
+| bind9 | 16.88 | 20.70 | 16.88 |
+| bluez | 39.86 | 10.80 | 32.62 |
+| cairo | 20.18 | 30.08 | 19.40 |
+| cyclonedds | 28.57 | 36.56 | 25.43 |
+| dovecot | 25.60 | 28.15 | 25.58 |
+| gdbm |  35.38 | 50.19 | 25.08 |
+| gdk-pixbuf | 4.75 | 6.79 | 4.98 |
+| hdf5 | 13.78 | 19.93 | 6.66 |
+| krb5 | 9.50 | 14.32 | 6.18 |
+| libpg_query | 7.39 | 4.81 | 4.55 |
+| libsndfile |  6.77 | 11.25 | 7.28 |
+| libssh | 30.66 | 41.00 | 29.94 |
+| librabbitmq | 26.60 | 44.68 | 21.84 |
+| lua | 24.14 | 25.27 | 35.87 |
+| lxc | 14.88 | 23.05 | 10.92 |
+| md4c | 97.38 | 100.00 | 92.25 |
+| mdbtools | 34.21 | 39.83 | 29.71 |
+| nginx | 18.38 | 30.05 | 20.77 |
+| oniguruma | 83.60 | 80.32 | 77.35 |
+| opensips | 11.82 | 10.29 | 10.85 |
+| pjsip | 26.33 | 31.46 | 24.18 |
+| postfix | 8.48 | 9.54 | 11.11 |
+| rtpproxy | 17.89 | 23.20 | 19.57 |
+| selinux | 42.11 | 58.63 | 38.99 |
+| sudo | 68.35 | 72.49 | 65.16 |
+| tmux | 12.78 | 22.43 | 12.14 |
+| vlc | 6.61 | 8.43 | 12.11 |
 
 
-| projects | coverage(%) |
-| ---- |-------------|
-| bind9 | 20.01       |
-| bluez | 41.26       |
-| cairo | 14.39       |
-| cyclonedds | 28.01       |
-| dovecot | 30.1        |
-| fwupd | 12.63       |
-| gdbm | 37.34       |
-| gdk-pixbuf | 4.15 |     
-| hdf5 | 15.26       |
-| igraph | 57.76       |
-| krb5 | 9.15        |
-| libdwarf | 69.24       |
-| libjpeg-turbo | 61.45       |
-| libpg_query | 11.24       |
-| libsndfile | 43.45       |
-| libssh | 39.25       |
-| librabbitmq | 65.48       |
-| lua | 23.12       |
-| lxc | 15.56       |
-| md4c | 89.12       |
-| mdbtools | 32.14       |
-| nginx | 14.24       |
-| opensips | 11.24       |
-| oniguruma | 86.27       |
-| pjsip | 27.16       |
-| postfix | 8.12        |
-| rtpproxy | 16.46       |
-| selinux | 50.95       |
-| sudo | 51.45       |
-| tmux | 11.45       |
-| vlc | 12.47       |
+# 2.manual analysis of results
+
+Due to the dynamic analysis approach we employ for generating ground truth, the issue of coverage inherently introduces false negatives within the ground truth, 
+necessitating additional manual efforts. 
+These efforts involve manually re-annotating certain samples. 
+However, given the complexity of real-world projects, we cannot ensure that the manually annotated samples are free from false positives or false negatives. 
+
+Thus, we adopt an alternative analysis method to supplement the results, as detailed in Section 4.2 (RQ1). 
+Starting from FLTA-exclusive cases (i.e., those interprocedural calls identified only by FLTA in traditional analysis), we have analyzed the results of Qwen1.5 with a temperature of 0.5 across 294 FLTA-exclusive cases, as this configuration performs best. 
+The analysis includes the number of ground-truth callees, the number of FLTA-analyzed callees, the number of SEA-analyzed callees, the F1 score of FLTA, and the F1 score of SEA. 
+Detailed information is provided [here](intermediate_res/Qwen72-0.5.csv). 
+
+## 2.1.Overall Analysis
+
+Our paper describes that in 206 cases, SEA shows improvements, in 61 cases, there is no change, and in the remaining cases, there is a decrease. 
+
+- Among 294 cases
+
+    * the average size of callee_set decrease from 33.05 to 6.18 after SEA filter.
+    
+    * the largest size of callee_set decrease from 303 to 100.
+
+    * the average ratio of callee_set / ground_truth_num decrease from 26.68 to 4.03
+
+    * the largest ratio of callee_set / ground_truth_num decrease from 303 to 49
+
+- And before SEA filter, there are 160 callers who owns callee set larger than 10, after SEA filter, the number decrease to 47.
+
+
+We continue analyze false negative and false positive problem.
+
+## 2.2.False Negative Analysis
+
+We have discussed in the last part of 4.2 (RQ1) that ambiguous semantic similarity between the caller and callee may introduce false negatives. 
+The VLC example we mention in the paper is as follows:
+
+```cpp
+// caller
+probe(cb, i < strict_total, ap)
+
+// callee
+static int generic_start(void *func, bool forced, va_list ap)
+{
+    vlc_object_t *obj = va_arg(ap, vlc_object_t *);
+    int (*activate)(vlc_object_t *) = func;
+    int ret;
+
+    obj->force = forced;
+    ret = activate(obj);
+    if (ret != VLC_SUCCESS)
+        vlc_objres_clear(obj);
+    return ret;
+}
+```
+
+LLM's analysis is:
+
+```
+Based on the provided summaries, it seems that the `generic_start` function is not directly related to the functionality of the `probe` function. 
+The `probe` function is used to test the suitability of candidate modules in the `vlc_module_load` function by calling a control function (`cb`) provided by each module. 
+On the other hand, `generic_start` is a helper function that activates a given function pointer and handles error cleanup.
+```
+
+The semantic similarity between `probe` and `generic_start` is ambiguous. Which decrease the performance of SEA.
+
+
+## 2.3.False Positive Analysis
+
+Identifying false positive analysis results poses more challenges because the false negatives in ground-truth.
+And analyze all cases one by one is time-consuming. We start we cases with higher ratio of callee_set / ground_truth_num.
+
+
+```cpp
+// caller
+io->callback(io->context);
+
+// ground-truth callee:
+static void stream_send_io(struct file_ostream *fstream) { ...}
+```
+
+Some false positives reported callees by SEA includes: `i_stream_nonuls_read`, `test_ioloop_fd_cb_left`, `iostream_pump_copy.`
+
+- `test_ioloop_fd_cb_left` is due to the hallucinations of LLM. Where the summaries generated by LLM indicates no similarity between the caller and callee, LLM still respond 'yes'.
+
+- `i_stream_nonuls_read` and `iostream_pump_copy` to a extent can be attributed to LLM. On the other hand, their similarities with caller is much stronger than `test_ioloop_fd_cb_left`, more likely to incur hallucinations.
+
+
+## 2.4.Potential Solutions
+
+To further solve false positives and false negatives. One potential solution is to conduct semantic-enhanced data-flow analysis. 
+By identifying their alias information more lightweight but not simply relying on semantic relations.
+
+Or we can study more in scnarios and functions of caller and callee. But this needs time-consuming human efforts and can increate false-negatives.
