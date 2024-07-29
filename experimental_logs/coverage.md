@@ -9,11 +9,13 @@ We supplement: 1.coverage report 2.manual analysis of results here
 | cairo | 20.18 | 30.08 | 19.40 |
 | cyclonedds | 28.57 | 36.56 | 25.43 |
 | dovecot | 25.60 | 28.15 | 25.58 |
+| fwupd | 14.64 | 18.82 | 13.55 |
 | gdbm |  35.38 | 50.19 | 25.08 |
 | gdk-pixbuf | 4.75 | 6.79 | 4.98 |
 | hdf5 | 13.78 | 19.93 | 6.66 |
 | igraph | 62.43 | 60.44 | 51.17 |
 | krb5 | 9.50 | 14.32 | 6.18 |
+| libdwarf | 49.28 | 69.49 | 44.07 |
 | libjpeg-turbo | 61.64 | 72.23 | 52.03 |
 | libpg_query | 7.39 | 4.81 | 4.55 |
 | libsndfile |  6.77 | 11.25 | 7.28 |
