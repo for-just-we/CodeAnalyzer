@@ -56,6 +56,32 @@ Assess if {target_func_name} could be one of the target function that indirect c
 Please disregard additional context like detailed implementation, control- & data-flow, or types and class hierarchy for now; we'll verify that separately."""
 
 
+User_Match_No_COT = """You are tasked with assessing whether an indirect call potentially invoke a target function, given respective contexts.
+The indirect-call expression is: {icall_expr}.
+
+# 1.context related to indirect-call
+
+## 1.1.source function
+
+It is located within function {src_func_name}, whose definition is as follows:
+
+{source_function_text}
+
+{icall_additional}
+
+# 2.context related to target function
+
+## 2.1.target function definition
+
+The target function is named: {target_func_name}, with the following definition:
+
+{target_function_text}
+
+{target_additional_information}
+
+Assess if {target_func_name} could be one of the target function that indirect call {icall_expr} potentially invoke, respond with 'yes' or 'no'."""
+
+
 User_Match_macro = """The indirect-call expression is: {icall_expr}.
 
 It is located within function {src_func_name}, whose definition is as follows:

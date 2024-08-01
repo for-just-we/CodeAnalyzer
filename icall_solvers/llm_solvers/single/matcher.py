@@ -8,7 +8,7 @@ from llm_utils.common_prompt import summarizing_prompt, summarizing_prompt_4_mod
 from llm_utils.base_analyzer import BaseLLMAnalyzer
 from icall_solvers.base_solvers.base_matcher import BaseStaticMatcher
 from icall_solvers.llm_solvers.base_llm_solver import BaseLLMSolver
-from icall_solvers.llm_solvers.single.prompt import System_Match, User_Match, User_Match_macro, supplement_prompts
+from icall_solvers.llm_solvers.single.prompt import System_Match, User_Match, User_Match_No_COT, User_Match_macro, supplement_prompts
 from icall_solvers.dir_util import get_parent_directory
 
 from tqdm import tqdm
@@ -35,6 +35,7 @@ class SingleStepMatcher(BaseLLMSolver):
         self.callsite_keys: Set[str] = callsite_keys.copy()
         self.addr_taken_site_retriver: AddrTakenSiteRetriver \
             = addr_taken_site_retriver
+        self.no_cot = args.no_cot
 
         # 严格类型匹配成功的callsite
         self.strict_type_matched_callsites: Dict[str, Set[str]] = base_analyzer.callees
@@ -58,6 +59,7 @@ class SingleStepMatcher(BaseLLMSolver):
         # 如果icall引用了结构体的field，找到对应的结构体名称
         self.icall_2_struct_name: Dict[str, str] = base_analyzer.icall_2_struct_name
 
+        res_dir = "single_no_cot_analysis" if self.no_cot else "single_step_analysis"
         # log的位置
         self.log_flag: bool = args.log_llm_output
         if self.log_flag:
@@ -65,7 +67,7 @@ class SingleStepMatcher(BaseLLMSolver):
             epoch_sig: str = str(self.args.running_epoch)
             if self.args.double_prompt:
                 epoch_sig += "-double"
-            self.log_dir = f"{root_path}/experimental_logs/single_step_analysis/{epoch_sig}/{self.llm_analyzer.model_name}/" \
+            self.log_dir = f"{root_path}/experimental_logs/{res_dir}/{epoch_sig}/{self.llm_analyzer.model_name}/" \
                            f"{project}"
             self.res_log_file = f"{self.log_dir}/semantic_result.txt"
             if not os.path.exists(self.log_dir):
@@ -246,7 +248,16 @@ class SingleStepMatcher(BaseLLMSolver):
         queries: List[str] = self.addr_taken_site_retriver.generate_queries_for_func(target_func_name, False)
         target_additional_information = "# 2.2.context of the target function's address-taken site\n" + "\n\n".join(queries)
 
-        user_prompt = User_Match.format(icall_expr=callsite_text,
+        if self.no_cot:
+            user_prompt = User_Match_No_COT.format(icall_expr=callsite_text,
+                                        src_func_name=src_func_name,
+                                        source_function_text=src_func_text,
+                                        icall_additional=icall_additional,
+                                        target_func_name=target_func_name,
+                                        target_function_text=target_func_text,
+                                        target_additional_information=target_additional_information)
+        else:
+            user_prompt = User_Match.format(icall_expr=callsite_text,
                                         src_func_name=src_func_name,
                                         source_function_text=src_func_text,
                                         icall_additional=icall_additional,
@@ -266,6 +277,7 @@ class SingleStepMatcher(BaseLLMSolver):
         func_info: FuncInfo = self.collector.func_info_dict[func_key]
         target_func_name: str = func_info.func_name
         target_func_text: str = func_info.func_def_text
+
         user_prompt = User_Match_macro.format(icall_expr=callsite_text,
                                         src_func_name=src_func_name,
                                         source_function_text=src_func_text,

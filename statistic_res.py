@@ -5,6 +5,7 @@ from config import supported_model_list, suffix
 def build_parser():
     parser = argparse.ArgumentParser(description="Command-line tool to count result.")
     parser.add_argument("--analysis_type", type=str, choices=['single_step_{}analysis',
+                                                              'single_no_cot_{}analysis',
                                                               'addr_site_v2_{}analysis'])
     parser.add_argument("--add_comment", action="store_true", default=False)
     parser.add_argument("--ablation_type", type=int, default=0, choices=list(range(8)),

@@ -95,6 +95,7 @@ def build_arg_parser():
 
     # prompt时添加注释信息
     parser.add_argument("--add_comment", action="store_true", default=False)
+    parser.add_argument("--no_cot", action="store_true", default=False)
 
     # double_prompt表示是否采用二段式prompt策略
     parser.add_argument("--double_prompt", action="store_true", default=False)
