@@ -88,6 +88,9 @@ class SingleStepMatcher(BaseLLMSolver):
                     if len(tokens) > 1:
                         func_keys.update(tokens[1].split(','))
                     func_keys = set(filter(lambda func_key:
+                                           func_key in self.type_matched_callsites.get(callsite_key, {}),
+                                           func_keys))
+                    func_keys = set(filter(lambda func_key:
                                            self.func_key_2_name.get(func_key, '') in self.collector.refered_funcs,
                                            func_keys))
                     self.matched_callsites[callsite_key] = func_keys
