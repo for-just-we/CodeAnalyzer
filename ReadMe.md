@@ -94,3 +94,28 @@ chat模板加载方式：
 
 llama3存在一个eos token问题，参考[llama3 end token](https://github.com/huggingface/text-generation-inference/issues/1781)，需要user手动设置eos token。
 不过TGI貌似2.0.2版本后修复了这个问题，不需要手动设置eos token。
+
+# 3.others
+
+[LLVM Instrumentation Pass](https://github.com/for-just-we/TraceLogPass)
+
+# 4.Citation
+
+```
+@inproceedings{10.1145/3691620.3695016,
+  author = {Cheng, Baijun and Zhang, Cen and Wang, Kailong and Shi, Ling and Liu, Yang and Wang, Haoyu and Guo, Yao and Li, Ding and Chen, Xiangqun},
+  title = {Semantic-Enhanced Indirect Call Analysis with Large Language Models},
+  year = {2024},
+  isbn = {9798400712487},
+  publisher = {Association for Computing Machinery},
+  address = {New York, NY, USA},
+  url = {https://doi.org/10.1145/3691620.3695016},
+  doi = {10.1145/3691620.3695016},
+  booktitle = {Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering},
+  pages = {430–442},
+  numpages = {13},
+  keywords = {indirect-call analysis, semantic analysis, LLM},
+  location = {Sacramento, CA, USA},
+  series = {ASE '24}
+}
+```
