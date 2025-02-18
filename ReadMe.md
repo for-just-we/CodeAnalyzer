@@ -97,7 +97,29 @@ llama3存在一个eos token问题，参考[llama3 end token](https://github.com/
 
 # 3.others
 
-[LLVM Instrumentation Pass](https://github.com/for-just-we/TraceLogPass)
+插桩用到的pass：[LLVM Instrumentation Pass](https://github.com/for-just-we/TraceLogPass)
+
+其它LLM模型：rebuttal的时候怕了两组code特定LLM作为baseline，当时（24年6月）算比较SOTA的code LLM，不过效果看起来并不是很好。
+一个可能原因是code LLM的自然语言推理能力不如general LLM。
+
+| model | model_type | precision | recall | F1 |
+| ---- | ---- | ---- | ---- | ---- |
+| deepseek-coder-instruct | code-LLM | 27.6 | 92.1 | 36.3 |
+| CodeQwen-1.5-Chat |code-LLM| 27.3 | 35.4 | 26.9 |
+| Qwen1.5-72B-Chat | general-LLM | 49.1 | 97.3 | 59.4 |
+
+为了减少LLM的query次数，我们起初试图用CodeBert计算callee的declaration和caller的文本相似度进行些简单的filter操作。
+这部分理论上不应该引入false negative。
+下表展示了分别用**余弦**和**欧氏**相似度筛选top k%的caller-callee pair时的recall，
+可以看到CodeBert会不可避免的引入false negative，top-80%的recall只有74.1%。
+因此CodeBert不适合用来进行pre-filter。
+
+
+| similarity | top 20 | 40 | 60 | 80 | 100 |
+| ---- | ---- | ---- | ---- | ---- | ---- |
+| cosine-similarity | 12.8 | 36.9 | 55.7 | 74.1 | 97.9 |
+| Euclidean-similarity | 12.3 | 36.5 | 51.3 | 71.1 | 97.9 |
+
 
 # 4.Citation
 
